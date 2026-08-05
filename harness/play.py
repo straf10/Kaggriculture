@@ -14,6 +14,7 @@ which callable in a file gets picked (review.md C2).
 import gzip
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional, Union
@@ -40,6 +41,7 @@ class PlayResult:
     metrics: dict = field(default_factory=dict)
     health: dict = field(default_factory=dict)  # {seat: [statuses seen other than ACTIVE/DONE]}
     agent_errors: list = field(default_factory=list)  # [{seat, step, stderr}]
+    diagnostics: list = field(default_factory=list)  # structured KAGGRI_RECEIPT stdout records
     clean: bool = True  # False if any seat ever hit ERROR/TIMEOUT/INVALID or printed to stderr
 
 
@@ -85,7 +87,11 @@ def resolve_agent(agent_spec: AgentSpec, *, entrypoint: Optional[str] = None) ->
             # fail identity even for an unmodified file. Replicate get_last_callable's own
             # "last callable in namespace" selection here so the comparison is meaningful.
             env = {}
-            exec(compile(source, str(path), "exec"), env)  # noqa: S102 - trusted local agent file
+            sys.path.append(str(path.parent))
+            try:
+                exec(compile(source, str(path), "exec"), env)  # noqa: S102 - trusted local agent file
+            finally:
+                sys.path.pop()
             callables = [v for v in env.values() if callable(v)]
             last = callables[-1] if callables else None
             named = env.get(entrypoint)
@@ -120,6 +126,25 @@ def _agent_errors(env) -> list:
             if seat < len(log) and log[seat] and "duration" in log[seat] and log[seat].get("stderr"):
                 errors.append({"seat": seat, "step": step, "stderr": log[seat]["stderr"][:2000]})
     return errors
+
+
+def _agent_diagnostics(env) -> list:
+    """Parse debug-only structured receipts emitted through captured stdout."""
+    prefix = "KAGGRI_RECEIPT "
+    diagnostics = []
+    for step, log in enumerate(env.logs):
+        for seat in (0, 1):
+            if seat >= len(log) or not log[seat]:
+                continue
+            for line in log[seat].get("stdout", "").splitlines():
+                if not line.startswith(prefix):
+                    continue
+                try:
+                    payload = json.loads(line[len(prefix):])
+                except json.JSONDecodeError:
+                    payload = {"malformed": line[len(prefix):]}
+                diagnostics.append({"seat": seat, "step": step, **payload})
+    return diagnostics
 
 
 def play(agent_a, agent_b, seed: int, *,
@@ -162,6 +187,7 @@ def play(agent_a, agent_b, seed: int, *,
         for seat in (0, 1)
     }
     agent_errors = _agent_errors(env)
+    diagnostics = _agent_diagnostics(env)
     clean = not health[0] and not health[1] and not agent_errors
 
     if strict and not clean:
@@ -196,5 +222,6 @@ def play(agent_a, agent_b, seed: int, *,
         metrics=computed_metrics,
         health=health,
         agent_errors=agent_errors,
+        diagnostics=diagnostics,
         clean=clean,
     )

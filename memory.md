@@ -128,3 +128,34 @@ plan.md §3.3). No `agent/` or `main.py` exists yet.
 **Next session should:** start plan.md §3.3 v0 — walking skeleton (`main.py` + `agent/` package,
 PASS everywhere, 0 market orders; acceptance: 720 steps no exception on both seats, DONE,
 bank untouched at $3.000).
+
+---
+
+## 2026-08-05 — Session: Agent v0→v1b accepted; v1c stopped
+
+**Implemented and accepted:**
+- v0 submission skeleton (`main.py`, `agent/`, vendored engine constants). Mirror acceptance:
+  720 steps, DONE/DONE, clean, $3.000/$3.000. Loader, sequential episode, seat isolation,
+  vendored parity and cross-process hash-seed determinism guards pass.
+- v0.5 harness foundation: directional `compare()` verdicts, raw orientation metrics,
+  immutable unique-namespace checkpoints with package fingerprints, replay operational metrics
+  and structured receipt collection. Synthetic negative differences are `REGRESSED`, never GO.
+- v1a staggered nine-tile carrot loop. Against `starter`: 24/24 orientation wins, median bank
+  $8.801, mean paired difference +$5.646k. Against v0: `IMPROVED`, CI +$6.207k…+$7.350k.
+- v1a′ mixed early strawberries + carrots. Against v1a: 24/24 orientation wins, median bank
+  $10.832, `IMPROVED`, CI +$1.326k…+$2.259k.
+- v1b: three daily hands, deterministic multi-unit assignment, unique task ownership and
+  observed-seed reservation. Against v1a′: 24/24 orientation wins, median bank $20.695,
+  `IMPROVED`, CI +$9.818k…+$10.909k.
+
+**Guard evidence:** `pytest tests -q` → 80 passed. The 12-seed × 2-seat v1a guard bench recorded
+zero watering losses, plant-decay loss, shed overflow and sales at/below $5. Accepted source is
+byte-identical to `runs/checkpoints/v1b` by package fingerprint.
+
+**Stopped increment:** v1c NE land expansion failed three capacity/routing variants at smoke
+gate: $13k-$18k versus about $21k for v1b, with 5-9 watering losses. Per the stop rule, all v1c
+agent changes were reverted exactly and v1d/v1e were not attempted.
+
+**Next session should:** redesign v1c around explicit per-quadrant worker capacity and
+deadline-feasible routes before buying land; then gate against immutable v1b. Do not proceed to
+animals while v1c remains regressive.

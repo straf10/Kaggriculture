@@ -9,6 +9,7 @@ import json
 import re
 from pathlib import Path
 
+from harness.checkpoint import create_checkpoint
 from harness.compare import compare
 from harness.play import play
 from harness.profile import report
@@ -52,6 +53,8 @@ def _cmd_compare(args):
     print(f"seeds={len(seeds)} both_seats={not args.single_seat}")
     print(f"wins_a={result.wins_a} wins_b={result.wins_b} ties={result.ties} "
           f"errors={len(result.errors)}")
+    print(f"episode_wins_a={result.episode_wins_a} episode_wins_b={result.episode_wins_b} "
+          f"episode_ties={result.episode_ties} median_bank_a={result.median_bank_a:.1f}")
     print(f"mean_diff={result.mean_diff:.1f} se_diff={result.se_diff:.1f} "
           f"ci95=({result.ci95[0]:.1f}, {result.ci95[1]:.1f})")
     print(f"significant={result.significant} practical={result.practical} "
@@ -72,9 +75,14 @@ def _cmd_compare(args):
             "wins_a": result.wins_a,
             "wins_b": result.wins_b,
             "ties": result.ties,
+            "episode_wins_a": result.episode_wins_a,
+            "episode_wins_b": result.episode_wins_b,
+            "episode_ties": result.episode_ties,
+            "median_bank_a": result.median_bank_a,
             "significant": result.significant,
             "practical": result.practical,
             "verdict": result.verdict,
+            "code_fingerprints": result.code_fingerprints,
         }, indent=2))
         print(f"results written to {results_path}")
 
@@ -95,6 +103,15 @@ def _cmd_profile(args):
         print(f"{label}: {'PASS' if ok else 'FAIL'}")
     if not result.clean:
         print(f"WARNING: episode was not clean — health={result.health}")
+
+
+def _cmd_checkpoint(args):
+    main_path = create_checkpoint(
+        args.version,
+        source_root=Path(args.source),
+        checkpoint_root=Path(args.out),
+    )
+    print(f"checkpoint written to {main_path}")
 
 
 def main():
@@ -133,6 +150,12 @@ def main():
     p_profile.add_argument("--steps", type=int, default=None)
     p_profile.add_argument("--seat", type=int, default=0, choices=[0, 1])
     p_profile.set_defaults(func=_cmd_profile)
+
+    p_checkpoint = sub.add_parser("checkpoint")
+    p_checkpoint.add_argument("version")
+    p_checkpoint.add_argument("--source", default=".")
+    p_checkpoint.add_argument("--out", default="runs/checkpoints")
+    p_checkpoint.set_defaults(func=_cmd_checkpoint)
 
     args = parser.parse_args()
     args.func(args)

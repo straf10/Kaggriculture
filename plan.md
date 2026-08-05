@@ -31,7 +31,7 @@
 **Τελικό deliverable των Φάσεων 0-1:** ένα `main.py` (+ πακέτο `agent/`) που:
 
 - **(α)** περνά το validation episode στο Kaggle (παίζει εναντίον αντιγράφου του εαυτού του χωρίς Error — competition_info.md:44),
-- **(β)** νικά τον built-in `"starter"` (engine_reference/kaggriculture.py:1031-1060) σε **12/12 paired seeds** τοπικά, και στα δύο seats,
+- **(β)** νικά τον built-in `"starter"` (engine_reference/kaggriculture.py:1031-1060) σε **24/24 orientation episodes** (12 seeds × 2 seats) τοπικά,
 - **(γ)** υποβάλλεται στο competition `kaggriculture` και το αρχικό rating trajectory καταγράφεται ως baseline στο `baselines/`.
 
 **Μετρήσιμα κριτήρια αποδοχής ανά βήμα** (αναλυτικά στην κάθε ενότητα):
@@ -41,9 +41,10 @@
 | 0.1 Tests | `pytest tests/test_engine_facts.py` πράσινο στο `.venv` — όλα τα §7/§2 ευρήματα καλυμμένα |
 | 0.2 Harness | `compare("starter", "pass", seeds=range(12))` τρέχει end-to-end, παράγει πίνακα diffs + αποθηκευμένα replays + timing report, αναπαραγώγιμο (ίδια νούμερα σε δεύτερο run) |
 | 0.3 CLI auth | `kaggle competitions list -s kaggriculture` επιστρέφει το competition χωρίς auth error |
-| 1.v0 | Walking skeleton: 720 steps χωρίς exception, και στα δύο seats, status DONE, bank ≥ $3.000 άθικτο |
-| 1.v1a-v1e | Κάθε increment ≥ το προηγούμενο σε 12 paired seeds (κριτήριο §6 MASTERPLAN: \|mean diff\| > 2×SE ή τουλάχιστον μη-χειροτέρευση) |
-| 1 τελικό | 12/12 wins **vs `starter`** και στα δύο seats· τοπικό bank ≥ **$40k** median **vs `starter`** (relative μετρική — η κοινή αγορά με έναν αδύναμο αντίπαλο φουσκώνει το απόλυτο bank σε σχέση με το ladder median $44.8k, review.md M11· απόλυτο καλιμπράρισμα μόνο από πραγματικά episodes, §4.3)· max turn time < 500ms |
+| 1.v0 | Walking skeleton: ένα mirror episode 720 steps, `clean=True`, τελικά statuses DONE, ακριβώς $3.000 bank σε **κάθε** seat |
+| 1.v0.5 | Ο harness αποδεικνύει ότι φορτώνει δύο διαφορετικά version checkpoints, το directional/non-inferiority verdict είναι σωστό και τα guard metrics έχουν executable tests |
+| 1.v1a-v1e | Κάθε increment περνά directional non-inferiority έναντι immutable checkpoint του προηγούμενου· αρνητικό practical diff δεν μπορεί ποτέ να είναι GO· οριακό αποτέλεσμα κλιμακώνεται από 12 σε 24-48 seeds |
+| 1 τελικό | 24/24 orientation-level wins (12 seeds × 2 seats) **vs `starter`**· median bank ≥ **$40k** στα ίδια 24 episodes (relative μετρική — η κοινή αγορά με έναν αδύναμο αντίπαλο φουσκώνει το απόλυτο bank σε σχέση με το ladder median $44.8k, review.md M11· απόλυτο καλιμπράρισμα μόνο από πραγματικά episodes, §4.3)· cold-process profile και στα δύο seats με `clean=True`, steady-state `max_turn × 3 < 1s` |
 | 2 | Submission δεκτό, validation Complete, ≥ 20 episodes καταγεγραμμένα, baseline folder γεμάτο |
 
 ---
@@ -145,7 +146,8 @@ Kaggriculture/
 
 - [x] Προσθήκη `runs/` στο `.gitignore`.
 
-**Υπογραφές (προδιαγραφή — υλοποίηση στο Βήμα 0, όχι σε αυτό το έγγραφο):**
+**Υπογραφές:** το Step-0 API παραμένει η βάση· τα πεδία με σχόλιο `v0.5` είναι pending
+επεκτάσεις που πρέπει να υλοποιηθούν πριν από το v1a.
 
 ```python
 # harness/play.py
@@ -156,38 +158,59 @@ class PlayResult:
     rewards: tuple[float, float]     # τελικό bank ανά seat (engine :937-940)
     winner: int | None               # None = tie
     statuses: tuple[str, str]        # "DONE" ή error status ανά agent
+    episode_steps: int
     replay_path: Path | None
-    turn_times: list[float] | None   # sec ανά κλήση του υπό μέτρηση agent
+    turn_times: list[float] | None   # από env.logs, περιλαμβάνει lazy import στο turn 1
     metrics: dict                    # βλ. metrics.py
+    health: dict
+    agent_errors: list[dict]
+    clean: bool
 
 def play(agent_a, agent_b, seed: int, *,
-         steps: int = 720,
+         steps: int | None = None,
          record: bool = True, run_dir: Path | None = None,
          profile_seat: int | None = None,
-         debug: bool = False) -> PlayResult:
-    """Ένα episode: make("kaggriculture", configuration={"episodeSteps": steps, "seed": seed}),
+         debug: bool = False, strict: bool = True,
+         metrics: bool = True) -> PlayResult:
+    """Ένα episode: steps=None χρησιμοποιεί το engine default.
     env.run([agent_a, agent_b]). agent_* = callable | "main.py" path | built-in name
     ("pass"/"random"/"starter"). record=True → env.toJSON() στο run_dir.
-    profile_seat → τύλιγμα του agent με harness.profile.timed()."""
+    strict=True απορρίπτει οποιοδήποτε per-step ERROR/TIMEOUT/INVALID/stderr.
+    profile_seat → timings από το ίδιο το framework/env.logs."""
 ```
 
 ```python
 # harness/compare.py
 @dataclass
 class CompareResult:
-    per_seed: list[dict]      # {seed, seat_layout, bank_a, bank_b, diff, winner}
+    per_seed: list[dict]      # v0.5: κρατά ΚΑΙ τα 2 raw orientation αποτελέσματα
+    errors: list[dict]
     mean_diff: float
     se_diff: float
-    wins_a: int; wins_b: int; ties: int
-    significant: bool         # |mean_diff| > 2*se_diff  (MASTERPLAN §6)
+    n_effective: int
+    wins_a: int; wins_b: int; ties: int       # paired-seed verdicts
+    episode_wins_a: int; episode_wins_b: int  # v0.5
+    median_bank_a: float                       # v0.5
+    ci95: tuple[float, float]
+    verdict: str              # v0.5 directional semantics
 
 def compare(agent_a, agent_b, seeds: Sequence[int], *,
             both_seats: bool = True,      # A παίζει seat 0 ΚΑΙ seat 1 ανά seed (weed RNG asymmetry, MASTERPLAN §2#6)
-            steps: int = 720,
-            run_dir: Path | None = None) -> CompareResult:
+            steps: int | None = None,
+            run_dir: Path | None = None, record: bool = False,
+            strict: bool = True, min_effect: float | None = None,
+            non_inferiority_margin: float | None = None,  # v0.5
+            resume: bool = False) -> CompareResult:
     """Paired-seed πρωτόκολλο (MASTERPLAN §6, μεθοδολογία viz cells 46-50).
     Με both_seats=True: 12 seeds → 24 episodes. Το per-seed diff για το κριτήριο
-    2×SE υπολογίζεται στο άθροισμα/μέσο των δύο seats του ίδιου seed."""
+    υπολογίζεται στο μέσο των δύο seats του ίδιου seed, αλλά τα raw orientation
+    αποτελέσματα διατηρούνται για τα acceptance gates.
+
+    Directional semantics:
+    - IMPROVED: mean_diff > 0, lower CI > 0 και mean_diff > practical margin
+    - NON_INFERIOR: lower CI >= -non_inferiority_margin
+    - REGRESSED: upper CI < -non_inferiority_margin
+    - αλλιώς INCONCLUSIVE → περισσότερα seeds· ποτέ GO από abs(mean_diff)."""
 ```
 
 ```python
@@ -196,11 +219,17 @@ def extract_metrics(env_json: dict, seat: int) -> dict:
     """Από replay JSON (env.toJSON()). Βήμα 0 minimum:
        - final_bank, bank_curve (ανά turn — εντοπισμός stalls, MASTERPLAN §6 πίνακας #2)
        - opponent_final_bank, outcome
-       Βήμα 1 επέκταση (μαζί με τους guards, §3.3):
+       Βήμα 1 επέκταση (προαπαιτούμενο v0.5, πριν χρησιμοποιηθούν οι guards):
        - weeds_lost (φυτά που έγιναν weed), animals_escaped
        - shed_overflow_burnt, units_sold_at_or_below(5), avg_sell_price ανά προϊόν vs base
        - worker_turns_moving vs working"""
 ```
+
+Τα operational metrics δεν θεωρούνται διαθέσιμα επειδή απλώς δηλώνονται εδώ. Στο v0.5
+ορίζεται και τεστάρεται ο ακριβής transition extractor για κάθε event. Για actual SELL prices,
+όπου το απλό state diff δεν αρκεί λόγω lockstep interleaving, χρησιμοποιείται deterministic
+market-trace reconstruction από τα δύο action queues και τα pre-turn states. Τα debug receipts
+του G11 συλλέγονται χωριστά από `env.logs` στο `PlayResult` — δεν υπάρχουν στο `env.toJSON()`.
 
 ```python
 # harness/profile.py
@@ -253,13 +282,19 @@ main.py                      # entrypoint υποβολής — ΜΟΝΟ shim:
 agent/
 ├── __init__.py
 ├── constants.py             # Layer-ανεξάρτητο: engine σταθερές
+├── _vendored.py             # fallback constants/market_price, parity-tested με engine 1.32.4
 ├── state.py                 # View: parse του obs dict → δομημένο snapshot
 ├── planner.py               # Layer 1: economic planner (ανά μέρα / on-event)
 ├── scheduler.py             # Layer 2: task scheduler (ανά turn)
 ├── executor.py              # Layer 3: market executor (ανά turn)
-├── config.py                # CONFIG dict — ΟΛΑ τα thresholds εδώ (έτοιμο για Φάση-2 sweeps)
+├── config.py                # nested CONFIG — planner/scheduler/executor/endgame/guards
 └── policy.py                # agent(obs) glue: state → planner (αν νέα μέρα) → scheduler → executor
 ```
+
+Το `CONFIG` schema ορίζεται πλήρως από το v0 (ακόμη κι αν τα μεταγενέστερα sections είναι
+αρχικά inactive), ώστε animals/endgame/market tuning να μη χρειαστούν αλλαγή interface:
+`planner`, `scheduler`, `executor`, `animals`, `endgame`, `guards`, `runtime`. Όλα τα iteration
+orders που επηρεάζουν actions είναι ρητά tuples/lists — όχι set iteration.
 
 **`constants.py`** (Υ6): 
 
@@ -268,10 +303,12 @@ try:
     from kaggle_environments.envs.kaggriculture.kaggriculture import (
         CROPS, ANIMALS, MARKET_PARAMS, market_price)   # engine_reference/kaggriculture.py:11-51, :178-192
 except ImportError:
-    from agent._vendored import CROPS, ANIMALS, MARKET_PARAMS, market_price  # verbatim αντίγραφο
+    from ._vendored import CROPS, ANIMALS, MARKET_PARAMS, market_price  # verbatim αντίγραφο
 ```
 
 Συν παράγωγες σταθερές: `SHED_ACCESS = [(4,4),(5,4),(4,5),(5,5)]` (:118-121), `LAND_ORDER/LAND_PRICES` (:83-84), `SHOPS` (:90-99), town demand schedule (:104).
+Το `_vendored.py` είναι μέρος του v0 deliverable και έχει parity test για constants και
+`market_price()` έναντι του installed engine — δεν αναβάλλεται μέχρι το submission.
 
 **`state.py`** — καμία απόφαση, μόνο ανάγνωση:
 
@@ -293,7 +330,8 @@ def harvestable(snap) -> list[TilePos]               # yield_units>0 (plants ώ�
 def animals_needing(snap) -> dict[TilePos, set]      # {"FEED","CARE","COLLECT_FERTILIZER","HARVEST"}
 ```
 
-**`planner.py`** — Layer 1, τρέχει στο hour 0 κάθε μέρας (ή on-event π.χ. νέο quadrant):
+**`planner.py`** — Layer 1, τρέχει στο hour 0 κάθε μέρας ή όταν observed state αποκλίνει
+από το plan (νέο quadrant, αποτυχημένη αγορά/reservation, αλλαγή season phase):
 
 ```python
 @dataclass
@@ -302,95 +340,173 @@ class DayPlan:
     hands_target: int                    # πόσα HIRE σήμερα
     buy_land: bool                       # trigger για BUY_LAND
     animal_purchases: dict[str, int]     # Φάση v1d
+    structures_to_build: dict[str, int]  # COOP/PASTURE prerequisites
     sell_floor_price: dict[str, int]     # ανά προϊόν: ελάχιστη αποδεκτή marginal τιμή
     seed_orders: dict[str, int]
+    season_phase: str                    # OPEN/GROW/LIQUIDATE
+    force_liquidation: bool
 
 def make_day_plan(snap: Snapshot, cfg: CONFIG) -> DayPlan
 ```
 
-Χρησιμοποιεί το **ακριβές** `market_price()` για marginal revenue (όχι εκτίμηση) και τα ντετερμινιστικά town intervals (MASTERPLAN §4.1). Opponent-aware λογική = Φάση 2, ΟΧΙ εδώ.
+Χρησιμοποιεί το ακριβές `market_price()` για την **own-queue** marginal εκτίμηση και τα
+ντετερμινιστικά town intervals (MASTERPLAN §4.1). Η actual execution quote μπορεί να διαφέρει
+λόγω άγνωστων same-turn orders του αντιπάλου· opponent-aware λογική = Φάση 2. Κάθε επένδυση
+(crop/animal/land) περνά horizon check ώστε η παραγωγή να προλαβαίνει HARVEST→DROP→SELL πριν
+το τέλος. Στο `LIQUIDATE` σταματούν οι μη αποσβέσιμες αγορές/φυτεύσεις και υπερισχύει το
+τελικό cash-out.
 
 **`scheduler.py`** — Layer 2, κάθε turn:
 
 ```python
 @dataclass
 class Task:
-    kind: str            # WATER/FEED/CARE/HARVEST/PLANT/FERTILIZE/COLLECT_FERTILIZER/DROP/PICKUP/DIG
+    id: str
+    kind: str            # + BUILD_COOP/BUILD_PASTURE/PLACE, εκτός των υπαρχόντων ops
     pos: tuple[int, int]
     priority: int        # χαμηλότερο = πιο επείγον
-    arg: str | None      # π.χ. crop για PLANT
+    item: str | None     # crop/animal/product
+    count: int
+    deadline_step: int
+    prerequisites: tuple[str, ...]
+    required_inventory: dict[str, int]
+    reservation_key: str | None
+
+@dataclass
+class ResourceLedger:
+    seeds: dict[str, int]       # μόνο observed seeds, ποτέ queued BUY_SEED
+    unit_inventory: list[dict]
+    shed_free: int
+    money: float
+    market_slots: int
 
 def build_tasks(snap, plan) -> list[Task]
-    # Σταθερή ιεραρχία προτεραιότητας (MASTERPLAN §5 Φάση 1):
-    # 1 WATER (φυτά με consecutive_unwatered==1 πρώτα — αύριο πεθαίνουν)
+    # Βασική ιεραρχία (πάντα με deadline/slack ως tie-break):
+    # 1 WATER (consecutive_unwatered==1: water σήμερα ή weed απόψε)
     # 2 FEED (ζώα με consecutive_unfed==1 πρώτα)
-    # 3 HARVEST ζώων στο max_held / φυτών κοντά σε decay
+    # 3 HARVEST πριν από production clipping / plant decay
     # 4 CARE, 5 HARVEST λοιπά, 6 PLANT, 7 COLLECT_FERTILIZER/FERTILIZE, 8 DROP στο shed
+    # Workflows:
+    #   seed observed → PLANT → WATER πριν EOD
+    #   BUILD_* → BUY_ANIMAL → PICKUP → MOVE → PLACE
+    #   PICKUP WHEAT → MOVE → FEED; COLLECT → carry/drop/FERTILIZE
+    #   HARVEST → carry → DROP → SELL
 
 def assign(tasks, units: list[UnitPos], snap) -> list[list[str]]
     # Greedy nearest-unit-first (Manhattan)· Hungarian ΜΟΝΟ αν το greedy αποδειχθεί
     # μετρήσιμα χειρότερο στο harness (όχι προκαταβολική πολυπλοκότητα).
+    # Deterministic order: (priority, deadline_step, slack, distance, y, x, unit_index).
+    # Task/resource reservation αποτρέπει duplicate assignment και atomic-PLANT failure.
+    # Engine execution order = farmer πρώτα, μετά hands κατά index (:912-916). Για το ίδιο
+    # tile ανατίθεται το πολύ ένα tile-op ανά turn, αλλιώς τα επόμενα units κάνουν silent no-op.
     # Επιστρέφει action ανά unit: [farmer_action, *hand_actions] — index-aligned με
     # farm["hands"] (MASTERPLAN §2#1, engine :264-268). Unit χωρίς task → κίνηση προς
     # το επόμενο task ή PASS.
 ```
 
+Το board είναι 10×10 και τα planned hands 2-4, άρα scan O(100) και greedy O(units×tasks)
+είναι αμελητέα ως προς το 1s budget. Το performance guard είναι task deduplication και
+ρητά caps — όχι Hungarian. Manhattan είναι πραγματικό shortest-path metric εδώ επειδή οι
+μονάδες συνυπάρχουν και τα LOCKED tiles είναι passable.
+
 **`executor.py`** — Layer 3, κάθε turn, ≤ 10 orders (engine :537):
 
 ```python
-def market_orders(snap, plan, cfg) -> list[list]:
-    # Σειρά μέσα στη λίστα (τα πρώτα index εκτελούνται σε καλύτερη τιμή — MASTERPLAN §2#3):
-    # 1. HIRE ×k (hour 0, ώστε τα hands να δουλέψουν όλη τη μέρα)
-    # 2. BUY_LAND (on-trigger)
-    # 3. SELL trickles: για κάθε προϊόν, πούλα μονάδες όσο
-    #    market_price(item, inv + already_queued) >= plan.sell_floor_price[item]
-    # 4. BUY_SEED / BUY_ANIMAL / BUY_PRODUCT(WHEAT για feed, μόνο αν χρειάζεται)
-    # Hard cap: len(orders) <= 10 — ποτέ σιωπηλή απόρριψη.
+def market_orders(snap, plan, ledger, scheduled_unit_actions, cfg) -> list[list]:
+    # allocate_market_slots() συνθέτει ΟΛΗ τη λίστα εντός cap — δεν φτιάχνουμε
+    # >10 orders για να τα κόψουμε μετά.
+    # Mandatory survival/procurement, price-sensitive SELL, HIRE/LAND και discretionary
+    # orders ανταγωνίζονται με ρητό slot+money+shed budget.
+    # SELL quantity: own-queue marginal model + configurable opponent safety margin.
+    # Το market βλέπει το post-unit state. Πριν από SELL γίνεται deterministic projection
+    # των scheduled HARVEST/DROP/PICKUP/consumption effects· δεν χρησιμοποιείται μόνο το
+    # pre-action snap, αλλιώς same-turn harvest/drop inventory μένει αδικαιολόγητα απούλητο.
+    # HIRE/BUY_LAND δεν δεσμεύονται μηχανικά στα index 0-1: αυτό θα χάριζε στον
+    # αντίπαλο προγενέστερα SELL quotes. Η index policy είναι μέρος του CONFIG.
+    # LIQUIDATE: πούλησε κάθε monetizable unit ακόμη και στο $1 floor — unsold = $0 reward.
+    # Hard postcondition: len(orders) <= 10.
 ```
+
+Κρίσιμη engine σειρά: τα unit actions εκτελούνται πριν το market (`:912-923`). Άρα αγορές
+και HIRE του τρέχοντος turn είναι διαθέσιμα από το επόμενο turn. HIRE στο hour 0 δίνει 23
+action turns· HIRE στο hour 23 απαγορεύεται γιατί το hand διαγράφεται στο ίδιο EOD. Ο
+scheduler δεν επιτρέπεται να καταναλώσει queued seed/wheat/animal σαν να υπήρχε ήδη.
+Στο EOD γίνεται υποχρεωτικό auto-drop όλων των unit inventories στο shed (`:821-835`,
+overflow καίγεται), μετά hands/hires_today/inventories μηδενίζονται και ο farmer respawnάρει
+στο shed (`:857-860`). Οι seeds είναι ξεχωριστό `private["seeds"]` resource: δεν περνούν από
+shed ή unit inventory και το atomic PLANT ελέγχει μόνο το observed seed dict (`:897-910`).
 
 **`policy.py`**:
 
 ```python
-_STATE_CACHE = {}   # per-process: DayPlan της τρέχουσας μέρας (ΟΧΙ κρίσιμο state —
-                    # αν χαθεί, ξαναϋπολογίζεται από το obs· ο agent μένει stateless-safe)
+_RUNTIME_BY_PLAYER = {}  # context ανά player· reset όταν step==0 ή step μειωθεί.
+                         # Κανένα correctness-critical resource δεν ζει μόνο εδώ.
 
 def agent(obs):
     snap = parse(obs)
-    plan = get_or_make_day_plan(snap)
-    farmer, hands = assign(build_tasks(snap, plan), units(snap), snap)
-    return {"farmer": farmer, "hands": hands, "market": market_orders(snap, plan, CONFIG)}
+    runtime = reset_or_get_runtime(snap)
+    plan = get_or_make_day_plan(snap, runtime)
+    tasks, ledger = build_tasks_and_ledger(snap, plan, runtime)
+    farmer, hands = assign(tasks, units(snap), snap)
+    market = market_orders(snap, plan, ledger, [farmer, *hands], CONFIG)
+    record_expected_transitions(runtime, snap, farmer, hands, market)  # debug-only receipts
+    return {"farmer": farmer, "hands": hands, "market": market}
 ```
+
+Στο mirror match τα δύο seats μοιράζονται το ίδιο imported `agent.policy` module, άρα κάθε
+runtime/cache key περιλαμβάνει `player`. Δύο διαδοχικά episodes στο ίδιο process είναι επίσης
+υποχρεωτικό test: step reset δεν πρέπει να κληρονομεί plan ή intended-action receipt.
 
 ### 3.2 Guard κανόνες — testable requirements (`tests/test_agent_guards.py`)
 
-Κάθε guard = ένα test πάνω σε replay/metrics του harness (τα G αντιστοιχούν στο checklist MASTERPLAN §6 + §5 Φάση 1):
+Κάθε guard έχει το σωστό επίπεδο test: contract/unit test για action construction και
+reservations, transition test για συγκεκριμένο engine pipeline, full-episode metric μόνο όπου
+το replay πράγματι παρατηρεί το event. Δεν βαφτίζουμε κάθε guard «replay test».
 
 | # | Guard | Testable απαίτηση |
 |---|---|---|
-| G1 | Πότισμα ημέρας φύτευσης (§7#4) | Σε πλήρες episode: **0 φυτά** χάνονται με `planted_day == weed day`· ο scheduler δεν προγραμματίζει PLANT που δεν προλαβαίνει WATER την ίδια μέρα |
+| G1 | Πότισμα ημέρας φύτευσης (§7#4) | 0 plant→weed losses από missed water· PLANT επιτρέπεται μόνο με reserved observed seed και εφικτό WATER πριν το τρέχον EOD |
 | G2 | Ατομικό PLANT (§2#4) | Ποτέ 2 units με PLANT ίδιου crop σε turn με ανεπαρκείς σπόρους — ο scheduler κάνει reserve σπόρων ανά turn |
-| G3 | Shed cap 100 (:821-835) | `shed_overflow_burnt == 0` σε κάθε bench run· ο planner πουλά/κρατά αποθέματα ώστε προβλεπόμενο end-of-day drop ≤ 100 |
-| G4 | Όχι πώληση στο floor (:636-637) | `units_sold_at_or_below($5) == 0` (configurable κατώφλι στο CONFIG)· ο executor κόβει το trickle πριν το floor |
-| G5 | FEED πριν CARE, κανένα ζώο άταιστο | `animals_escaped == 0`· wheat reserve: ο executor εξασφαλίζει `wheat διαθέσιμο ≥ #ζώα` πριν από κάθε μέρα (καλλιέργεια ή BUY_PRODUCT) |
-| G6 | Hand σε locked spawn (§7 πίνακας, discussion.md:34) | Hand στο (5,4) κινείται δυτικά το ίδιο turn· hand στο (5,5) χωρίς αγορασμένα NE/SW = εγκλωβισμένο → ο scheduler το μαρκάρει idle, δεν crash-άρει, δεν του αναθέτει tasks |
-| G7 | 10-order cap (§2#2) | `len(market) <= 10` σε **κάθε** turn (assert στο executor)· HIRE/BUY_LAND πάντα στα index 0-1 |
-| G8 | Ζώα max_held (MASTERPLAN §3.2#1) | Κανένα ζώο δεν μένει στο `max_held` για > 1 μέρα με προγραμματισμένη παραγωγή (χαμένη παραγωγή = 0) |
-| G9 | Harvest πριν το decay (§2#5) | 0 μονάδες χαμένες σε `_decay_plants` για δικά μας ώριμα one-shots |
-| G10 | Strawberry deadline | Κανένα strawberry PLANT μετά τη μέρα **13** (πλήρεις 4 παραγωγές θέλουν ηλικία 16 ≤ μέρα 29 — engine :15, :767-780)· μετά τη μέρα 13 ο planner υπολογίζει μειωμένες παραγωγές ή αποκλείει το crop |
-| G11 | Silent no-op detector (Ρίσκο #6, MASTERPLAN §7) | **Μόνο τοπικά** (debug flag στο CONFIG, off στο submission): κάθε intended action συγκρίνεται με το state του επόμενου turn· απόκλιση → log. Στο bench: 0 unexplained no-ops |
+| G3 | Shed cap 100 (:821-835) | `shed_overflow_burnt == 0`· ledger μετρά shed + όλα τα carried inventories + scheduled DROP/BUY πριν το EOD |
+| G4 | Price discipline (:629-637) | Σε OPEN/GROW: 0 actual units sold ≤ configurable threshold, με trace reconstruction· σε LIQUIDATE επιτρέπεται πώληση έως και στο $1 γιατί unsold inventory αξίζει $0 |
+| G5 | Feed logistics, κανένα ζώο άταιστο | `animals_escaped == 0`· wheat πρέπει να είναι reserved στο inventory του worker πριν το FEED, όχι απλώς queued/στο shed· BUY_PRODUCT έχει ≥1-turn lead. FEED αποτρέπει escape· CARE είναι οικονομικό yield bonus, όχι survival precondition |
+| G6 | Hand σε locked spawn (engine :309-317, :510-518) | Hands από (5,4) και (5,5) περνούν από LOCKED tiles προς unlocked εργασία· κανένα δεν χαρακτηρίζεται trapped μόνο λόγω quadrant lock |
+| G7 | 10-order/resource budget (§2#2) | `len(market) <= 10` σε κάθε turn και κάθε order καλύπτεται από predicted money/shed/slot ledger· η θέση HIRE/LAND ακολουθεί explicit index policy, όχι hardcoded 0-1 |
+| G8 | Ζώα max_held (MASTERPLAN §3.2#1) | 0 clipped production ticks· HARVEST πριν το production EOD όταν `yield_units + expected_output > max_held` |
+| G9 | Harvest πριν το decay (§2#5) | 0 μονάδες χαμένες σε `_decay_plants` για δικά μας ώριμα one-shots· deadline σε `max_lifespan_step` και decay ανά 2 steps, όχι day-only heuristic (`:730-744`) |
+| G10 | Horizon-aware strawberry deadline | Η μέρα 13 είναι μόνο production bound· PLANT επιτρέπεται αν όλες οι αναμενόμενες παραγωγές προλαβαίνουν HARVEST→DROP→SELL με βάση απόσταση/remaining turns, αλλιώς μειωμένο-value plan ή αποκλεισμός |
+| G11 | Silent no-op detector (Ρίσκο #6, MASTERPLAN §7) | Debug-only: precondition validation + action-specific expected transition receipts + boundary-aware reconciliation στο επόμενο obs· expected no-ops κατηγοριοποιούνται, unexplained = 0 |
+| G12 | Loader contract (review C2/C3) | `main.py` φορτώνει lazy όπως ο server, το exported `agent` είναι το τελευταίο callable, imports top-level, κανένα callable import μετά από αυτό |
+| G13 | Runtime isolation & determinism | Mirror seats και διαδοχικά episodes δεν μοιράζονται plan/receipts· ίδιο seed σε fresh processes και διαφορετικό `PYTHONHASHSEED` δίνει ίδιο trajectory |
+| G14 | Endgame liquidation | 0 avoidable unsold value στο τέλος· κανένα late crop/animal purchase χωρίς θετικό cashable payoff πριν το τελευταίο market turn |
+| G15 | Version identity | Κάθε `compare(new, prev)` καταγράφει διαφορετικά immutable code fingerprints/package namespaces· collision ή stale import αποτυγχάνει πριν το πρώτο seed |
+
+Το G11 δεν είναι ένα generic `state_before != state_after`. WATER/FEED/CARE στο hour 23,
+farmer reset, hand deletion, production, auto-drop, weeds και market interleaving έχουν
+action-specific postconditions. Τα receipts γράφονται structured στο local stdout και
+συλλέγονται από `env.logs`; debug είναι off στο submission.
 
 ### 3.3 Σειρά υλοποίησης — μικρά, συγκρίσιμα increments
 
-Κάθε increment: υλοποίηση → `compare(new, prev, seeds=range(12), both_seats=True)` → commit μόνο αν μη-χειρότερο (κριτήριο §1). **Ρητή διάκριση seed count (review.md M5):** 12 seeds αρκούν μόνο για τα γρήγορα, ενδιάμεσα increments v0→v1d· η τελική απόφαση (v1e, §4.3 baseline) θέλει **24-48 seeds** (MASTERPLAN §6, source of truth) πριν κλειδώσει — `harness.cli compare` προειδοποιεί πλέον όταν `n < 24`. Το v1a′ έχει **ανεβασμένη προτεραιότητα** έναντι της αρχικής εκδοχής του masterplan (MASTERPLAN §3.2.2: strawberry 70% win rate, n=441, real-ladder evidence).
+Κάθε strategic increment: υλοποίηση → contract/guard tests → immutable checkpoint με μοναδικό
+package namespace → `compare(new, prev, seeds=range(12), both_seats=True)`. Για να προχωρήσει:
+directional `IMPROVED` ή αποδεδειγμένο `NON_INFERIOR` εντός του δηλωμένου margin. Αρνητικό
+practical diff = `REGRESSED`, ποτέ GO. `INCONCLUSIVE` κλιμακώνεται σε 24-48 seeds και, αν
+παραμένει οριακό, σταματά για απόφαση — δεν βαφτίζεται μη-χειροτέρευση. Τα checkpoints στο
+`runs/checkpoints/` αντικαθιστούν την ανάγκη commit· commit/push μόνο με ρητή οδηγία χρήστη.
+Η τελική απόφαση v1e θέλει 24-48 seeds. Το v1a′ έχει ανεβασμένη προτεραιότητα λόγω του
+strawberry ladder evidence (MASTERPLAN §3.2.2).
 
-- [ ] **v0 — walking skeleton**: `main.py` + `agent/` skeleton· parse του obs, PASS παντού, 0 market orders. *Αποδοχή:* 720 steps χωρίς exception και στα 2 seats, DONE, bank $3.000. Ελέγχει το πακέτο/imports/format πριν μπει λογική.
-- [ ] **v1a — carrot loop, multi-tile**: planner με στόχο N carrot tiles στο NW, scheduler για water/harvest/replant κύκλο 3 ημερών (engine :13), executor: BUY_SEED + απλό SELL με G4. *Αποδοχή:* νικά `starter` (που δουλεύει 1 tile) σε ≥ 10/12 seeds· bank > $8k.
-- [ ] **v1a′ — strawberry loop** (νέο, MASTERPLAN §3.2.2): φύτευση strawberries νωρίς (μέρες 0-5, G10), πότισμα **κάθε δεύτερη μέρα** αρκεί (η παραγωγή στο `_daily_refresh_plants` :767-780 δεν εξαρτάται από το WATER — μόνο η επιβίωση), carrots ως cash-flow για τα $100/σπόρο. *Αποδοχή:* > v1a στο paired bench.
-- [ ] **v1b — hands**: HIRE 2-4 hands στο hour 0 (fib κόστη :667-676), assign() σε πλήρη λειτουργία, G6. *Αποδοχή:* > v1a′, μηδέν idle-crash με hands.
-- [ ] **v1c — land**: BUY_LAND NE on-trigger (χρήματα ≥ $1k + υπάρχει εργατικό δυναμικό να το δουλέψει — MASTERPLAN §3.2#7: γη χωρίς hands = νεκρό κεφάλαιο), επέκταση φυτέματος στο NE. *Αποδοχή:* > v1b.
-- [ ] **v1d — animals**: 2-4 sheep/cow (pasture :443-447, PLACE :449-461), καθημερινό FEED+CARE, COLLECT_FERTILIZER, wheat για feed (G5), pickup προϊόντων στο max_held ρυθμό (G8). Το CARE είναι υποχρεωτικό, όχι extra (MASTERPLAN §1: cared sheep +$5.575 vs +$375 fed-only). *Αποδοχή:* > v1c.
-- [ ] **v1e — trickle selling πλήρες**: executor με marginal-price κατώφλια ανά προϊόν από CONFIG, αξιοποίηση town ramp (πώληση premium αργότερα — ×2 ζήτηση από μέρα 10, ×4 από μέρα 20, engine :104, :722-725) εντός ορίων G3. *Αποδοχή:* > v1d **και** συνολικά κριτήρια Φάσης 1 (πίνακας §1: 12/12 vs starter, ≥ $40k, < 500ms/turn).
-- [ ] `tests/test_agent_guards.py` πράσινο για G1-G11 στο τελικό v1e.
+- [x] **v0 — walking skeleton**: `main.py` + `agent/` skeleton + `_vendored.py`· parse του obs, PASS παντού, 0 market orders. Το `main.py` τελειώνει με top-level import του exported `agent`. *Αποδοχή:* `play("main.py","main.py",seed=0,steps=720)` με `clean=True`, DONE, ακριβώς $3.000 και στα 2 seats· G12/G13 loader, mirror, sequential-episode, vendored-parity και cross-process determinism tests πράσινα.
+- [x] **v0.5 — measurement/checkpoint foundation**: directional/non-inferiority `compare`, raw orientation metrics + median bank, unique-namespace immutable checkpoints/G15, operational metric extractors και G11 receipt plumbing. *Αποδοχή:* synthetic negative diff = REGRESSED (ποτέ GO), A/B fingerprints διαφορετικά, crafted replays με γνωστά weeds/overflow/sales/no-ops μετρώνται ακριβώς.
+- [x] **v1a — carrot loop, multi-tile**: planner με στόχο N carrot tiles στο NW, observed-seed reservation, scheduler με deadline/slack για PLANT→WATER και harvest/replant, executor με market slot ledger και G4. *Αποδοχή:* ≥10/12 paired-seed wins και ≥20/24 orientation wins vs `starter`, median bank >$8k στα 24 episodes, G1/G2/G4/G7/G9 πράσινα.
+- [x] **v1a′ — strawberry loop** (νέο, MASTERPLAN §3.2.2): φύτευση strawberries νωρίς μόνο αν περνά G10 horizon check· πότισμα κάθε δεύτερη μέρα αρκεί μετά το υποχρεωτικό planting-day water (η παραγωγή στο `_daily_refresh_plants` :767-780 δεν εξαρτάται από WATER — μόνο η επιβίωση), carrots ως cash-flow. *Αποδοχή:* directional IMPROVED ή NON_INFERIOR vs v1a, G10 πράσινο.
+- [x] **v1b — hands**: HIRE 2-4 hands στο hour 0 (23 usable turns, fib κόστη :667-676), deterministic assign(), resource reservations και locked-tile routing από όλα τα shed spawns. *Αποδοχή:* directional gate vs v1a′, G6/G13 πράσινα, 0 unexplained idle/oscillation.
+- [ ] **v1c — land**: BUY_LAND NE on-trigger (χρήματα ≥ $1k + υπάρχει εργατικό δυναμικό να το δουλέψει — MASTERPLAN §3.2#7: γη χωρίς hands = νεκρό κεφάλαιο), επέκταση φυτέματος στο NE. *Αποδοχή:* directional gate vs v1b και επιβεβαίωση ότι observed BUY_LAND success/failure προκαλεί σωστό replan.
+  *STOP 2026-08-05:* τρεις capacity variants απέτυχαν ήδη στο smoke gate ($13k-$18k έναντι ~$21k του v1b, με 5-9 watering losses). Το working agent επανήλθε byte-for-byte στο checkpoint v1b· απαιτείται νέο routing/capacity design πριν από άλλη δοκιμή.
+- [ ] **v1d — animals**: εσωτερικά δύο guard-gated sub-builds χωρίς benchmark του μισού feature: (A) BUILD_PASTURE/COOP (`:437-447`) → BUY_ANIMAL (μπαίνει στο shed) → PICKUP → PLACE από unit inventory (`:449-461`), (B) inventory-aware FEED+CARE, COLLECT_FERTILIZER, HARVEST, wheat procurement ≥1 turn νωρίτερα. 2-4 sheep/cow· CARE απαιτείται για το οικονομικό bonus μόνο όταν συνδυάζεται με FEED, όχι για survival. *Αποδοχή:* directional gate vs v1c, G3/G5/G8/G11 πράσινα και 0 clipped animal production.
+- [ ] **v1e — full market + liquidation**: slot/money/shed allocator, post-unit inventory projection, actual-price trace metrics, marginal-price thresholds ανά προϊόν, hour-aware town demand (market πριν από town consume· center ramp + shop pulls, 2× στα single-product shops) και endgame LIQUIDATE που cash-άρει inventory ακόμη και κάτω από το normal G4 threshold. *Αποδοχή:* directional gate vs v1d σε 24-48 seeds **και** συνολικά κριτήρια Φάσης 1 (§1: 24/24 orientation wins vs starter, median ≥$40k, steady-state max×3<1s και στα 2 seats).
+- [ ] `tests/test_agent_guards.py` και loader/runtime tests πράσινα για G1-G15 στο τελικό v1e· κάθε guard έχει γίνει πράσινο από το πρώτο increment όπου είναι σχετικό, όχι μαζικά στο τέλος.
 
 ---
 
@@ -402,10 +518,10 @@ def agent(obs):
   ```powershell
   tar -czf submission.tar.gz main.py agent/
   ```
-- [ ] **Imports**: το shim του `main.py` καλύπτει `/kaggle_simulations/agent/` (competition_info.md:524)· ο vendored fallback του `constants.py` (Υ6) υπάρχει και έχει test. Προσοχή στο notebook pitfall — εμείς υποβάλλουμε από CLI, όχι notebook (discussion.md:37).
-- [ ] **Timing σε «αργό CPU»**: `python -m harness.cli profile main.py --seed 17` → `max_turn × 3 < 1s` (κανόνας §2.4· ο server έχει 1.6 vCPU — competition_info.md:526-528). Επίσης import time < 5s (μετριέται στο πρώτο turn).
-- [ ] **Deterministic check**: ίδιο seed, 2 fresh processes → ταυτόσημο αποτέλεσμα (κανένα unseeded random/clock/set-iteration — MASTERPLAN §6).
-- [ ] **Mirror smoke** (προσομοίωση του validation episode): `play("main.py", "main.py", seed=0)` — τρέχει 720 steps, κανένα error, καμία αυτοκαταστροφή αγοράς.
+- [ ] **Imports/loader**: το shim του `main.py` καλύπτει `/kaggle_simulations/agent/` (competition_info.md:524), ο exported `agent` είναι το τελευταίο callable/top-level import και ο relative vendored fallback έχει parity test. Προσοχή στο notebook pitfall — υποβολή από CLI.
+- [ ] **Timing σε «αργό CPU»**: cold-process profile και στα δύο seats. Canonical steady-state gate `max_turn × 3 < 1s` (άρα <333ms local με τον συντηρητικό multiplier), cold import/turn-1 και cumulative overage αναφέρονται χωριστά, episode `clean=True`.
+- [ ] **Deterministic check**: ίδιο seed σε 2 fresh processes και διαφορετικό `PYTHONHASHSEED` → ταυτόσημο action/state trajectory· δύο sequential episodes στο ίδιο process επίσης ταυτόσημα με fresh-process equivalents.
+- [ ] **Mirror smoke**: `play("main.py", "main.py", seed=0)` — 720 steps, `clean=True`, κανένα cache cross-talk και καμία αυτοκαταστροφή αγοράς.
 - [ ] **Μέγεθος** < 100 MiB (θα είναι KB — απλός έλεγχος).
 - [ ] `pytest tests/` πλήρως πράσινο (regression πριν από κάθε submission — MASTERPLAN §5 «Συνεχώς»).
 
@@ -424,7 +540,7 @@ kaggle competitions leaderboard kaggriculture -s
 
 ### 4.3 Τι καταγράφουμε ως baseline — `baselines/2026-08-XX/`
 
-- [ ] `local_bench.json` — output του `compare(v1e, "starter", seeds=range(24), both_seats=True)` + bank distribution (και vs `"pass"`, `"random"` — MASTERPLAN §6 checklist), **και** το mirror bank (`play("main.py","main.py")`) — πιο κοντά στη ladder δυναμική από το vs-`starter` απόλυτο νούμερο (review.md M11)
+- [ ] `local_bench.json` — output του `compare(v1e, "starter", seeds=range(24), both_seats=True)` με raw orientation rows, paired rows, code fingerprints, median bank, CI/non-inferiority verdict και bank distribution (και vs `"pass"`, `"random"`), **και** mirror bank (`play("main.py","main.py")`)
 - [ ] `validation.md` — αποτέλεσμα validation episode (pass/fail, χρόνος)
 - [ ] `rating_trajectory.csv` — rating ανά episode για τα πρώτα ~20 episodes (από `kaggle competitions episodes`, χειροκίνητο ή scripted pull 1-2 φορές/μέρα)
 - [ ] `leaderboard_snapshot.md` — θέση + rating την ημέρα 1 και ημέρα 3
@@ -436,7 +552,7 @@ kaggle competitions leaderboard kaggriculture -s
 Όρια: 5/μέρα, **μόνο τα 2 τελευταία active** και αυτά μπαίνουν στο final (competition_info.md:40, 523). Κάθε upload καίει 1 από τα 2 active slots. Πρωτόκολλο Φάσης 1-2:
 
 - 1ο upload = v1e baseline (σκόπιμα νωρίς — δωρεάν πληροφορία από την πραγματική ladder, MASTERPLAN §5).
-- 2ο upload **μόνο** όταν μια νέα έκδοση νικά την τρέχουσα στο τοπικό bench με στατιστική σημαντικότητα (κριτήριο 2×SE) — όχι «δοκιμαστικά» uploads· το mid-competition rating είναι θορυβώδες (Ρίσκο #4, MASTERPLAN §7) και οι αποφάσεις μας βασίζονται στο local bench.
+- 2ο upload **μόνο** όταν μια νέα έκδοση έχει directional `IMPROVED` verdict έναντι της τρέχουσας σε 24-48 seeds — όχι από `abs(diff)`, όχι απλή απουσία significance και όχι «δοκιμαστικά» uploads.
 
 *Προαιρετική σημείωση (όχι task):* για γρήγορο sanity-check αντιπάλων πέρα από pass/random/starter, το `data/kaggriculture-episodes/` έχει ήδη πραγματικό tier list με ονόματα (MASTERPLAN §3.2bis) — μόνο ως reference ανάγνωσης, εκτός deliverable.
 
@@ -453,20 +569,20 @@ kaggle competitions leaderboard kaggriculture -s
 | 0.1 test_engine_facts.py | 0.5-1 μέρα | 08-06 |
 | 0.2 harness | 1-1.5 μέρες | 08-07 |
 | 0.3 CLI auth check | 0.5 ώρα (μέσα στο 0.1) | 08-06 |
-| 1 v0 → v1e | 4-6 μέρες (το v1d/animals το βαρύτερο) | 08-08 → 08-14 |
+| 1 v0 → v1e | 5-8 μέρες (προστέθηκε v0.5 measurement/checkpoint foundation· v1d βαρύτερο) | 08-08 → 08-17 |
 | 2 submission + baseline | 0.5 μέρα + 2-3 μέρες παθητικής παρακολούθησης | **πρώτο submission ~08-14/15** |
 
-Συνολικά ~6-9 εργάσιμες → πρώτο submission άνετα εντός Αυγούστου (στόχος MASTERPLAN §5: Φάσεις 0-1 μέσα στον Αύγουστο), με ~2 εβδομάδες buffer πριν την ενδεικτική μετάβαση σε Φάση 2 αρχές Σεπτεμβρίου.
+Συνολικά ~7-11 εργάσιμες → πρώτο submission εντός Αυγούστου, με buffer πριν την ενδεικτική μετάβαση σε Φάση 2 αρχές Σεπτεμβρίου.
 
 ### 5.2 Top-5 κίνδυνοι αυτών των 2 φάσεων & fallbacks
 
 | # | Κίνδυνος | Πιθανό σύμπτωμα | Fallback |
 |---|---|---|---|
-| 1 | **Silent no-ops** (το engine δεν πετά ποτέ σφάλμα — MASTERPLAN §7 Ρίσκο #6): bug στο action format χαμηλώνει το σκορ αθόρυβα | v1x χειρότερο από v1(x-1) χωρίς προφανή αιτία | G11 assertion layer από το v0 κιόλας· metrics `unexplained_noops`· τα B-tier tests του 2.1 είναι ήδη εκτελέσιμα παραδείγματα σωστού format |
+| 1 | **Silent no-ops** (το engine δεν πετά semantic error): bug σε precondition/resource ownership χαμηλώνει το σκορ αθόρυβα | intended action χωρίς το action-specific expected effect | G11 preconditions + boundary-aware receipts από v0.5, structured `unexplained_noops`, contract/transition tests ανά action family |
 | 2 | **Legacy kaggle CLI δεν δέχεται το KAGGLE_API_TOKEN** | `401/403` στο §2.5 | Αλυσίδα fallback ήδη γραμμένη στο §2.5 (access_token file → OAuth → kaggle.json)· ελέγχεται στο Βήμα 0, ημέρες πριν χρειαστεί |
 | 3 | **Engine version bump στη ladder** πριν το submission (2 bumps την πρώτη εβδομάδα — MASTERPLAN §7 Ρίσκο #1) | Νέο kaggle-environments στο PyPI / ανακοίνωση | `pip install -U` + `pytest tests/` = ο detector (§2.2)· ό,τι κοκκινίσει διορθώνεται στοχευμένα· το pinned 1.32.4 μένει η τοπική βάση μέχρι να περάσει το suite στη νέα |
 | 4 | **Server runtime διαφορές**: αργό 1.6 vCPU, import paths, validation fail | Submission Error / timeout | v0 walking skeleton δοκιμάζει το format νωρίς· ×3 timing margin (§2.4)· vendored constants fallback (Υ6)· σε Error: `kaggle competitions logs` για το validation episode και fix-forward — τα 5 submissions/μέρα επιτρέπουν 2-3 προσπάθειες την ίδια μέρα |
-| 5 | **Θόρυβος 12-seed bench** σε κοντινές συγκρίσεις (game variance ~19% του median bank — MASTERPLAN §6): λάθος go/no-go σε increment | Ασταθές πρόσημο diff μεταξύ επαναλήψεων | Τα 12 seeds αρκούν μόνο για τα χοντρά gaps του Βήματος 1· σε οριακό αποτέλεσμα (μη significant στο 2×SE) → κλιμάκωση σε 24-48 seeds πριν την απόφαση· πάντα both_seats (weed RNG asymmetry §2#6) |
+| 5 | **Λάθος/θορυβώδες increment verdict ή stale package import** | αρνητικό diff ως GO, ασταθές CI ή ίδια fingerprints για A/B | directional non-inferiority semantics, unique-namespace immutable checkpoints/G15, 12 seeds μόνο για coarse screen και 24-48 σε INCONCLUSIVE/final· πάντα both_seats |
 
 ---
 

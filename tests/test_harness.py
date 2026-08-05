@@ -2,14 +2,18 @@
 go/no-go decision (plan.md §3.3) will be read off of; before this file it had zero coverage.
 Fast fake/tiny agents throughout (steps<=6) so this suite stays quick.
 """
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from harness.checkpoint import agent_fingerprint, create_checkpoint
 from harness.compare import compare
 from harness.play import play, resolve_agent
 from harness.profile import report, timed
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 TRIVIAL_AGENT_SRC = (
     "def agent(obs):\n"
@@ -137,6 +141,19 @@ def test_play_crashing_agent_reports_unclean_when_not_strict(tmp_path):
     assert any(e["seat"] == 0 for e in result.agent_errors)
 
 
+def test_play_collects_structured_agent_diagnostics():
+    def receipt_agent(obs):
+        del obs
+        print('KAGGRI_RECEIPT {"kind":"expected_transition","ok":true}')
+        return {"farmer": ["PASS"], "hands": [], "market": []}
+
+    result = play(receipt_agent, "pass", seed=0, steps=4, record=False)
+    assert result.clean is True
+    assert result.diagnostics
+    assert result.diagnostics[0]["kind"] == "expected_transition"
+    assert result.diagnostics[0]["ok"] is True
+
+
 # --------------------------------------------------------------------------- compare()
 
 
@@ -161,7 +178,7 @@ def test_compare_empty_seeds_does_not_crash():
     assert result.per_seed == []
     assert result.mean_diff == 0.0
     assert result.significant is None
-    assert result.verdict == "NO-GO"
+    assert result.verdict == "INCONCLUSIVE"
 
 
 @pytestmark_small_seed_warning
@@ -193,6 +210,19 @@ def test_compare_constant_diff_does_not_claim_significant_true():
 
 
 @pytestmark_small_seed_warning
+def test_compare_negative_practical_diff_is_regressed_not_go():
+    def fake_play(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        return SimpleNamespace(rewards=(100.0, 1100.0) if a == "A" else (1100.0, 100.0))
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", range(12), both_seats=False, record=False)
+
+    assert result.mean_diff == -1000.0
+    assert result.verdict == "REGRESSED"
+
+
+@pytestmark_small_seed_warning
 def test_compare_both_seats_swaps_seats():
     """review.md M7 — both_seats=True must call play() with agent_a/agent_b actually
     swapped between the two seats for the same seed, not the same orientation twice."""
@@ -209,6 +239,48 @@ def test_compare_both_seats_swaps_seats():
     assert calls == [("A", "B", 0), ("B", "A", 0)]
     assert result.per_seed[0]["bank_a"] == 100.0
     assert result.per_seed[0]["bank_b"] == 50.0
+    assert result.episode_wins_a == 2
+    assert result.episode_wins_b == 0
+    assert len(result.per_seed[0]["orientations"]) == 2
+
+
+# --------------------------------------------------------------------------- checkpoints
+
+
+def test_checkpoint_uses_unique_namespace_and_preserves_fingerprint(tmp_path):
+    checkpoint_main = create_checkpoint(
+        "v0",
+        source_root=REPO_ROOT,
+        checkpoint_root=tmp_path,
+    )
+    source = checkpoint_main.read_text(encoding="utf-8")
+    assert "from agent_checkpoint_v0.policy import agent" in source
+    assert agent_fingerprint(str(checkpoint_main)) == agent_fingerprint(str(REPO_ROOT / "main.py"))
+    assert resolve_agent(str(checkpoint_main), entrypoint="agent").__name__ == "agent"
+
+
+def test_checkpoint_fingerprint_detects_agent_code_change(tmp_path):
+    checkpoint_main = create_checkpoint(
+        "v0",
+        source_root=REPO_ROOT,
+        checkpoint_root=tmp_path,
+    )
+    checkpoint_policy = checkpoint_main.parent / "agent_checkpoint_v0" / "policy.py"
+    checkpoint_policy.write_text(
+        checkpoint_policy.read_text(encoding="utf-8") + "\n# changed strategy\n",
+        encoding="utf-8",
+    )
+    assert agent_fingerprint(str(checkpoint_main)) != agent_fingerprint(str(REPO_ROOT / "main.py"))
+
+
+def test_compare_rejects_identical_checkpoint_fingerprints(tmp_path):
+    checkpoint_main = create_checkpoint(
+        "v0",
+        source_root=REPO_ROOT,
+        checkpoint_root=tmp_path,
+    )
+    with pytest.raises(ValueError, match="identical code fingerprints"):
+        compare(str(REPO_ROOT / "main.py"), str(checkpoint_main), [0])
 
 
 # --------------------------------------------------------------------------- profile
