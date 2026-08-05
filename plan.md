@@ -146,9 +146,8 @@ postconditions. Receipts → structured stdout → `env.logs`· debug **off** σ
 | v1a′ | + πρώιμα strawberries: vs v1a 24/24, median **$10.832**, `IMPROVED` CI +$1.326k…+$2.259k | [checkpoints/v1a_prime](checkpoints/v1a_prime) |
 | v1b | + 3 daily hands, deterministic multi-unit assign: vs v1a′ 24/24, median **$20.695**, `IMPROVED` CI +$9.818k…+$10.909k | [checkpoints/v1b](checkpoints/v1b) ← **immutable baseline όλων των gates** |
 
-- [ ] **Commit των 4 checkpoints** (review.md §5 check #7 / H2): μετακινήθηκαν από το gitignored
-  `runs/checkpoints/` στο `checkpoints/` αλλά **δεν έχουν γίνει `git add`** — μέχρι να γίνει, τα
-  v0/v1a/v1a′ είναι μη ανακατασκευάσιμα από οποιοδήποτε commit.
+- [x] **Commit των 4 checkpoints** (review.md §5 check #7 / H2) — έγινε `git add`/commit στο
+  86db6b6 (2026-08-06), μαζί με το §1.5.3-§1.5.5 work· `checkpoints/` πλέον tracked.
 
 ---
 
@@ -652,12 +651,9 @@ kaggle competitions leaderboard kaggriculture -s
 
 ## Εκκρεμότητες προς χρήστη
 
-1. **Απόφαση W&B ή τοπικό static HTML report** (MASTERPLAN §8.2). Το W&B ανεβάζει config +
-   metrics σε **εξωτερική υπηρεσία εν μέσω ενεργού διαγωνισμού** — private projects το καλύπτουν,
-   αλλά είναι συνειδητή απόφαση, όχι default· επιπλέον απαιτεί login/API key που **δεν** στήνεται
-   αυτόνομα από τον agent. Εναλλακτική με μηδενικό ρίσκο: μένουμε στο static HTML του §1.5.4 πάνω
-   στο `results.jsonl`, που παραμένει η **πηγή αλήθειας** ούτως ή άλλως.
-   **Μέχρι να απαντηθεί: υλοποιείται μόνο το τοπικό report.**
-2. **Commit των checkpoints** (§3.3): τα `checkpoints/v0|v1a|v1a_prime|v1b` δεν έχουν γίνει
-   `git add` — μέχρι τότε τρία από τα τέσσερα είναι μη ανακατασκευάσιμα (review.md H2).
-   Χρειάζεται ρητή έγκριση για commit.
+1. ~~**Απόφαση W&B ή τοπικό static HTML report**~~ — **ΛΥΘΗΚΕ 2026-08-06 (χρήστης): κρατάμε το
+   τοπικό static HTML report** (MASTERPLAN §8.2 / §1.5.4 `harness/report.py`), **όχι W&B**. Καμία
+   ανάγκη για εξωτερικό login/API key εν μέσω διαγωνισμού· το `results.jsonl` παραμένει η πηγή
+   αλήθειας.
+2. ~~**Commit των checkpoints**~~ — **ΛΥΘΗΚΕ 2026-08-06**: `checkpoints/v0|v1a|v1a_prime|v1b`
+   committed & pushed στο commit 86db6b6, με ρητή έγκριση χρήστη.

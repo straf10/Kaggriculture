@@ -81,6 +81,8 @@ def _cmd_compare(args):
     if result.metrics_checked:
         print(f"water_weeds_lost_a={result.water_weeds_lost_a} "
               f"plant_decay_units_lost_a={result.plant_decay_units_lost_a} "
+              f"animals_escaped_a={result.animals_escaped_a} "
+              f"clipped_production_ticks_a={result.clipped_production_ticks_a} "
               f"metric_gate_passed={result.metric_gate_passed}")
     print(f"GO={result.go}")
     if result.errors:
@@ -111,6 +113,8 @@ def _cmd_compare(args):
             "metrics_checked": result.metrics_checked,
             "water_weeds_lost_a": result.water_weeds_lost_a,
             "plant_decay_units_lost_a": result.plant_decay_units_lost_a,
+            "animals_escaped_a": result.animals_escaped_a,
+            "clipped_production_ticks_a": result.clipped_production_ticks_a,
             "metric_gate_passed": result.metric_gate_passed,
             "go": result.go,
         }, indent=2))
@@ -204,9 +208,10 @@ def main():
     p_compare.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1),
                             help="ProcessPoolExecutor workers; 1 = sequential (default: cpu_count-1)")
     p_compare.add_argument("--metrics", action="store_true",
-                            help="extract water_weeds_lost/plant_decay_units_lost for agent_a "
-                                 "and require both ==0 for the metric gate (plan.md §1.5.3); "
-                                 "required (with --stage holdout-confirm) for GO=True")
+                            help="extract water_weeds_lost/plant_decay_units_lost/"
+                                 "animals_escaped/clipped_production_ticks for agent_a and "
+                                 "require all four ==0 for the metric gate (plan.md §1.5.3, "
+                                 "G5/G8); required (with --stage holdout-confirm) for GO=True")
     p_compare.add_argument("--stage", choices=VALID_STAGES, default=None,
                             help="dev-screen|holdout-confirm — defaults to the matching stage "
                                  "for --seed-set dev/holdout; smoke has no default stage and "

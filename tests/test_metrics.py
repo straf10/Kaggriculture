@@ -64,6 +64,26 @@ def test_metrics_detect_plant_loss_and_animal_escape():
     assert metrics["animals_escaped"] == 1
 
 
+def test_metrics_detect_clipped_animal_production():
+    """plan.md G8 — engine.py:805 clips `yield_units + base + bonus` to `max_held` on every
+    due production tick with no carry-over; a tile already sitting at `max_held` going into a
+    due tick has that whole tick's production silently discarded for lack of a HARVEST."""
+    env = make(
+        "kaggriculture",
+        configuration={"seed": 0, "episodeSteps": 4, "turnsPerDay": 2, "weedSpawnChance": 0},
+    )
+    farm = env.state[0].observation.farms[0]
+    tile = engine._new_animal("GOOSE", -5)  # first_yield_day=4, interval=1: due every day
+    tile["yield_units"] = engine.ANIMALS["GOOSE"]["max_held"]
+    farm["tiles"][0][1] = tile
+    replay = _finish(env)
+
+    metrics = extract_metrics(replay, 0)
+    assert metrics["clipped_production_ticks"] >= 1
+    clip_events = [e for e in metrics["loss_events"] if e["type"] == "clipped_production_ticks"]
+    assert len(clip_events) == metrics["clipped_production_ticks"]
+
+
 def test_metrics_unexplained_noops_none_without_diagnostics():
     """plan.md §1.5.4 — absence of receipts must read as 'not measured' (None), not a false 0."""
     env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 4})

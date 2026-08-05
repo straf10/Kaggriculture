@@ -47,15 +47,7 @@ CONFIG = {
     "planner": {
         "enabled": True,
         "carrot_tiles": 7,
-        # plan.md §5 v1e: reduced from 16 to 15 to free tile (3, 0) for GOOSE's COOP structure
-        # — all 25 NW tiles were already fully allocated (7 CARROT + 16 STRAWBERRY + 2 PASTURE),
-        # so adding a third animal kind requires reclaiming one. (3, 0) was the lowest-priority
-        # NW STRAWBERRY tile (last in target_tiles' tuple order, so the capacity gate already
-        # trims it first under any pressure). COOP is placed on NW (not NE) specifically to
-        # avoid a circular dependency: BUY_LAND's gate (executor.py) requires every planned
-        # animal already placed, but GOOSE can't be placed before COOP exists — if COOP sat on
-        # NE-locked land, GOOSE could never be placed, and land could never be bought.
-        "strawberry_tiles": 15,
+        "strawberry_tiles": 16,
         "strawberry_last_plant_day": 5,
         "max_new_plants_per_day": 5,
         "hands_target": 3,
@@ -116,9 +108,7 @@ CONFIG = {
                 (1, 1), (2, 1), (3, 1),
                 (4, 1), (0, 4), (0, 3),
                 (0, 2), (0, 1), (0, 0),
-                (1, 0), (2, 0),
-                # (3, 0) reassigned to animal_structure_tiles["COOP"] in v1e (see
-                # strawberry_tiles comment above).
+                (1, 0), (2, 0), (3, 0),
                 # plan.md §5 v1c: NE mirror (x' = 9 - x) of the 16 NW tiles above, same
                 # unlock-gated growth story as CARROT above.
                 (7, 2),
@@ -137,10 +127,6 @@ CONFIG = {
         # like WATER (review.md C1 §1.3).
         "animal_structure_tiles": {
             "PASTURE": ((4, 2), (3, 2)),
-            # plan.md §5 v1e: GOOSE's COOP, placed on the reclaimed NW STRAWBERRY tile (3, 0)
-            # rather than NE — see strawberry_tiles comment in config["planner"] for why NE
-            # would deadlock BUY_LAND's animal_placed gate.
-            "COOP": ((3, 0),),
         },
     },
     "executor": {
@@ -176,12 +162,11 @@ CONFIG = {
         "min_reserve": 1000,
     },
     "animals": {
-        # plan.md §5.1: v1d shipped COW (85% top-team adoption, median day 0) and SHEEP (56%,
-        # median day 5). GOOSE (15% adoption) added in v1e, now that COOP has a home (see
-        # scheduler.animal_structure_tiles). Order matters: it fixes which animal claims which
-        # slot in animal_structure_tiles per structure kind.
+        # plan.md §5.1: v1d ships COW (85% top-team adoption, median day 0) and SHEEP (56%,
+        # median day 5) — GOOSE (15% adoption) is deferred to v1e. Order matters: it fixes
+        # which animal claims which slot in animal_structure_tiles per structure kind.
         "enabled": True,
-        "targets": ("COW", "SHEEP", "GOOSE"),
+        "targets": ("COW", "SHEEP"),
     },
     "endgame": {
         "enabled": True,

@@ -102,6 +102,8 @@ class CompareResult:
     metrics_checked: bool = False  # whether the metrics param was on for this run
     water_weeds_lost_a: int = 0  # summed over agent_a's seat across all played orientations
     plant_decay_units_lost_a: int = 0
+    animals_escaped_a: int = 0  # plan.md G5/v1d
+    clipped_production_ticks_a: int = 0  # plan.md G8/v1d
     metric_gate_passed: Optional[bool] = None  # None unless metrics_checked
     go: bool = False  # True only for stage="holdout-confirm" + IMPROVED/NON_INFERIOR + metric gate passed
 
@@ -142,10 +144,12 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     workers=1 with a warning instead of raising.
 
     metrics=True (plan.md §1.5.3 / review.md §5 check #5) additionally extracts
-    water_weeds_lost/plant_decay_units_lost for agent_a's seat in every orientation played,
-    exposed as `water_weeds_lost_a`/`plant_decay_units_lost_a` (summed) and
-    `metric_gate_passed` (both counters exactly 0). Off by default — extract_metrics() is not
-    free (review.md L5) and most calls (e.g. ablation sweeps) only need `rewards`.
+    water_weeds_lost/plant_decay_units_lost/animals_escaped/clipped_production_ticks for
+    agent_a's seat in every orientation played, exposed as `water_weeds_lost_a`/
+    `plant_decay_units_lost_a`/`animals_escaped_a`/`clipped_production_ticks_a` (summed) and
+    `metric_gate_passed` (all four counters exactly 0 — plan.md G5/G8 for the latter two, v1d).
+    Off by default — extract_metrics() is not free (review.md L5) and most calls (e.g.
+    ablation sweeps) only need `rewards`.
 
     stage tags which decision this report may back: "dev-screen" (tuning/screening — never a
     GO by itself) or "holdout-confirm" (the one-shot final check). `go` is only ever True for
@@ -235,6 +239,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             # gate, not get diluted into a mean.
             "water_weeds_lost_a": sum(o.get("water_weeds_lost_a", 0) for o in orientations),
             "plant_decay_units_lost_a": sum(o.get("plant_decay_units_lost_a", 0) for o in orientations),
+            "animals_escaped_a": sum(o.get("animals_escaped_a", 0) for o in orientations),
+            "clipped_production_ticks_a": sum(o.get("clipped_production_ticks_a", 0) for o in orientations),
         }
 
     # review.md M2/M6 fields above already guard resume; a callable agent_spec (lambda,
@@ -291,6 +297,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 m0 = metrics0.get(0, {})
                 orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
                 orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
+                orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
+                orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
             orientations = [orientation0]
             if both_seats:
                 rewards1, metrics1 = raw_results[(seed, True)]
@@ -299,6 +307,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     m1 = metrics1.get(1, {})
                     orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
                     orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
+                    orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
+                    orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
                 orientations.append(orientation1)
             row = _finalize(seed, orientations)
             computed[seed] = row
@@ -318,6 +328,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     m0 = r_a0.metrics.get(0, {})
                     orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
                     orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
+                    orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
+                    orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
                 orientations.append(orientation0)
 
                 if both_seats:
@@ -332,6 +344,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                         m1 = r_b0.metrics.get(1, {})
                         orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
                         orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
+                        orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
+                        orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
                     orientations.append(orientation1)
 
                 row = _finalize(seed, orientations)
@@ -423,8 +437,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
 
     water_weeds_lost_a = sum(row["water_weeds_lost_a"] for row in per_seed)
     plant_decay_units_lost_a = sum(row["plant_decay_units_lost_a"] for row in per_seed)
+    animals_escaped_a = sum(row.get("animals_escaped_a", 0) for row in per_seed)
+    clipped_production_ticks_a = sum(row.get("clipped_production_ticks_a", 0) for row in per_seed)
     metric_gate_passed = (
-        (water_weeds_lost_a == 0 and plant_decay_units_lost_a == 0) if metrics else None
+        (
+            water_weeds_lost_a == 0 and plant_decay_units_lost_a == 0
+            and animals_escaped_a == 0 and clipped_production_ticks_a == 0
+        ) if metrics else None
     )
     # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
     # verdict, AND the metric gate having actually run and passed — an unmeasured metric
@@ -460,6 +479,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         metrics_checked=metrics,
         water_weeds_lost_a=water_weeds_lost_a,
         plant_decay_units_lost_a=plant_decay_units_lost_a,
+        animals_escaped_a=animals_escaped_a,
+        clipped_production_ticks_a=clipped_production_ticks_a,
         metric_gate_passed=metric_gate_passed,
         go=go,
     )

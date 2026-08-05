@@ -46,17 +46,7 @@ def market_orders(
     # the same conservative marginal-price loop as the two crops — v1e is where a real
     # per-product marginal-threshold allocator belongs (plan.md §5), this just keeps v1d from
     # letting its own harvests pile up unsold in the shed.
-    sell_products = ("STRAWBERRY", "CARROT", "EGG", "MILK", "WOOL", "FERTILIZER")
-    if plan.force_liquidation:
-        # plan.md G14: WHEAT is bought (not grown) purely as animal feed and is normally kept
-        # at ~0 in the shed by the daily PICKUP->FEED loop, so it's excluded from the day-to-day
-        # sell loop above (selling it there would just buy-high-sell-low against the agent's
-        # own feed pipeline for no gain). But it IS a real, sellable market product — once
-        # liquidation starts and no further feed cycle can pay off, any WHEAT still sitting in
-        # the shed (rounding leftovers, or an animal that already escaped/died) is stranded
-        # value the endgame must not leave on the table.
-        sell_products += ("WHEAT",)
-    for product in sell_products:
+    for product in ("STRAWBERRY", "CARROT", "EGG", "MILK", "WOOL", "FERTILIZER"):
         product_in_shed = int(snapshot.shed.get(product, 0))
         if product_in_shed <= 0:
             continue

@@ -10,6 +10,7 @@ from kaggle_environments.envs.kaggriculture import kaggriculture as engine
 
 from agent import _vendored
 from agent.config import CONFIG
+from agent.constants import ANIMALS
 from agent.planner import make_day_plan
 from agent.policy import _RUNTIME_BY_PLAYER, agent
 from agent.scheduler import Task, assign, build_tasks, make_ledger
@@ -51,13 +52,34 @@ def _minimal_observation(*, player=0, step=0, hands=()):
     }
 
 
+def _animal_tile(name, *, fed_today=False, cared_today=True, yield_units=0, placed_day=0):
+    return {
+        "kind": ANIMALS[name]["structure"],
+        "animal": name,
+        "placed_day": placed_day,
+        "yield_units": yield_units,
+        "consecutive_unfed": 0,
+        "fed_today": fed_today,
+        "cared_today": cared_today,
+        "fertilizer_available": False,
+        "pending_care_bonus": 0,
+    }
+
+
 def test_g12_main_exports_server_selected_agent():
     loaded = resolve_agent(str(MAIN), entrypoint="agent")
     assert loaded.__name__ == "agent"
 
 
 def test_policy_returns_index_aligned_hand_actions():
-    action = agent(_minimal_observation(hands=((5, 4), (4, 5))))
+    # animals disabled here: this test is about index alignment (G12), not the v1d animal
+    # feature, and an empty farm otherwise has no tasks at all — with animals on, the two
+    # always-free BUILD_PASTURE slots would legitimately draw a unit away from PASS.
+    CONFIG["animals"]["enabled"] = False
+    try:
+        action = agent(_minimal_observation(hands=((5, 4), (4, 5))))
+    finally:
+        CONFIG["animals"]["enabled"] = True
     assert action["farmer"] == ["PASS"]
     assert action["hands"] == [["PASS"], ["PASS"]]
     assert len(action["market"]) <= 10
@@ -143,12 +165,19 @@ def test_g1_scheduler_does_not_start_plant_too_late():
 
 
 def test_g1_scheduler_reserves_time_to_water_new_plant():
-    observation = _minimal_observation(step=22)
-    observation["private"]["seeds"]["CARROT"] = 1
-    snapshot = parse(observation)
-    plan = make_day_plan(snapshot, CONFIG)
-    tasks = build_tasks(snapshot, plan, CONFIG)
-    farmer_action, _, _ = assign(tasks, snapshot)
+    # animals disabled: this is a G1 plant-timing test, not a v1d animal-priority test — with
+    # animals on, the free/always-available BUILD_PASTURE tasks legitimately outrank a single
+    # CARROT plant this late in the day and would otherwise mask what G1 is checking.
+    CONFIG["animals"]["enabled"] = False
+    try:
+        observation = _minimal_observation(step=22)
+        observation["private"]["seeds"]["CARROT"] = 1
+        snapshot = parse(observation)
+        plan = make_day_plan(snapshot, CONFIG)
+        tasks = build_tasks(snapshot, plan, CONFIG)
+        farmer_action, _, _ = assign(tasks, snapshot)
+    finally:
+        CONFIG["animals"]["enabled"] = True
     assert farmer_action == ["PLANT", "CARROT"]
 
 
@@ -347,5 +376,132 @@ def test_h4_debug_receipts_emit_and_reconcile(capsys):
         assert '"ok": true' in second_turn_out
     finally:
         CONFIG["guards"]["debug"] = False
+
+
+def test_g5_feed_never_assigned_to_a_unit_without_wheat():
+    """plan.md G5 — FEED's wheat is per-unit cargo from an earlier PICKUP (unlike PLANT's
+    shared seed pool draw), so a unit carrying none of it must never be routed to FEED, even
+    standing right on the animal's tile — assigning it would be a silent no-op the engine
+    swallows without error (review.md's G11 failure mode), and the animal would go right on
+    starving toward `consecutive_unfed >= 2` escape."""
+    observation = _minimal_observation(step=10, hands=((3, 3),))
+    observation["farms"][0]["farmer"] = [4, 2]
+    observation["farms"][0]["tiles"][2][4] = _animal_tile("COW", fed_today=False)
+    observation["private"]["inventories"] = [{}, {"WHEAT": 1}]
+    snapshot = parse(observation)
+    task = Task("feed:4:2", "FEED", (4, 2), priority=0)
+
+    farmer_action, hand_actions, _ = assign([task], snapshot)
+
+    assert farmer_action != ["FEED"]
+    assert hand_actions[0][0] in ("NORTH", "SOUTH", "EAST", "WEST", "FEED")
+
+
+def test_g8_harvest_offered_every_turn_product_is_held_not_just_at_cap():
+    """plan.md G8 — `animals_needing`/`_build_animal_tasks` must offer HARVEST as soon as
+    `yield_units > 0`, every turn, not only once a tile has already reached `max_held` — engine
+    :805 clips a due production tick's output to `max_held` with no carry-over, so waiting
+    until the cap is hit to start harvesting would already be one tick too late."""
+    observation = _minimal_observation(step=10)
+    observation["farms"][0]["tiles"][2][4] = _animal_tile("COW", yield_units=1)
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, CONFIG)
+    tasks = build_tasks(snapshot, plan, CONFIG)
+    assert any(task.kind == "HARVEST" and task.pos == (4, 2) for task in tasks)
+
+
+def test_v1c_buy_land_triggers_replan_and_grows_targets():
+    """plan.md §5 v1c acceptance: observed BUY_LAND success (my_quadrants growing to include
+    "NE") must cause a correct same-day replan, not wait for tomorrow's day boundary —
+    otherwise a day's plan keeps plant_targets frozen at the pre-purchase NW-only baseline
+    until the next day, wasting the newly-unlocked tiles for the rest of today. policy.py's
+    _needs_replan already watches `last_quadrants != snapshot.my_quadrants` (review.md M4); this
+    exercises that path end-to-end through agent() and confirms the resulting plan actually
+    reflects NE's bonus target tiles, not just that *some* replan happened."""
+    _RUNTIME_BY_PLAYER.clear()
+    hands = ((4, 3), (3, 3), (2, 3))
+
+    nw_only = _minimal_observation(step=10, hands=hands)
+    agent(nw_only)
+    runtime = _RUNTIME_BY_PLAYER[0]
+    carrot_target_before = runtime.plan.plant_targets["CARROT"]
+
+    nw_and_ne = _minimal_observation(step=11, hands=hands)
+    nw_and_ne["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    agent(nw_and_ne)
+    plan_after = runtime.plan
+
+    assert runtime.planned_day == 0  # still day 0 — this was an on-event replan, not a day roll
+    assert plan_after.plant_targets["CARROT"] > carrot_target_before
+
+
+def test_v1c_land_purchase_waits_for_animals_to_be_placed_first():
+    """A v1c+v1d interaction bug found via a full smoke-test replay: BUY_LAND's own gate
+    (hands_target hands hired) is satisfiable as early as day 0 hour ~2, well before COW/SHEEP
+    are actually bought (hour 4/6) and placed. Land grabbing its $2000 first left too little
+    cash for the very next day's wheat purchase, and both animals starved to death by day 2
+    with zero engine-level errors. executor.py's land-purchase gate now also requires every
+    planned animal to already be placed — this locks that ordering in."""
+    from agent.executor import market_orders
+    from agent.planner import DayPlan
+    from agent.scheduler import make_ledger
+
+    observation = _minimal_observation(step=1, hands=((4, 3), (3, 3), (2, 3)))
+    observation["farms"][0]["money"] = 3000
+    snapshot = parse(observation)
+    ledger = make_ledger(snapshot)
+    plan = DayPlan(hands_target=3, animal_purchases={"COW": 1, "SHEEP": 1})
+
+    orders = market_orders(snapshot, plan, ledger, [], CONFIG)
+
+    assert ["BUY_LAND"] not in orders
+
+
+def test_v1e_liquidation_drop_excludes_carried_wheat():
+    """plan.md §5 v1e: found via a smoke test once GOOSE's extra daily upkeep pushed the
+    farmer into fetching WHEAT during liquidation (day >= endgame.liquidation_day) — the
+    liquidation-phase DROP task used to treat ANY carried inventory as "cargo to dump",
+    including WHEAT a unit had just PICKUP'd to carry to a FEED task. That handed the unit a
+    same-position DROP task the very next turn, dumping the wheat straight back into the shed
+    before it ever reached the animal, in an endless PICKUP/DROP loop — COW and SHEEP starved
+    to consecutive_unfed >= 2 and escaped while the farmer never got there. build_tasks now
+    excludes WHEAT from the liquidation DROP's cargo check; this locks that in, and confirms a
+    unit carrying an actual sellable product (STRAWBERRY) still gets a DROP task as before."""
+    from agent.planner import DayPlan
+
+    hands = ((4, 3),)
+    observation = _minimal_observation(step=10, hands=hands)
+    observation["private"]["inventories"] = [{"WHEAT": 1}, {"STRAWBERRY": 2}]
+    snapshot = parse(observation)
+    plan = DayPlan(force_liquidation=True)
+
+    tasks = build_tasks(snapshot, plan, CONFIG)
+
+    drop_tasks = {task.allowed_unit: task for task in tasks if task.kind == "DROP"}
+    assert 0 not in drop_tasks
+    assert 1 in drop_tasks
+
+
+def test_v1e_endgame_liquidation_sells_stranded_wheat():
+    """plan.md G14: WHEAT is bought purely as animal feed and normally excluded from the
+    day-to-day marginal-price sell loop (selling it there would just buy-high-sell-low against
+    the agent's own feed pipeline, since the daily PICKUP->FEED loop keeps shed WHEAT near 0
+    anyway) — but once liquidation starts, any WHEAT still sitting in the shed (rounding
+    leftovers, or feed bought for an animal that already escaped) is real stranded value.
+    executor.py's SELL loop now includes WHEAT only during force_liquidation."""
+    from agent.executor import market_orders
+    from agent.planner import DayPlan
+    from agent.scheduler import make_ledger
+
+    observation = _minimal_observation(step=10)
+    observation["private"]["shed"]["WHEAT"] = 5
+    snapshot = parse(observation)
+    ledger = make_ledger(snapshot)
+
+    growing_orders = market_orders(snapshot, DayPlan(), ledger, [], CONFIG)
+    assert not any(order[:2] == ["SELL", "WHEAT"] for order in growing_orders)
+
+    liquidating_orders = market_orders(snapshot, DayPlan(force_liquidation=True), ledger, [], CONFIG)
+    assert any(order[:2] == ["SELL", "WHEAT"] for order in liquidating_orders)
 
 

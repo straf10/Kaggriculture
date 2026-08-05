@@ -202,6 +202,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     water_weeds_lost = 0
     decay_weeds_lost = 0
     animals_escaped = 0
+    clipped_production_ticks = 0
     plant_decay_units_lost = 0
     shed_overflow_burnt = 0
     sales = []
@@ -227,6 +228,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         day_row = daily_by_day.setdefault(int(previous_observation.get("day", 0)), {
             "water_weeds_lost": 0, "plant_decay_units_lost": 0,
             "worker_turns_moving": 0, "worker_turns_working": 0, "worker_turns_idle": 0,
+            "clipped_production_ticks": 0,
         })
 
         actions, overflow, transition_sales = _transition_events(
@@ -303,6 +305,38 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
                         and not harvested_here
                     ):
                         animals_escaped += 1
+                    elif (
+                        current_observation.get("day") != previous_observation.get("day")
+                        and not harvested_here
+                    ):
+                        # plan.md G8: engine.py:805 clips `yield_units + base + bonus` to
+                        # `max_held` on every scheduled production tick — if the tile was
+                        # already sitting at max_held going into a due tick, that tick's whole
+                        # production was silently discarded for lack of a HARVEST. We can't see
+                        # the engine's internal `base`/`bonus`, but "already at cap on a due
+                        # tick" is a sufficient (if slightly conservative) proxy since base >= 1
+                        # always.
+                        animal_data = engine.ANIMALS.get(previous_tile.get("animal"))
+                        if animal_data is not None:
+                            next_day = int(current_observation.get("day", 0))
+                            days_since_first = (
+                                next_day
+                                - previous_tile.get("placed_day", next_day)
+                                - animal_data["first_yield_day"]
+                            )
+                            interval = animal_data["interval"]
+                            if (
+                                days_since_first >= 0
+                                and interval > 0
+                                and days_since_first % interval == 0
+                                and previous_tile.get("yield_units", 0) >= animal_data["max_held"]
+                            ):
+                                clipped_production_ticks += 1
+                                day_row["clipped_production_ticks"] += 1
+                                loss_events.append({
+                                    "type": "clipped_production_ticks", "step": previous_engine_step,
+                                    "day": int(previous_observation.get("day", 0)), "pos": [x, y],
+                                })
 
         for unit_action in unit_actions:
             op = unit_action[0] if isinstance(unit_action, list) and unit_action else "PASS"
@@ -335,6 +369,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     empty_day_row = {
         "water_weeds_lost": 0, "plant_decay_units_lost": 0,
         "worker_turns_moving": 0, "worker_turns_working": 0, "worker_turns_idle": 0,
+        "clipped_production_ticks": 0,
     }
     daily = [
         {"day": day, **daily_by_day.get(day, empty_day_row)}
@@ -352,6 +387,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "water_weeds_lost": water_weeds_lost,
         "decay_weeds_lost": decay_weeds_lost,
         "animals_escaped": animals_escaped,
+        "clipped_production_ticks": clipped_production_ticks,
         "plant_decay_units_lost": plant_decay_units_lost,
         "shed_overflow_burnt": shed_overflow_burnt,
         "units_sold_at_or_below_5": sum(1 for sale in sales if sale["price"] <= 5),

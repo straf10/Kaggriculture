@@ -8,6 +8,56 @@
 
 ---
 
+## 2026-08-06 — Session: v1d, v1c, v1e υλοποιήθηκαν και gated σειριακά — Φάση 1 ολοκληρώθηκε
+
+**Context:** Συνέχεια της §5.1 planning δουλειάς (βλ. entry παρακάτω) — υλοποίηση των τριών
+increments με τη σειρά v1d → v1c → v1e, το καθένα μέσα από το πλήρες measurement protocol
+(contract/guard tests → immutable checkpoint → metric gate → dev-screen → holdout-confirm).
+
+**v1d (ζώα πρώτα):** BUILD_PASTURE, BUY_ANIMAL, PICKUP/PLACE, FEED/CARE/COLLECT_FERTILIZER,
+wheat procurement για COW+SHEEP. Bug βρέθηκε σε smoke test: wheat purchase σταματούσε στο
+liquidation, πεινούσαν τα ζώα ως θάνατο· fix: η αγορά σιταριού για ήδη-τοποθετημένα ζώα δεν
+πρέπει να gate-άρεται από `force_liquidation` (τα ζώα συνεχίζουν να παράγουν ως το τέλος).
+Holdout-confirm vs v1b: GO=True. Checkpoint: `checkpoints/v1d`.
+
+**v1c (γη μετά):** BUY_LAND στο NE μόλις υπάρχει hands_target + reserve. Δύο bugs βρέθηκαν μόνο
+όταν το gate έτρεξε **vs πραγματικό αντίπαλο** (όχι `"pass"`, που έκρυβε προβλήματα δίνοντας
+μονοπώλιο αγοράς): (α) shared `max_new_plants` budget λιμοκτονούσε το STRAWBERRY μετά την
+επέκταση NE tiles· (β) BUY_LAND άδειαζε cash πριν την επόμενη αγορά σιταριού, πεινούσαν τα ζώα.
+Fix (β): BUY_LAND gate απαιτεί όλα τα planned animals ήδη τοποθετημένα + `min_reserve=$1000`
+cash buffer. Tuning: `ne_carrot_tiles` 7→3 (το CARROT crashάρει πιο γρήγορα από το STRAWBERRY σε
+διπλάσιο supply σε πραγματική αγορά) για να περάσει holdout NON_INFERIOR. Checkpoint:
+`checkpoints/v1c`.
+
+**v1e (GOOSE/COOP + endgame polish):** Τρίτο ζώο (GOOSE→COOP) προστέθηκε χωρίς καμία αλλαγή σε
+scheduler/planner/state (ήδη γενικά ως προς animal/structure kind) — μόνο config: COOP στο
+reclaimed NW tile `(3,0)` (όχι NE, για να αποφευχθεί circular dependency με το BUY_LAND
+animal-placed gate). Bug βρέθηκε σε smoke test μόλις το GOOSE αύξησε το daily task load: το
+liquidation-phase DROP task μεταχειριζόταν ΚΑΘΕ inventory (μαζί με WHEAT που μόλις είχε γίνει
+PICKUP για FEED) ως "cargo προς πέταγμα" — ο farmer έμπαινε σε ατέρμονο PICKUP/DROP loop στο
+shed, ποτέ δεν έφτανε στο ζώο· COW+SHEEP πέθαναν (consecutive_unfed≥2). Fix: το DROP task
+εξαιρεί πλέον το WHEAT από το "liquidatable" inventory check. Επιπλέον: WHEAT προστέθηκε στο
+endgame sell loop (μόνο κατά το liquidation) — G14 stranded-value fix, μιας και το WHEAT ήταν
+sellable αλλά ποτέ δεν πουλιόταν. Holdout-confirm vs v1c: IMPROVED, metric gate clean, GO=True.
+Checkpoint: `checkpoints/v1e`.
+
+**Τελικό Phase-1 acceptance (`compare(v1e, "starter", HOLDOUT_SEEDS)`):** 96/96 orientation wins,
+median bank **$42.555** (≥ $40k), metric gate clean (0 water/decay/escape/clipped). Timing και
+στα 2 seats: `max_turn×3 < 1s` PASS. Πλήρες guard suite: 122 tests πράσινα.
+
+**Επαναλαμβανόμενο pattern σε όλα τα τρία increments:** κάθε νέο bug που βρέθηκε ήταν αόρατο σε
+single-seed "pass"-opponent smoke tests και εμφανίστηκε μόνο σε 48-seed dev-screen/holdout gate
+vs πραγματικό αντίπαλο ή μόνο μετά από αυξημένο daily task load (τρίτο ζώο) — το iterative
+smoke→dev→holdout gating pattern είναι αυτό που τα εντόπισε, όχι το αρχικό design.
+
+**Next session should:** αν χρειαστεί περαιτέρω δουλειά στο v1e's προαιρετικό scope (slot/money
+allocator, post-unit inventory projection, marginal-price thresholds ανά προϊόν, hour-aware town
+demand — plan.md §5 v1e's πλήρες acceptance text), ξεκίνα από `agent/executor.py`'s
+`market_orders()`, όπου το `scheduled_unit_actions` param ακόμα απορρίπτεται (`del`). Δεν ήταν
+απαραίτητο για να περάσει το v1e gate, οπότε έμεινε εκτός scope αυτής της σειράς.
+
+---
+
 ## 2026-08-06 — Session: plan.md §1.5.5 — gap analysis από top replays· §5.1 λύθηκε (v1d πρώτο)
 
 **Context:** Συνέχεια της σειράς 1.5, τελευταίο βήμα πριν το v1c-v1e redesign (§5). Στόχος:

@@ -169,22 +169,11 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
         # review.md M1: one DROP task per loaded unit, restricted to that unit, instead of a
         # single global task an empty-inventory unit can monopolize with silent no-ops.
         access = (4, 4)  # the only initially unlocked shed-access tile
-        # plan.md §5 v1e: WHEAT excluded from "cargo to dump" — it's productive input a unit
-        # just PICKUP'd to carry to a FEED task, not sellable crop yield. Counting it here (as
-        # v1d did) meant a unit carrying WHEAT toward an animal got handed a same-position DROP
-        # task before it could walk away, dumping the wheat straight back into the shed; next
-        # turn it PICKUP'd again, repeating forever. Found via a v1e smoke test once GOOSE's
-        # extra daily upkeep pushed the farmer into the WHEAT-fetch role during liquidation
-        # (day >= endgame.liquidation_day) — COW and SHEEP starved to consecutive_unfed>=2 and
-        # escaped while the farmer oscillated PICKUP/DROP at the shed, never reaching them.
-        def _liquidatable(inventory: dict) -> int:
-            return sum(v for k, v in inventory.items() if k != "WHEAT")
-
         if ablation["drop_task_per_unit"]:
             for unit_index, unit_pos in enumerate(unit_positions):
                 del unit_pos
                 inventory = snapshot.inventories[unit_index] if unit_index < len(snapshot.inventories) else {}
-                if _liquidatable(inventory) > 0:
+                if sum(inventory.values()) > 0:
                     tasks.append(Task(
                         id=f"drop:liquidation:{unit_index}",
                         kind="DROP",
@@ -195,7 +184,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
                     ))
         else:
             any_inventory = any(
-                _liquidatable(snapshot.inventories[i] if i < len(snapshot.inventories) else {}) > 0
+                sum((snapshot.inventories[i] if i < len(snapshot.inventories) else {}).values()) > 0
                 for i in range(len(unit_positions))
             )
             if any_inventory:
