@@ -43,7 +43,7 @@
 | 0.3 CLI auth | `kaggle competitions list -s kaggriculture` επιστρέφει το competition χωρίς auth error |
 | 1.v0 | Walking skeleton: 720 steps χωρίς exception, και στα δύο seats, status DONE, bank ≥ $3.000 άθικτο |
 | 1.v1a-v1e | Κάθε increment ≥ το προηγούμενο σε 12 paired seeds (κριτήριο §6 MASTERPLAN: \|mean diff\| > 2×SE ή τουλάχιστον μη-χειροτέρευση) |
-| 1 τελικό | 12/12 wins vs `starter` και στα δύο seats· τοπικό bank ≥ **$40k** median (στόχος MASTERPLAN §5 Φάση 1 ≈ ladder median $44.8k)· max turn time < 500ms |
+| 1 τελικό | 12/12 wins **vs `starter`** και στα δύο seats· τοπικό bank ≥ **$40k** median **vs `starter`** (relative μετρική — η κοινή αγορά με έναν αδύναμο αντίπαλο φουσκώνει το απόλυτο bank σε σχέση με το ladder median $44.8k, review.md M11· απόλυτο καλιμπράρισμα μόνο από πραγματικά episodes, §4.3)· max turn time < 500ms |
 | 2 | Submission δεκτό, validation Complete, ≥ 20 episodes καταγεγραμμένα, baseline folder γεμάτο |
 
 ---
@@ -244,9 +244,12 @@ python -m harness.cli profile main.py --seed 17
 
 ```
 main.py                      # entrypoint υποβολής — ΜΟΝΟ shim:
-                             #   sys.path insert για /kaggle_simulations/agent/ (competition_info.md:524)
-                             #   + local fallback στο dirname(__file__), μετά:
-                             #   from agent.policy import agent
+                             #   sys.path insert("/kaggle_simulations/agent/") (competition_info.md:524)
+                             #   — literal path, ΟΧΙ dirname(__file__): ο loader κάνει exec() σε
+                             #   ένα namespace χωρίς __file__ (review.md C3, επαληθεύτηκε: σκάει με
+                             #   NameError και στο harness ΚΑΙ στον server), μετά top-level:
+                             #   from agent.policy import agent   # ΟΧΙ μέσα σε def agent(obs) — lazy
+                             #   imports σκάνε αφού ο loader κάνει sys.path.pop() μετά το exec
 agent/
 ├── __init__.py
 ├── constants.py             # Layer-ανεξάρτητο: engine σταθερές
@@ -378,7 +381,7 @@ def agent(obs):
 
 ### 3.3 Σειρά υλοποίησης — μικρά, συγκρίσιμα increments
 
-Κάθε increment: υλοποίηση → `compare(new, prev, seeds=range(12), both_seats=True)` → commit μόνο αν μη-χειρότερο (κριτήριο §1). Το v1a′ έχει **ανεβασμένη προτεραιότητα** έναντι της αρχικής εκδοχής του masterplan (MASTERPLAN §3.2.2: strawberry 70% win rate, n=441, real-ladder evidence).
+Κάθε increment: υλοποίηση → `compare(new, prev, seeds=range(12), both_seats=True)` → commit μόνο αν μη-χειρότερο (κριτήριο §1). **Ρητή διάκριση seed count (review.md M5):** 12 seeds αρκούν μόνο για τα γρήγορα, ενδιάμεσα increments v0→v1d· η τελική απόφαση (v1e, §4.3 baseline) θέλει **24-48 seeds** (MASTERPLAN §6, source of truth) πριν κλειδώσει — `harness.cli compare` προειδοποιεί πλέον όταν `n < 24`. Το v1a′ έχει **ανεβασμένη προτεραιότητα** έναντι της αρχικής εκδοχής του masterplan (MASTERPLAN §3.2.2: strawberry 70% win rate, n=441, real-ladder evidence).
 
 - [ ] **v0 — walking skeleton**: `main.py` + `agent/` skeleton· parse του obs, PASS παντού, 0 market orders. *Αποδοχή:* 720 steps χωρίς exception και στα 2 seats, DONE, bank $3.000. Ελέγχει το πακέτο/imports/format πριν μπει λογική.
 - [ ] **v1a — carrot loop, multi-tile**: planner με στόχο N carrot tiles στο NW, scheduler για water/harvest/replant κύκλο 3 ημερών (engine :13), executor: BUY_SEED + απλό SELL με G4. *Αποδοχή:* νικά `starter` (που δουλεύει 1 tile) σε ≥ 10/12 seeds· bank > $8k.
@@ -421,7 +424,7 @@ kaggle competitions leaderboard kaggriculture -s
 
 ### 4.3 Τι καταγράφουμε ως baseline — `baselines/2026-08-XX/`
 
-- [ ] `local_bench.json` — output του `compare(v1e, "starter", seeds=range(12), both_seats=True)` + bank distribution (και vs `"pass"`, `"random"` — MASTERPLAN §6 checklist)
+- [ ] `local_bench.json` — output του `compare(v1e, "starter", seeds=range(24), both_seats=True)` + bank distribution (και vs `"pass"`, `"random"` — MASTERPLAN §6 checklist), **και** το mirror bank (`play("main.py","main.py")`) — πιο κοντά στη ladder δυναμική από το vs-`starter` απόλυτο νούμερο (review.md M11)
 - [ ] `validation.md` — αποτέλεσμα validation episode (pass/fail, χρόνος)
 - [ ] `rating_trajectory.csv` — rating ανά episode για τα πρώτα ~20 episodes (από `kaggle competitions episodes`, χειροκίνητο ή scripted pull 1-2 φορές/μέρα)
 - [ ] `leaderboard_snapshot.md` — θέση + rating την ημέρα 1 και ημέρα 3

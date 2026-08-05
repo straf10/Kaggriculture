@@ -9,13 +9,19 @@ Tier A tests call engine functions directly on hand-built farm/private dicts.
 Tier B tests drive `env.step()` through kaggle_environments' public interpreter loop.
 """
 import copy
+import json
 import math
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from kaggle_environments import make
 from kaggle_environments.envs.kaggriculture import kaggriculture as k
 
 PASS = {"farmer": ["PASS"], "hands": [], "market": []}
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def make_env(seed, *, episode_steps=10, turns_per_day=24, **overrides):
@@ -398,10 +404,16 @@ def test_weed_rng_seat_coupling():
                 env.step([{"farmer": ["PLANT", "CARROT"], "hands": [], "market": []}, PASS])
         while env.state[0].observation.get("step") < 4:
             env.step([PASS, PASS])
-        return env.state[1].observation.farms[1]["tiles"]
+        return env.state[1].observation.farms[1]["tiles"], env.state[0].observation.day
 
-    tiles_idle = run(False)
-    tiles_planted = run(True)
+    tiles_idle, day_idle = run(False)
+    tiles_planted, day_planted = run(True)
+    # The two branches stop at different step counts (idle: 4, planted: 6 — see docstring),
+    # so the comparison below is only meaningful if both have crossed exactly the same number
+    # of _end_of_day boundaries (fires at (step+1)%turns_per_day==0, i.e. step 3 then 7); pin
+    # that invariant explicitly instead of relying on the step counts happening to line up
+    # (review.md L14).
+    assert day_idle == day_planted == 1
     assert tiles_idle != tiles_planted
 
 
@@ -469,3 +481,99 @@ def test_determinism_same_seed():
     j1.pop("id", None)
     j2.pop("id", None)
     assert j1 == j2
+
+
+def test_determinism_cross_process_hashseed():
+    """Υ3, hardening of test_determinism_same_seed above — kaggriculture.py:235,848. The
+    same-process check can only catch nondeterminism the *engine* introduces; PYTHONHASHSEED
+    is fixed for the lifetime of a process, so it can never expose set/dict-iteration
+    nondeterminism (the one a future rule-based *agent* is likely to introduce, e.g.
+    `for pos in weed_tiles:` over a set — plan.md Υ3, review.md H4). Two fresh OS processes
+    with different PYTHONHASHSEED, same seed + scripted actions, must still agree."""
+    snippet = (
+        "import json\n"
+        "from kaggle_environments import make\n"
+        "env = make('kaggriculture', configuration={'seed': 123, 'episodeSteps': 10, "
+        "'turnsPerDay': 4, 'weedSpawnChance': 0.5})\n"
+        "a0 = {'farmer': ['PLANT', 'CARROT'], 'hands': [], "
+        "'market': [['BUY_SEED', 'CARROT', 1], ['HIRE']]}\n"
+        "a1 = {'farmer': ['NORTH'], 'hands': [], 'market': [['BUY_SEED', 'WHEAT', 1]]}\n"
+        "for _ in range(9):\n"
+        "    env.step([a0, a1])\n"
+        "result = env.toJSON()\n"
+        "result.pop('id', None)\n"
+        "print(json.dumps(result, sort_keys=True))\n"
+    )
+
+    def _run(hashseed):
+        env = {**os.environ, "PYTHONHASHSEED": hashseed}
+        proc = subprocess.run(
+            [sys.executable, "-c", snippet], env=env, capture_output=True, text=True,
+        )
+        assert proc.returncode == 0, proc.stderr
+        return json.loads(proc.stdout.strip().splitlines()[-1])
+
+    assert _run("0") == _run("12345")
+
+
+# --------------------------------------------------------------------------- H2: frozen config/constants
+
+
+def test_configuration_defaults_frozen():
+    """review.md H2 — every default here is load-bearing for existing tests/guards
+    (test_market_order_cap_10 assumes maxMarketOrdersPerTurn==10, the future G3 guard assumes
+    shedCapacity==100, harness.profile's ×3 rule assumes actTimeout==1, etc.), but no test
+    actually pins the *values* — they're always passed as explicit overrides instead. Any
+    engine bump that silently changes a default here must fail this test, not surface as an
+    unexplained regression three layers up in the harness or the agent's guards."""
+    cfg = make("kaggriculture").configuration
+    assert (cfg.episodeSteps, cfg.turnsPerDay, cfg.boardSize, cfg.startingMoney) == (720, 24, 10, 3000)
+    assert (cfg.shedCapacity, cfg.maxMarketOrdersPerTurn) == (100, 10)
+    assert (cfg.actTimeout, cfg.runTimeout) == (1, 1200)
+    assert cfg.weedSpawnChance == 0.005
+    assert cfg.farmHandCostMult == 1
+    assert (cfg.townShopUnlockInterval, cfg.townShopSellInterval, cfg.townCenterSellInterval) == (3, 4, 12)
+
+
+def test_configuration_default_remaining_overage_time():
+    """harness.profile's overage_used check (review.md H3) budgets against this."""
+    env = make("kaggriculture")
+    assert env.state[0].observation.remainingOverageTime == 60
+
+
+def test_engine_constants_frozen():
+    """review.md H2 — LAND_ORDER/LAND_PRICES/SHOPS/PRICE_FLOOR/MARKET_I0 are hardcoded
+    assumptions baked into plan.md's agent design (constants.py vendoring, Υ6); pin them so a
+    future engine version that changes one fails loudly here instead of silently."""
+    assert k.LAND_ORDER == ["NE", "SW", "SE"]
+    assert k.LAND_PRICES == [1000, 2000, 4000]
+    assert sorted(k.SHOPS) == [
+        "BAKERY", "BRUNCH_SPOT", "FARMERS_MARKET", "ICE_CREAM_SHOP",
+        "PET_CAFE", "PIZZA_SHOP", "SMOOTHIE_SHOP", "YARN_STORE",
+    ]
+    assert k.PRICE_FLOOR == 1
+    assert k.MARKET_I0 == 10000
+
+
+# --------------------------------------------------------------------------- M10: engine_reference drift
+
+
+def test_engine_reference_matches_installed():
+    """review.md M10 — engine_reference/kaggriculture.py is a read-only copy that every line
+    reference in plan.md/MASTERPLAN/this file's docstrings points at. It is not imported by
+    any code (verified separately), so nothing else would notice `pip install -U
+    kaggle-environments` leaving it stale — every one of those line references would silently
+    go wrong. Byte-identity with the installed package is the cheapest possible tripwire."""
+    installed = Path(k.__file__)
+    reference = REPO_ROOT / "engine_reference" / "kaggriculture.py"
+    assert installed.read_bytes() == reference.read_bytes(), (
+        "engine_reference/kaggriculture.py is stale — re-copy from the installed package and "
+        "re-check every line reference that points at it (plan.md, MASTERPLAN, docstrings here)."
+    )
+
+    installed_json = installed.with_suffix(".json")
+    reference_json = REPO_ROOT / "engine_reference" / "kaggriculture.json"
+    if installed_json.exists() and reference_json.exists():
+        assert installed_json.read_bytes() == reference_json.read_bytes(), (
+            "engine_reference/kaggriculture.json is stale — re-copy from the installed package."
+        )
