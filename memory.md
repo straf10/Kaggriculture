@@ -8,6 +8,320 @@
 
 ---
 
+## 2026-08-06 — Session: plan.md §1.5.5 — gap analysis από top replays· §5.1 λύθηκε (v1d πρώτο)
+
+**Context:** Συνέχεια της σειράς 1.5, τελευταίο βήμα πριν το v1c-v1e redesign (§5). Στόχος:
+απαντήσεις με πραγματικούς αριθμούς σε «ποια μέρα quadrant/ζώα/bank@10-20-30 έχουν οι top
+teams», ώστε το §5.1 decision point (γη ή ζώα πρώτα) να λυθεί **αριθμητικά**, όχι ως υπόθεση.
+
+**Blocker λυμένο πρώτα:** `pyarrow` δεν ήταν εγκατεστημένο (pandas 3.0.5 χωρίς parquet engine).
+Προστέθηκε στο [requirements-dev.txt](requirements-dev.txt) μαζί με `pandas` (ήταν ήδη
+εγκατεστημένο χειροκίνητα, όχι tracked). Ένα πλήρες `pd.read_parquet` του `replays.parquet`
+(337MB πραγματικό μέγεθος σε αυτό το crawl, όχι τα ~20MB που λέει το upstream dataset README)
+έσκαγε με `ArrowMemoryError` σε αυτό το μηχάνημα — λύση: streaming ανάγνωση με
+`pq.ParquetFile.iter_batches(batch_size=16)`, μόνο τα επεισόδια που χρειάζονται παρσάρονται.
+
+**Νέο [analysis/replay_profile.py](analysis/replay_profile.py)** (χωριστά από `harness/` —
+offline data work): team selection (Wilson lower bound σε cross-team `EPISODE_TYPE_PUBLIC`
+games, n≥8, top decile → **21 teams**) → per-day profile extraction (money/hands/tiles ανά
+crop/**ζώα ανά είδος**/quadrants/σωρευτικές πωλήσεις) από **662 (episode, seat) γραμμές**.
+Ένα bug βρέθηκε στο πρώτο πέρασμα: `{"kind": "COOP"}` χωρίς `"animal"` key υπάρχει (άδεια δομή
+πριν μπει ζώο μέσα — engine:437-446), το αρχικό tally μέτραγε λάθος αυτές σαν ζώα· fix:
+έλεγχος `"animal" in cell` πριν το μέτρημα.
+
+**Ευρήματα (γραμμένα πλήρως στο plan.md §1.5.5 και στο [data/derived/top_agent_profiles.md]
+(data/derived/top_agent_profiles.md)):**
+- Quadrant #2/#3/#4: median ημέρα **9/11/12** — cross-checked ενάντια στο ανεξάρτητο
+  `episode_features.csv["first_land_day"]` για τα ίδια 21 teams: **ίδιο median 9.0**.
+- Ζώα: **COW** ημέρα **0** (85% των games), **SHEEP** ημέρα **5** (56%), **GOOSE** ημέρα **12**
+  (μόλις 15% — λιγότερο δημοφιλές παρά το χαμηλότερο κόστος).
+- Bank@10/20/30: top-decile median **$736 / $25.913 / $86.073** vs v1b **$1.069 / $20.054 /
+  $22.311** — το v1b είναι **μπροστά** στη μέρα 10 (οι top teams έχουν μόλις ξοδέψει σε capex),
+  αλλά μένει πίσω κατά **~3.9×** ($63.762) στη μέρα 30. Η v1b αποτυχία δεν είναι εκτέλεση της
+  μέρας 10 — είναι ότι δεν επενδύει αρκετά νωρίς για να έχει κάτι να θερίσει.
+
+**§5.1 λύθηκε: median ημέρα 1ου ζώου (0) < median ημέρα 1ου επιπλέον quadrant (9) → η σειρά
+αντιστρέφεται σε v1d → v1c.** Το plan.md §5.1 ξαναγράφτηκε με v1d πρώτο (target: COW+SHEEP,
+το GOOSE μετατέθηκε στο v1e λόγω χαμηλής υιοθέτησης 15%), v1c δεύτερο με προαπαιτούμενο να έχει
+κλείσει το v1d.
+
+**Tests:** νέο [tests/test_replay_profile.py](tests/test_replay_profile.py) (7 tests: Wilson
+μονοτονία, team/episode selection filters, tile counting, extract_profile shape). Full suite:
+**115/115 passed**.
+
+> **Όριο τηρήθηκε (MASTERPLAN §3.4):** μόνο aggregate per-day state διαβάστηκε/αποθηκεύτηκε
+> (`top_agent_profiles.csv`, commit-άρεται, μικρό)· το `replays.parquet` (337MB) δεν μπήκε ποτέ
+> στο repo· καμία per-unit action sequence, καμία πολιτική/βάρη δεν παράχθηκε.
+
+**Next session should:** ξεκίνα το plan.md §5 με τη νέα σειρά **v1d (ζώα) → v1c (γη) → v1e**
+(§5.1 αναθεωρημένο)· prerequisite του §5 παραμένει το §1.5.2 κριτήριο #3 (`main.py` vs
+`checkpoints/v1b` σε HOLDOUT). Χρησιμοποίησε τα gates του §1.5.3 (`stage`/`metrics`/`go`) σε
+κάθε confirm run και το `harness/report.py` του §1.5.4 σαν πρώτο βήμα διάγνωσης σε κάθε retry.
+
+---
+
+## 2026-08-05 — Session: plan.md §1.5.4 — episode report + receipts viewer
+
+**Context:** Συνέχεια της σειράς 1.5, αμέσως μετά το §1.5.3. Στόχος: κάνε το G11 (review.md H4)
+πραγματικά χρήσιμο — bundled HTML visualizer, receipts persisted δίπλα στο replay,
+`unexplained_noops` metric, και ένα αυτόνομο HTML report per episode που εντοπίζει οπτικά ΠΟΙΟ
+tile/step/unit ευθύνεται για μια ζημιά, όχι μόνο ένα άθροισμα.
+
+**Σημαντική διόρθωση στο αρχικό σχέδιο:** το plan.md's αρχική περιγραφή του `unexplained_noops`
+υπέθετε μια swallow-list («hour-23 boundary, farmer reset, hand deletion, auto-drop»). Πριν το
+υλοποιήσω διάβασα το πραγματικό `_end_of_day`/`interpreter()` στο engine_reference και βρήκα ότι
+καμία από αυτές τις κατηγορίες δεν αντιστοιχεί σε πραγματικό false-positive μηχανισμό: το tile
+effect μιας ενέργειας γράφεται **πριν** το day-boundary reset του ίδιου step, το `reconcile()`
+ελέγχει by tile-position όχι by unit-identity, και τα hands γεννιούνται **μόνο** από HIRE (δεν
+υπάρχει καν mid-day dismiss). Άρα υλοποίησα το πιο απλό, σωστό πράγμα: κάθε `reconciliation`
+receipt με `ok=False` είναι γνήσιο mismatch, μετράει κατευθείαν, καμία εξαίρεση.
+
+**Code changes:**
+- [harness/metrics.py](harness/metrics.py): `extract_metrics(env_json, seat, diagnostics=None)`
+  — νέο `unexplained_noops` (None χωρίς diagnostics), νέο per-day `daily` breakdown, και νέο
+  `loss_events` (μία εγγραφή `{type, day, step, pos, units}` ανά water_weeds_lost/plant_decay
+  occurrence — αυτό λύνει το «πού ακριβώς» του acceptance criterion).
+- [agent/config.py](agent/config.py): `KAGGRI_DEBUG=1` env var ενεργοποιεί
+  `CONFIG["guards"]["debug"]` (ίδιος μηχανισμός με το `KAGGRI_ABLATION` του §1.5.2).
+- [harness/play.py](harness/play.py): νέο `render_html: bool = False` (γράφει το bundled
+  ~15MB offline visualizer)· receipts persist σε `receipts_seed<N>_seat0-<a>_seat1-<b>.jsonl`
+  **μόνο όταν μη-κενά**· νέα `PlayResult.html_path`/`receipts_path`.
+- Νέο [harness/report.py](harness/report.py): αυτόνομο HTML (καμία εξωτερική εξάρτηση) — bank
+  curve, daily losses/utilization (canvas charts), per-unit action timeline (proxy: action
+  opcode ανά unit/step, αφού δεν υπάρχει persisted task-kind), farm heatmap με day slider,
+  sell-price-vs-base, G11 badge, loss-events table.
+  [harness/cli.py](harness/cli.py): `--render-html` στο `play`, νέα υποεντολή `report`.
+- 13 νέα tests σε 3 αρχεία (test_metrics.py, test_harness.py, νέο test_report.py).
+
+**Result:** `pytest tests/` → 109/109 passed. Real-engine run: `KAGGRI_DEBUG=1` play + report →
+`unexplained_noops=0` σε καθαρό main.py episode (**κριτήριο αποδοχής #2 πέρασε**)· ένα run με
+frozen `checkpoints/v1b` (προ-G11) έδειξε σωστά `None` («not measured»), όχι ψευδές 0.
+
+**Next session should:** §1.5.5 (gap analysis από top replays μέσω kagglehub) → μετά v1c-v1e
+redesign (§5) με το urgency-tiered slack (§1.5.2) ως βάση, τα gates του §1.5.3
+(`stage`/`metrics`/`go`) σε κάθε confirm run, και το `harness/report.py` του §1.5.4 σαν πρώτο
+βήμα διάγνωσης πριν από κάθε νέο retry — όχι ξανά "στα τυφλά" όπως το v1c.
+
+---
+
+## 2026-08-05 — Session: plan.md §1.5.3 — stage field + metric gates στο compare()
+
+**Context:** Συνέχεια εκτέλεσης του plan.md ΒΗΜΑ 1.5 με τη σειρά, αμέσως μετά το §1.5.2
+(urgency-tiered slack fix, βλ. entry παρακάτω). Στόχος: κάνε αδύνατο ένα καθαρό $-verdict από
+DEV_SEEDS tuning να διαβαστεί σαν GO, και κάνε αδύνατο ένα $-verdict να μετράει σαν GO αν δεν έχει
+τρέξει μαζί το metric gate (review.md §5 check #5: `water_weeds_lost==0` και
+`plant_decay_units_lost==0`).
+
+**Code changes:**
+- [harness/compare.py](harness/compare.py): `compare()` πήρε `metrics: bool = False` (περνά
+  `metrics=` σε κάθε `play()`, worker path και sequential path) και `stage:
+  Optional["dev-screen"|"holdout-confirm"] = None` (raise σε άκυρη τιμή). Το metric gate διαβάζει
+  τα δύο counters από το **seat του agent_a σε κάθε orientation** — seat 0 στο `A@0/B@1`, seat 1
+  στο `B@0/A@1` (όχι πάντα seat 0 — θα μετρούσε λάθος τον αντίπαλο στο swapped orientation).
+  Αθροίζονται (όχι μέσος όρος) σε `water_weeds_lost_a`/`plant_decay_units_lost_a`,
+  `metric_gate_passed`, `metrics_checked`, και νέο πεδίο `go: bool` στο `CompareResult` —
+  `True` μόνο όταν stage=="holdout-confirm" ΚΑΙ verdict ∈ {IMPROVED,NON_INFERIOR} ΚΑΙ
+  metrics_checked ΚΑΙ metric_gate_passed.
+- [harness/cli.py](harness/cli.py): νέα `--metrics`/`--stage` flags στο `compare` subcommand·
+  `--stage` παίρνει default από `--seed-set` (dev→dev-screen, holdout→holdout-confirm, smoke→None,
+  ποτέ GO). Output (stdout + results.json) τυπώνει stage/metrics_checked/τα δύο
+  counters/metric_gate_passed/go.
+- 5 νέα tests σε [tests/test_harness.py](tests/test_harness.py): invalid stage, metrics
+  off-by-default, seat-correctness του metric gate ανά orientation, και τα τέσσερα σενάρια `go`
+  (dev-screen, holdout χωρίς metrics, holdout με καθαρό gate, holdout με failed gate).
+
+**Result:** `pytest tests/` → 96/96 passed. Real-engine επαλήθευση (όχι μόνο mocks): `main.py` vs
+`checkpoints/v1b/main.py` σε SMOKE_SEEDS με `--metrics` → `water_weeds_lost_a=0
+plant_decay_units_lost_a=0 metric_gate_passed=True`, `verdict=NON_INFERIOR`, `GO=False` (σωστό —
+stage=None για smoke). Πλήρες DEV_SEEDS run (χωρίς --metrics) αναπαρήγαγε ακριβώς το
+`mean_diff=-262.2` του §1.5.2 — καμία παλινδρόμηση από τα νέα optional παραμέτρους.
+
+**Next session should:** §1.5.4 (episode report + receipts viewer: `render_html` flag στο
+`play.py`, persist receipts σε `receipts_seed<N>.jsonl`, νέο `harness/report.py`, `report`
+subcommand στο cli.py) → §1.5.5 (gap analysis από top replays) → μετά v1c redesign (§5), και
+θυμήσου να περνάς `stage="holdout-confirm"` + `metrics=True` στο τελικό confirm run κάθε increment
+από εδώ και πέρα, αλλιώς το `go` θα μείνει πάντα False.
+
+---
+
+## 2026-08-05 — Session: plan.md §1.5.1/§1.5.2 — parallel compare() + −$2.195 regression ξεμπλοκαρίστηκε
+
+**Context:** Εκτέλεση του plan.md ΒΗΜΑ 1.5 με τη σειρά. §1.5.1 ήδη ολοκληρώθηκε πρώτο (parallel
+`compare()`, dev/holdout/smoke seed split, μετρημένο speedup 4.56× σε 8 workers — βλ. plan.md
+§1.5.1 για τα νούμερα). Το κύριο session ήταν το §1.5.2: root-cause + fix του ανοιχτού −$2.195
+regression από το προηγούμενο session.
+
+**Ablation infrastructure:** `CONFIG["ablation"]` (11 flags — τα 10 του plan.md's πίνακα + ένα
+νέο `carrot_water_window`, βρέθηκε επειδή το all-off self-test απέτυχε χωρίς αυτό, review.md L7)
++ `KAGGRI_ABLATION` env var (parsed once at import, ώστε ο ablation runner — άλλη διεργασία από
+τον agent — να μπορεί να στέλνει combos χωρίς mutation στο `CONFIG` runtime, G13-safe) + νέο
+`harness/ablate.py` (`self_test()`, `run_combo()`, `one_at_a_time_sweep()`, CLI). Self-test
+πέρασε: all-off vs `checkpoints/v1b` σε 48 `DEV_SEEDS` → `mean_diff=0.0`, 48/48 seeds ακριβώς 0.
+
+**Root cause (one-at-a-time sweep, πλήρες DEV_SEEDS):** μόνο το `slack_assign` εξηγεί σχεδόν όλο
+το χάσμα (off μόνο του: −$2195 → −$257, `NON_INFERIOR`). Όλα τα άλλα flags είτε αδρανή (≈−$2084,
+επιβεβαιώνει το `endgame_enabled` control) είτε — αν αφαιρεθούν — κάνουν τα πράγματα πολύ
+χειρότερα (`task_stickiness` off: −$20687· `on_event_replan` off: −$8089), δηλαδή είναι
+απαραίτητα, όχι ένοχα. Ο πραγματικός μηχανισμός: στο `assign()`'s sort key, `task_slack =
+deadline_step - step - (best_distance+1)` διαφέρει μεταξύ tasks με ίδιο `priority`/`deadline_step`
+(η κοινή περίπτωση — όλα τα ημερήσια WATER tasks) **μόνο** κατά `-best_distance`. Το `min()` άρα
+διαλέγει πάντα το **μακρύτερο** task ανάμεσα σε ισοπρόσωπα tasks, όχι μόνο όταν κάτι πραγματικά
+κινδυνεύει — αντίστροφο του σκοπούμενου review.md §1.2 fix, farthest-first **όλη μέρα** αντί για
+σπάνιο override. Αυτό εξηγεί το μέγεθος/χαρακτήρα της απώλειας.
+
+**Fix (χωρίς να θυσιαστεί το review.md §1.2 εύρημα — «μακρινό αλλά επείγον» δεν πρέπει να
+λιμοκτονεί):** νέο `urgency_tier` στο sort key, πριν το `task_slack`· ένα task ταξινομείται με
+slack πριν την απόσταση **μόνο** αν `slack <= CONFIG["scheduler"]["urgency_slack_margin"]` (=2) —
+δηλαδή όντως κοντά στο ανέφικτο. Όλα τα «άνετα» tasks γυρνάνε σε καθαρό nearest-first (v1b's
+προεπιλογή). `agent/scheduler.py` (`assign()`), `agent/config.py`. Self-test #1 παραμένει ακριβώς
+ίδιο μετά (η αλλαγή αγγίζει μόνο το `slack_assign=True` branch). Με τη διόρθωση: DEV_SEEDS
+`mean_diff=-262.2` NON_INFERIOR· **HOLDOUT_SEEDS (μία φορά, exit criterion) `mean_diff=-219.0`,
+se=20.3, ci95=[-259.8,-178.3], NON_INFERIOR, 0 errors.**
+
+**Αποτέλεσμα:** plan.md §1.5.2 ολοκληρώθηκε (και τα 3 κριτήρια αποδοχής πέρασαν) — **v1c work
+ξεμπλοκαρίστηκε**. `pytest tests/` → 91 passed καθ' όλη τη διάρκεια.
+
+**Next session should:** plan.md §1.5.3 (stage field στα gate reports, `metrics: bool` param στο
+`compare()` για water_weeds/plant_decay gates) → §1.5.4 (episode report + receipts viewer) →
+§1.5.5 (gap analysis από top replays) → μετά v1c redesign (§5) με το νέο urgency-tiered slack ως
+βάση, όχι το παλιό ανεξέλεγκτο.
+
+---
+
+## 2026-08-05 — Session: Στρατηγική επανευθυγράμμιση — MASTERPLAN §3.4/§4/§5.0/§6.1/§8 + ξαναγραμμένο plan.md
+
+**Context:** Καμία αλλαγή κώδικα. Το session ασχολήθηκε αποκλειστικά με τα δύο έγγραφα
+σχεδιασμού, μετά το review.md και το ανοιχτό −$2.195 regression.
+
+**MASTERPLAN.md (νέα/επεκταμένα κεφάλαια — πηγή στρατηγικής):**
+- **§3.4 Gap analysis**: εμείς v1b ~$21k / 1 quadrant / 0 ζώα έναντι ladder median winner
+  $50-83k / 4 quadrants / 20 ζώα. Συμπέρασμα: το χάσμα είναι **δομικό, όχι παραμετρικό** — κάθε
+  sweep πριν από γη+ζώα βελτιστοποιεί σε λάθος ταβάνι. Καταγράφηκε ότι το `episode_features.csv`
+  **δεν έχει στήλες για ζώα/quadrants**, άρα το «γη ή ζώα πρώτα;» απαιτεί parsing του raw
+  `replays.parquet`. Ρητή **οριοθέτηση replays**: target curve + διαγνωστικό, ποτέ BC/IL.
+- **§4 «Ποσοτικοποίηση του όχι καθαρό RL τώρα»**: ~240 env-steps/s/core, GPU δεν βοηθά
+  (CPU-bound Python engine), vectorized reimplementation 2-4 εβδομάδες + μόνιμο drift ρίσκο.
+  Κλίμακα ML επιλογών (BBO → learned market layer → RL) και **4-πλός trigger** για Φάση 4-RL.
+- **§5.0 Κατάσταση + πίνακας 7 προτεραιοτήτων**: ξεμπλοκάρισμα −$2.195 → parallel compare →
+  gap analysis → observability → v1c/v1d → BBO → RL.
+- **§6.1 Πειραματικό πρωτόκολλο**: dev/holdout split, screen→confirm (ποτέ «κράτα το max από k»),
+  παραλληλισμός ανά seed, μέθοδος bisect με CONFIG flags.
+- **§8 Παρατηρησιμότητα**: ο bundled visualizer του engine δουλεύει offline
+  (`env.render(mode="html")`)· το πραγματικά διαγνωστικό κομμάτι είναι δικό μας episode report με
+  **task-assignment timeline ανά unit**. Το `results.jsonl` παραμένει πηγή αλήθειας· W&B μόνο ως
+  view και μόνο με απόφαση χρήστη.
+
+**plan.md — ξαναγράφηκε ολόκληρο (διαβάζεται σε ~5′):**
+- Αφαιρέθηκε/συμπυκνώθηκε ό,τι ολοκληρώθηκε: το ΒΗΜΑ 0 έγινε 4 ενεργοί κανόνες (tests από
+  εγκατεστημένο πακέτο, version-bump detector, όχι engine_facts.md, auth/entry λυμένα)· τα
+  v0→v1b έγιναν πίνακας μιας γραμμής ανά version με checkpoint path· οι εκκρεμότητες 1-2 έκλεισαν.
+- **Νέο ΒΗΜΑ 1.5 (§4), ΠΡΙΝ από το v1c**, 5 items με τεχνικές οδηγίες σε επίπεδο αρχείου/
+  συνάρτησης και εκτελεστικά κριτήρια: **1.5.1** `harness/seeds.py` + `compare(workers=)` με
+  ProcessPoolExecutor (Windows spawn picklability → auto sequential fallback, jsonl μόνο από
+  parent, fingerprint guard πριν το dispatch)· **1.5.2** `CONFIG["ablation"]` με 10 flags (ένα ανά
+  αλλαγή του review session) + `harness/ablate.py`, με **self-test: all-off ⇒ per-seed diffs
+  ακριβώς 0**· **1.5.3** screen→confirm ως κανόνας + metric gates· **1.5.4** episode report +
+  `unexplained_noops`· **1.5.5** `analysis/replay_profile.py` → `data/derived/top_agent_profiles.csv`.
+- G1-G15: προστέθηκε στήλη σημερινής κατάστασης. **G1/G9 είναι κόκκινα στο working agent**
+  (~2 water_weeds / ~14 plant_decay ανά episode) ενώ είναι πράσινα στο `checkpoints/v1b` —
+  αυτό είναι το ίδιο το regression, ορατό ως guard failure.
+- v1c/v1d: προαπαιτούμενα = review.md §5 checks 1-9 **ΚΑΙ** τα ευρήματα του 1.5.5· προστέθηκε
+  **ρητό decision point με αριθμητικό κριτήριο** (αν οι top αποκτούν 1ο ζώο πριν από 1ο επιπλέον
+  quadrant, η σειρά γίνεται v1d→v1c). Metric gate πριν από κάθε $-gate.
+- Χρονοδιάγραμμα: βάση 08-05, **το «πρώτο submission ~08-14/15» αναθεωρήθηκε σε ~08-22/24**.
+- Ρητά out-of-scope Φάσης 1: BBO sweeps, RL, W&B. Νέα εκκρεμότητα χρήστη: **W&B ή τοπικό static
+  HTML report** (εξωτερική υπηρεσία + API key εν μέσω διαγωνισμού = απόφαση χρήστη, όχι agent
+  task) — μέχρι απάντηση υλοποιείται μόνο το τοπικό report.
+
+**Next session should:** plan.md §1.5.1 — `harness/seeds.py` + parallel `compare()`, με το test
+ταυτόσημων per-seed diffs σε workers=1 vs N. Αμέσως μετά §1.5.2 (ablation), ξεκινώντας από το
+all-off self-test· **κανένα v1c work πριν περάσει το κριτήριο #3 του 1.5.2 σε HOLDOUT_SEEDS**.
+
+---
+
+## 2026-08-05 — Session: review.md (commit 89d99f0) findings fixed; oscillation regression found and fixed
+
+**Context:** Applied review.md's findings against commit `89d99f0` (agent v0-v1b + harness
+checkpoint/guard foundation) — C1, H1-H5, M1-M8, and most L1-L10. review.md still exists on
+disk (not deleted this time, unlike the prior session's convention — user may want to review it
+before deciding).
+
+**Code changes:**
+- `agent/scheduler.py`: `assign()` rewritten around task-level `slack`
+  (`deadline_step - step - nearest-unit travel time`) instead of raw distance, so a distant
+  urgent WATER task no longer starves behind a steady stream of near unhurried ones (C1 §1.2).
+  `build_tasks()` now caps PLANT task *creation* to `min(daily plant budget, seeds available)`
+  (fixes H1 same-turn cap violation and M6 wasted walks in one mechanism), uses min-distance-
+  across-all-units for DIG/PLANT feasibility instead of farmer-only (H5), sorts by priority
+  before `max_tasks` truncation (L8), derives the default `deadline_step` from config (L8), and
+  builds one inventory-aware liquidation DROP task per loaded unit instead of one global task
+  an empty unit could monopolize (M1).
+- `agent/planner.py`: new capacity gate — trims `plant_targets` when projected watering demand
+  (unit-turns to reach + water every target tile, at the real ~every-other-day cadence) exceeds
+  `capacity_safety_factor` (0.8) of the day's unit-turn supply, never below what's already
+  planted (C1 §1.3/§5#2). Also fixed L6 (`endgame.enabled` was dead; now honored and flipped
+  to `True` in config to preserve existing liquidation behavior).
+- `agent/policy.py`: added an on-event replan trigger — `my_quadrants` change or **hand-count
+  change** (M4). The hand-count trigger turned out load-bearing, not cosmetic: hands hired at
+  hour 0 don't appear in `hand_positions` until hour 1, so without it the capacity gate above
+  would plan the whole day around the 1-unit count observed at hour 0, right after end-of-day
+  wiped hands to zero. Also wired up minimum G11 debug receipts (H4): `expected_transition`/
+  `reconcile` in new `agent/receipts.py`, gated behind `CONFIG["guards"]["debug"]`, emitting via
+  new `agent/debug.py`.
+- `agent/executor.py`: seed purchases now capped by actual remaining unplanted target tiles,
+  not a flat buffer regardless of need (M5, dead capital). `market_orders()` truncates instead
+  of `raise AssertionError` past the order cap — a raise there would be a lost episode in
+  submission (M7).
+- `harness/metrics.py`: stopped mutating the caller's `env.toJSON()` dict in `_transition_events`
+  (L1); added the engine's 100k-iteration market-loop escape hatch to `_simulate_market` (L2);
+  excluded a seat's own same-turn HARVEST from the decay/animal-escape heuristics so a legitimate
+  harvest isn't double-counted as a loss (M8).
+- `harness/checkpoint.py`: default checkpoint root moved from `runs/checkpoints` (gitignored —
+  H2, this is why v0/v1a/v1a′/v1b had zero git history) to `checkpoints/` at repo root;
+  `copytree` now ignores `__pycache__` (L4); `agent_fingerprint()` verifies a checkpoint's
+  package still matches its `manifest.json` and raises on mismatch instead of silently trusting
+  a possibly-edited "immutable" checkpoint (H3). The four existing checkpoints were moved
+  (not just copied) to `checkpoints/` and their fingerprints reverified — not yet git-added,
+  left for the user to review/commit.
+- `harness/compare.py`: `results.jsonl` now starts with a `_meta` row recording
+  `code_fingerprints`; `--resume` raises if they don't match the current call instead of
+  silently mixing two agent versions into one verdict (M2). `NON_INFERIOR` now requires
+  `n >= 12` and `se_diff > 0`, not just a CI that happens to clear the margin at any n (M3).
+- `tests/`: +9 net tests (89 total, up from 80), covering all of the above.
+
+**Critical regression found and fixed mid-session (not in review.md — introduced by the C1
+fix above, caught by manually playing full episodes before declaring done):** the slack-based
+`assign()` oscillated — two units observed stepping back and forth between the same tile pair
+indefinitely, watering almost nothing (reward collapsed to ~$1.8k/$3k range vs. v1b's ~$21k).
+Root cause: a task's slack recovers while a unit walks toward it (distance -1 offsets step +1)
+but drains unconditionally for every task *not* being walked toward, so an untouched task can
+cross below the current target's slack mid-walk and steal the unit, which then flips back the
+turn after. Fixed with **unconditional task stickiness**: `assign()` now takes/returns a
+`committed: dict[unit_index -> task.id]` and prefers continuing a still-valid commitment ahead
+of slack. A "softer" version (stickiness only within a coarse slack tier) was tried and
+measured to still oscillate on a ~3-turn period — full commitment is what's actually stable.
+This also required recalibrating the capacity-gate demand model: the first version assumed
+every target tile needs watering *every* day, which throttled `plant_targets` even at v1b's
+already-working scale (demand model wasn't accounting for the every-other-day watering
+cadence); rescaled by 0.5.
+
+**Known residual gap (not resolved this session):** even after the oscillation fix, `main.py`
+vs. `checkpoints/v1b/main.py` over 12 seeds/both-seats is **REGRESSED**, mean_diff ≈ -$2195
+(se≈$93, CI [-2399, -1991], 24/24 episode losses, zero errors). Isolated via ablation: not the
+capacity gate (demand is already under the safety threshold at v1b's real 4-unit scale — disabling
+it changes nothing) and not the H1 plant-cap enforcement (relaxing it made things *worse*, not
+better). Root cause not fully isolated — most likely candidate is some interaction between the
+new slack-driven prioritization/stickiness and the STRAWBERRY harvest rush (~18 tiles becoming
+harvest-due around the same days), given `plant_decay_units_lost`/`water_weeds_lost` are small
+but nonzero (~14/~2 per episode) where v1b has exactly zero. Deeper tuning was intentionally
+not pursued further this session — the task was "fix the identified bugs," not "re-tune for
+reward parity," and further ad-hoc changes to `assign()` had already caused one bad regression
+(the coarse-tier stickiness attempt above). **Next session should** treat this gap as a known
+open item before any v1c retry: bisect which specific fix (or their interaction) causes it,
+using `checkpoints/v1b` as the immutable comparison baseline.
+
+---
+
 ## 2026-08-05 — Session: Εφαρμογή του review.md — όλα τα ευρήματα διορθώθηκαν
 
 **Context:** Εφαρμόστηκαν όλα τα ευρήματα του προηγούμενου review.md (C1-C3, H1-H4, M1-M11,

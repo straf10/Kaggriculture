@@ -1,5 +1,6 @@
 """Layer 3 market-order executor."""
 from .constants import CROPS, market_price
+from .debug import emit_receipt
 from .planner import DayPlan
 from .scheduler import ResourceLedger
 from .state import Snapshot
@@ -10,6 +11,20 @@ def _hire_cost(n_already_today: int) -> int:
     for _ in range(n_already_today):
         first, second = second, first + second
     return first
+
+
+def _remaining_unplanted_targets(snapshot: Snapshot, plan: DayPlan, config: dict, crop: str) -> int:
+    """review.md M5: how many of today's target tiles for `crop` are not yet planted. Buying
+    seeds up to a fixed buffer regardless of this left leftover stock (up to seed_buffer per
+    crop, no resale) once every target tile was already planted."""
+    target_tiles = config["scheduler"]["target_tiles"].get(crop, ())
+    limit = plan.plant_targets.get(crop, 0)
+    remaining = 0
+    for x, y in target_tiles[:limit]:
+        tile = snapshot.my_tiles[y][x]
+        if not (isinstance(tile, dict) and tile.get("kind") == "PLANT"):
+            remaining += 1
+    return remaining
 
 
 def market_orders(
@@ -52,7 +67,13 @@ def market_orders(
             if plan.plant_targets.get(crop, 0) <= 0:
                 continue
             seed_count = int(ledger.seeds.get(crop, 0))
-            seeds_to_buy = max(0, seed_buffer - seed_count)
+            if config["ablation"]["seed_cap_by_remaining_targets"]:
+                remaining_unplanted = _remaining_unplanted_targets(snapshot, plan, config, crop)
+                seeds_to_buy = max(0, min(seed_buffer, remaining_unplanted) - seed_count)
+            else:
+                # v1b behavior: flat seed_buffer target regardless of how many target tiles
+                # actually still need a seed.
+                seeds_to_buy = max(0, seed_buffer - seed_count)
             affordable = int(available_money // CROPS[crop]["seed"])
             seeds_to_buy = min(seeds_to_buy, affordable)
             if seeds_to_buy:
@@ -71,5 +92,13 @@ def market_orders(
 
     max_orders = int(executor_config["max_market_orders"])
     if len(orders) > max_orders:
-        raise AssertionError(f"market order budget exceeded: {len(orders)} > {max_orders}")
+        # review.md M7: raising here would turn one budget slip into a submission ERROR and a
+        # lost episode. Truncate defensively instead and leave a receipt to catch it in dev.
+        emit_receipt({
+            "kind": "market_order_budget_truncated",
+            "step": snapshot.step,
+            "requested": len(orders),
+            "max_orders": max_orders,
+        })
+        orders = orders[:max_orders]
     return orders

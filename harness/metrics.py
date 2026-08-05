@@ -12,11 +12,10 @@ def _action(step, seat):
     return action if isinstance(action, dict) else {"farmer": ["PASS"], "hands": [], "market": []}
 
 
-def _apply_unit_actions(farms, privates, actions, configuration):
+def _apply_unit_actions(farms, privates, actions, configuration, day):
     board_size = int(configuration.get("boardSize", 10))
     turns_per_day = max(1, int(configuration.get("turnsPerDay", 24)))
     shed_capacity = int(configuration.get("shedCapacity", 100))
-    day = int(actions[0].get("_day", 0))
     overflow = [0, 0]
 
     for seat in (0, 1):
@@ -95,7 +94,13 @@ def _simulate_market(farms, privates, market, actions, configuration):
                 engine._do_buy_land(farms[seat], board_size)
                 order_states[seat] = None
 
+        idx_esc = 0
         while True:
+            idx_esc += 1
+            if idx_esc >= 100_000:
+                # review.md L2: mirror the engine's own runaway-loop guard (kaggriculture.py
+                # market loop) — a pathological replay must not hang metrics extraction.
+                break
             quoted = [None, None]
             for seat, order_state in enumerate(order_states):
                 if order_state is None or order_state["remaining"] <= 0:
@@ -153,10 +158,8 @@ def _transition_events(previous_step, current_step, configuration):
     ]
     actions = [_action(current_step, seat) for seat in (0, 1)]
     previous_day = int(previous_step[0]["observation"].get("day", 0))
-    for action in actions:
-        action["_day"] = previous_day
 
-    overflow = _apply_unit_actions(farms, privates, actions, configuration)
+    overflow = _apply_unit_actions(farms, privates, actions, configuration, previous_day)
     sales = _simulate_market(farms, privates, market, actions, configuration)
 
     current_day = int(current_step[0]["observation"].get("day", previous_day))
@@ -169,8 +172,18 @@ def _transition_events(previous_step, current_step, configuration):
     return actions, overflow, sales
 
 
-def extract_metrics(env_json: dict, seat: int) -> dict:
-    """`env_json` is env.toJSON() (or an equivalent replay dict loaded from disk)."""
+def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) -> dict:
+    """`env_json` is env.toJSON() (or an equivalent replay dict loaded from disk).
+
+    `diagnostics` is `PlayResult.diagnostics` (KAGGRI_RECEIPT records, only non-empty when
+    `CONFIG["guards"]["debug"]` was on for the agent process — see agent/debug.py and
+    agent/receipts.py). When given, `unexplained_noops` counts `reconciliation` receipts for
+    this seat where `ok is False`: reconcile() checks the actual committed WATER/PLANT/HARVEST
+    against the farm tile at the position the action targeted, and that tile is never touched
+    by the day-boundary farmer/hands reset (`_apply_unit_action` lands before `_end_of_day` in
+    the engine's own turn order) — so every `ok=False` here is a genuine expected-vs-actual
+    mismatch (review.md H4), not a boundary artifact to swallow. Without diagnostics this is
+    `None`, not `0` — the absence of receipts is not proof of zero unexplained no-ops."""
     opponent = 1 - seat
     steps = env_json["steps"]
     bank_curve = [step[0]["observation"]["farms"][seat]["money"] for step in steps]
@@ -196,6 +209,13 @@ def extract_metrics(env_json: dict, seat: int) -> dict:
     worker_turns_working = 0
     worker_turns_idle = 0
     configuration = env_json.get("configuration", {})
+    # harness/report.py (plan.md §1.5.4) needs a per-day breakdown to plot losses/utilization
+    # over the episode instead of one flat total; keyed by day index, densified below so a day
+    # with zero transitions still appears as a zero row instead of a gap.
+    daily_by_day: dict = {}
+    # harness/report.py's acceptance criterion is pinpointing *which* tile/step caused a loss,
+    # not just a daily count — one record per water_weeds_lost/plant_decay occurrence.
+    loss_events = []
 
     for index in range(1, len(steps)):
         previous_step, current_step = steps[index - 1], steps[index]
@@ -204,42 +224,10 @@ def extract_metrics(env_json: dict, seat: int) -> dict:
         previous_tiles = previous_observation["farms"][seat]["tiles"]
         current_tiles = current_observation["farms"][seat]["tiles"]
         previous_engine_step = int(previous_observation.get("step", index - 1))
-
-        for y, row in enumerate(previous_tiles):
-            for x, previous_tile in enumerate(row):
-                current_tile = current_tiles[y][x]
-                if isinstance(previous_tile, dict) and previous_tile.get("kind") == "PLANT":
-                    if isinstance(current_tile, dict) and current_tile.get("kind") == "WEED":
-                        weeds_lost += 1
-                        if (
-                            current_observation.get("day") != previous_observation.get("day")
-                            and not previous_tile.get("watered_today")
-                            and previous_tile.get("consecutive_unwatered", 0) >= 1
-                        ):
-                            water_weeds_lost += 1
-                    lifespan = previous_tile.get("max_lifespan_step", -1)
-                    if (
-                        lifespan >= 0
-                        and previous_engine_step >= lifespan
-                        and (previous_engine_step - lifespan) % 2 == 0
-                    ):
-                        previous_yield = previous_tile.get("yield_units", 0)
-                        current_yield = (
-                            current_tile.get("yield_units", 0)
-                            if isinstance(current_tile, dict) and current_tile.get("kind") == "PLANT"
-                            else 0
-                        )
-                        if current_yield < previous_yield:
-                            plant_decay_units_lost += previous_yield - current_yield
-                            if isinstance(current_tile, dict) and current_tile.get("kind") == "WEED":
-                                decay_weeds_lost += 1
-                if isinstance(previous_tile, dict) and "animal" in previous_tile:
-                    if (
-                        isinstance(current_tile, dict)
-                        and "animal" not in current_tile
-                        and current_tile.get("kind") == previous_tile.get("kind")
-                    ):
-                        animals_escaped += 1
+        day_row = daily_by_day.setdefault(int(previous_observation.get("day", 0)), {
+            "water_weeds_lost": 0, "plant_decay_units_lost": 0,
+            "worker_turns_moving": 0, "worker_turns_working": 0, "worker_turns_idle": 0,
+        })
 
         actions, overflow, transition_sales = _transition_events(
             previous_step,
@@ -252,14 +240,81 @@ def extract_metrics(env_json: dict, seat: int) -> dict:
         farm = previous_observation["farms"][seat]
         unit_actions = [actions[seat].get("farmer", ["PASS"]), *actions[seat].get("hands", [])]
         unit_actions = unit_actions[:1 + len(farm.get("hands", []))]
+        unit_positions = [tuple(farm.get("farmer", (0, 0))), *(tuple(pos) for pos in farm.get("hands", []))]
+        # review.md M8: a HARVEST this seat's own unit just performed can legitimately zero
+        # out yield_units (ongoing crop) or clear "animal" off the tile's product state on the
+        # very step the decay-window/escape heuristics below would otherwise misfire on —
+        # exclude positions this seat harvested from this turn.
+        harvested_positions = {
+            unit_positions[unit_index]
+            for unit_index, unit_action in enumerate(unit_actions)
+            if unit_index < len(unit_positions)
+            and isinstance(unit_action, list)
+            and unit_action
+            and unit_action[0] == "HARVEST"
+        }
+
+        for y, row in enumerate(previous_tiles):
+            for x, previous_tile in enumerate(row):
+                current_tile = current_tiles[y][x]
+                harvested_here = (x, y) in harvested_positions
+                if isinstance(previous_tile, dict) and previous_tile.get("kind") == "PLANT":
+                    if isinstance(current_tile, dict) and current_tile.get("kind") == "WEED":
+                        weeds_lost += 1
+                        if (
+                            current_observation.get("day") != previous_observation.get("day")
+                            and not previous_tile.get("watered_today")
+                            and previous_tile.get("consecutive_unwatered", 0) >= 1
+                        ):
+                            water_weeds_lost += 1
+                            day_row["water_weeds_lost"] += 1
+                            loss_events.append({
+                                "type": "water_weeds_lost", "step": previous_engine_step,
+                                "day": int(previous_observation.get("day", 0)), "pos": [x, y],
+                            })
+                    lifespan = previous_tile.get("max_lifespan_step", -1)
+                    if (
+                        lifespan >= 0
+                        and previous_engine_step >= lifespan
+                        and (previous_engine_step - lifespan) % 2 == 0
+                        and not harvested_here
+                    ):
+                        previous_yield = previous_tile.get("yield_units", 0)
+                        current_yield = (
+                            current_tile.get("yield_units", 0)
+                            if isinstance(current_tile, dict) and current_tile.get("kind") == "PLANT"
+                            else 0
+                        )
+                        if current_yield < previous_yield:
+                            plant_decay_units_lost += previous_yield - current_yield
+                            day_row["plant_decay_units_lost"] += previous_yield - current_yield
+                            loss_events.append({
+                                "type": "plant_decay_units_lost", "step": previous_engine_step,
+                                "day": int(previous_observation.get("day", 0)), "pos": [x, y],
+                                "units": previous_yield - current_yield,
+                            })
+                            if isinstance(current_tile, dict) and current_tile.get("kind") == "WEED":
+                                decay_weeds_lost += 1
+                if isinstance(previous_tile, dict) and "animal" in previous_tile:
+                    if (
+                        isinstance(current_tile, dict)
+                        and "animal" not in current_tile
+                        and current_tile.get("kind") == previous_tile.get("kind")
+                        and not harvested_here
+                    ):
+                        animals_escaped += 1
+
         for unit_action in unit_actions:
             op = unit_action[0] if isinstance(unit_action, list) and unit_action else "PASS"
             if op in _MOVES:
                 worker_turns_moving += 1
+                day_row["worker_turns_moving"] += 1
             elif op == "PASS":
                 worker_turns_idle += 1
+                day_row["worker_turns_idle"] += 1
             else:
                 worker_turns_working += 1
+                day_row["worker_turns_working"] += 1
 
     prices_by_item = {}
     for sale in sales:
@@ -268,6 +323,23 @@ def extract_metrics(env_json: dict, seat: int) -> dict:
         item: statistics.mean(prices)
         for item, prices in prices_by_item.items()
     }
+
+    if diagnostics is None:
+        unexplained_noops = None
+    else:
+        unexplained_noops = sum(
+            1 for d in diagnostics
+            if d.get("seat") == seat and d.get("kind") == "reconciliation" and d.get("ok") is False
+        )
+
+    empty_day_row = {
+        "water_weeds_lost": 0, "plant_decay_units_lost": 0,
+        "worker_turns_moving": 0, "worker_turns_working": 0, "worker_turns_idle": 0,
+    }
+    daily = [
+        {"day": day, **daily_by_day.get(day, empty_day_row)}
+        for day in range(max(daily_by_day, default=-1) + 1)
+    ]
 
     return {
         "final_bank": final_bank,
@@ -288,4 +360,7 @@ def extract_metrics(env_json: dict, seat: int) -> dict:
         "worker_turns_moving": worker_turns_moving,
         "worker_turns_working": worker_turns_working,
         "worker_turns_idle": worker_turns_idle,
+        "unexplained_noops": unexplained_noops,
+        "daily": daily,
+        "loss_events": loss_events,
     }

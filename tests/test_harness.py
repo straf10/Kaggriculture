@@ -2,6 +2,7 @@
 go/no-go decision (plan.md §3.3) will be read off of; before this file it had zero coverage.
 Fast fake/tiny agents throughout (steps<=6) so this suite stays quick.
 """
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -9,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from harness.checkpoint import agent_fingerprint, create_checkpoint
-from harness.compare import compare
+from harness.compare import VALID_STAGES, compare
 from harness.play import play, resolve_agent
 from harness.profile import report, timed
 
@@ -154,6 +155,39 @@ def test_play_collects_structured_agent_diagnostics():
     assert result.diagnostics[0]["ok"] is True
 
 
+def test_play_render_html_writes_bundled_visualizer(tmp_path):
+    """plan.md §1.5.4 — render_html=True writes the engine's own bundled offline visualizer,
+    not just a placeholder/empty file."""
+    result = play("starter", "pass", seed=0, steps=4, run_dir=tmp_path, record=True, render_html=True)
+    assert result.html_path is not None
+    assert result.html_path.exists()
+    assert result.html_path.stat().st_size > 1000
+
+
+def test_play_render_html_off_by_default_leaves_html_path_none(tmp_path):
+    result = play("starter", "pass", seed=0, steps=4, run_dir=tmp_path, record=True)
+    assert result.html_path is None
+
+
+def test_play_persists_receipts_only_when_diagnostics_nonempty(tmp_path):
+    """plan.md §1.5.4 — receipts are written next to the replay only when there's something
+    to write; an agent with guards.debug off (the default) produces no receipts_path at all,
+    so harness/report.py can tell 'not measured' apart from 'measured, found nothing'."""
+    def receipt_agent(obs):
+        del obs
+        print('KAGGRI_RECEIPT {"kind":"expected_transition","ok":true}')
+        return {"farmer": ["PASS"], "hands": [], "market": []}
+
+    with_receipts = play(receipt_agent, "pass", seed=0, steps=4, run_dir=tmp_path, record=True)
+    assert with_receipts.receipts_path is not None
+    assert with_receipts.receipts_path.exists()
+    lines = with_receipts.receipts_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == len(with_receipts.diagnostics)
+
+    without_receipts = play("starter", "pass", seed=1, steps=4, run_dir=tmp_path, record=True)
+    assert without_receipts.receipts_path is None
+
+
 # --------------------------------------------------------------------------- compare()
 
 
@@ -244,6 +278,168 @@ def test_compare_both_seats_swaps_seats():
     assert len(result.per_seed[0]["orientations"]) == 2
 
 
+@pytestmark_small_seed_warning
+def test_compare_resume_rejects_mismatched_code_fingerprints(tmp_path):
+    """review.md M2 — resuming into a results.jsonl recorded under a different agent version
+    must raise instead of silently mixing seeds from two versions into one verdict."""
+    def fake_play(a, b, seed, **kwargs):
+        rewards = (100.0, 50.0) if a == "A" else (50.0, 100.0)
+        return SimpleNamespace(rewards=rewards)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        compare("A", "B", [0], both_seats=False, record=False, run_dir=tmp_path)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        with pytest.raises(ValueError, match="code fingerprints"):
+            compare("A", "C", [1], both_seats=False, record=False, run_dir=tmp_path, resume=True)
+
+
+@pytestmark_small_seed_warning
+def test_compare_workers_matches_sequential_per_seed_diffs():
+    """plan.md §1.5.1 criterion (i): workers=1 (sequential) and workers>1 (ProcessPoolExecutor,
+    one job per (seed, orientation)) must produce identical per-seed diffs for the same
+    seeds/agents — only wall time may differ. Real episodes (not mocked play()), since the
+    thing under test is process-boundary/pickling behavior, not compare()'s arithmetic."""
+    seeds = range(4)
+    seq = compare("starter", "pass", seeds, steps=6, record=False, workers=1)
+    par = compare("starter", "pass", seeds, steps=6, record=False, workers=2)
+
+    seq_diffs = [(row["seed"], row["diff"]) for row in seq.per_seed]
+    par_diffs = [(row["seed"], row["diff"]) for row in par.per_seed]
+    assert seq_diffs == par_diffs
+    assert seq.mean_diff == pytest.approx(par.mean_diff)
+    assert seq.verdict == par.verdict
+
+
+@pytestmark_small_seed_warning
+def test_compare_workers_falls_back_to_sequential_for_unpicklable_callable():
+    """plan.md §1.5.1 (a): a callable agent_spec that can't cross a spawned worker process
+    (a local/nested function, unlike a top-level function or a file path) must degrade to
+    workers=1 with a warning, not raise."""
+    def local_agent(obs):
+        del obs
+        return {"farmer": ["PASS"], "hands": [], "market": []}
+
+    with pytest.warns(UserWarning, match="not picklable"):
+        result = compare(local_agent, "pass", [0], steps=4, record=False, workers=4)
+    assert result.n_effective == 1
+    assert not result.errors
+
+
+@pytestmark_small_seed_warning
+def test_compare_non_inferior_requires_min_n():
+    """review.md M3 — NON_INFERIOR must not be reachable below the minimum sample size, even
+    when the confidence interval would otherwise clear the margin."""
+    def fake_play(a, b, seed, **kwargs):
+        diff = 5.0 if seed % 2 == 0 else -5.0
+        rewards = (100.0 + diff, 100.0) if a == "A" else (100.0, 100.0 + diff)
+        return SimpleNamespace(rewards=rewards)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        small = compare("A", "B", range(4), both_seats=False, record=False,
+                         non_inferiority_margin=1000.0)
+        large = compare("A", "B", range(12), both_seats=False, record=False,
+                         non_inferiority_margin=1000.0)
+
+    assert small.n_effective < 12
+    assert small.verdict == "INCONCLUSIVE"
+    assert large.n_effective >= 12
+    assert large.verdict == "NON_INFERIOR"
+
+
+@pytestmark_small_seed_warning
+def test_compare_rejects_invalid_stage():
+    assert set(VALID_STAGES) == {"dev-screen", "holdout-confirm"}
+    with pytest.raises(ValueError, match="stage"):
+        compare("A", "B", [0], record=False, stage="bogus")
+
+
+@pytestmark_small_seed_warning
+def test_compare_metrics_off_by_default_leaves_gate_fields_unset():
+    def fake_play(a, b, seed, **kwargs):
+        assert kwargs.get("metrics") is False
+        rewards = (150.0, 100.0) if a == "A" else (100.0, 150.0)
+        return SimpleNamespace(rewards=rewards)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=False, record=False)
+    assert result.metrics_checked is False
+    assert result.metric_gate_passed is None
+    assert result.water_weeds_lost_a == 0
+    assert result.go is False
+
+
+@pytestmark_small_seed_warning
+def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
+    """plan.md §1.5.3 — agent_a occupies seat 0 in the 'A@0/B@1' orientation but seat 1 in
+    the swapped 'B@0/A@1' orientation; the metric gate must follow agent_a's seat, not
+    always read seat 0 (which would silently score the opponent's water discipline instead)."""
+    def fake_play(a, b, seed, **kwargs):
+        assert kwargs.get("metrics") is True
+        if a == "A":  # agent_a plays seat 0 this call
+            rewards = (150.0, 100.0)
+            metrics = {0: {"water_weeds_lost": 1, "plant_decay_units_lost": 2}, 1: {}}
+        else:  # agent_a ("A") plays seat 1 this call
+            rewards = (100.0, 150.0)
+            metrics = {0: {}, 1: {"water_weeds_lost": 3, "plant_decay_units_lost": 4}}
+        return SimpleNamespace(rewards=rewards, metrics=metrics)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=True, record=False, metrics=True)
+
+    assert result.metrics_checked is True
+    assert result.water_weeds_lost_a == 1 + 3
+    assert result.plant_decay_units_lost_a == 2 + 4
+    assert result.metric_gate_passed is False
+
+
+@pytestmark_small_seed_warning
+def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate():
+    """plan.md §1.5.3 acceptance criterion — a GO must never be readable off a dev-screen
+    report, nor off a holdout report where the metric gate didn't run, nor when the metric
+    gate itself failed, regardless of how clean the $-verdict looks."""
+    def fake_play(a, b, seed, **kwargs):
+        diff = 50.0 if seed % 2 == 0 else 40.0
+        rewards = (100.0 + diff, 100.0) if a == "A" else (100.0, 100.0 + diff)
+        metrics = {0: {"water_weeds_lost": 0, "plant_decay_units_lost": 0},
+                   1: {"water_weeds_lost": 0, "plant_decay_units_lost": 0}}
+        return SimpleNamespace(rewards=rewards, metrics=metrics)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        dev_screen = compare("A", "B", range(12), both_seats=False, record=False,
+                              metrics=True, min_effect=10.0, stage="dev-screen")
+        no_metrics = compare("A", "B", range(12), both_seats=False, record=False,
+                              min_effect=10.0, stage="holdout-confirm")
+        confirmed = compare("A", "B", range(12), both_seats=False, record=False,
+                             metrics=True, min_effect=10.0, stage="holdout-confirm")
+
+    assert dev_screen.verdict == "IMPROVED"
+    assert dev_screen.go is False  # clean verdict, wrong stage
+    assert no_metrics.verdict == "IMPROVED"
+    assert no_metrics.go is False  # clean verdict, metric gate never ran
+    assert confirmed.verdict == "IMPROVED"
+    assert confirmed.metric_gate_passed is True
+    assert confirmed.go is True
+
+
+@pytestmark_small_seed_warning
+def test_compare_go_false_when_metric_gate_fails_even_at_holdout_confirm():
+    def fake_play(a, b, seed, **kwargs):
+        diff = 50.0 if seed % 2 == 0 else 40.0
+        rewards = (100.0 + diff, 100.0) if a == "A" else (100.0, 100.0 + diff)
+        metrics = {0: {"water_weeds_lost": 1, "plant_decay_units_lost": 0},
+                   1: {"water_weeds_lost": 1, "plant_decay_units_lost": 0}}
+        return SimpleNamespace(rewards=rewards, metrics=metrics)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", range(12), both_seats=False, record=False,
+                          metrics=True, min_effect=10.0, stage="holdout-confirm")
+
+    assert result.verdict == "IMPROVED"
+    assert result.metric_gate_passed is False
+    assert result.go is False
+
+
 # --------------------------------------------------------------------------- checkpoints
 
 
@@ -260,6 +456,23 @@ def test_checkpoint_uses_unique_namespace_and_preserves_fingerprint(tmp_path):
 
 
 def test_checkpoint_fingerprint_detects_agent_code_change(tmp_path):
+    """A plain (non-checkpoint, no manifest.json) copy of the agent package with a source
+    edit must fingerprint differently from the original agent/ — agent_fingerprint()'s
+    baseline content-sensitivity, kept separate from the checkpoint-tamper-detection
+    behavior covered by test_checkpoint_fingerprint_raises_on_tampered_checkpoint below."""
+    shutil.copytree(REPO_ROOT / "agent", tmp_path / "agent")
+    copied_main = tmp_path / "main.py"
+    copied_main.write_text((REPO_ROOT / "main.py").read_text(encoding="utf-8"), encoding="utf-8")
+    policy_path = tmp_path / "agent" / "policy.py"
+    policy_path.write_text(policy_path.read_text(encoding="utf-8") + "\n# changed strategy\n", encoding="utf-8")
+    assert agent_fingerprint(str(copied_main)) != agent_fingerprint(str(REPO_ROOT / "main.py"))
+
+
+def test_checkpoint_fingerprint_raises_on_tampered_checkpoint(tmp_path):
+    """review.md H3 — immutability was only a naming convention: nothing verified a
+    checkpoint's package still matched its manifest at compare() time. A checkpoint edited
+    after creation must raise instead of silently passing as the immutable version it
+    claims to be."""
     checkpoint_main = create_checkpoint(
         "v0",
         source_root=REPO_ROOT,
@@ -270,7 +483,8 @@ def test_checkpoint_fingerprint_detects_agent_code_change(tmp_path):
         checkpoint_policy.read_text(encoding="utf-8") + "\n# changed strategy\n",
         encoding="utf-8",
     )
-    assert agent_fingerprint(str(checkpoint_main)) != agent_fingerprint(str(REPO_ROOT / "main.py"))
+    with pytest.raises(ValueError, match="does not match its manifest"):
+        agent_fingerprint(str(checkpoint_main))
 
 
 def test_compare_rejects_identical_checkpoint_fingerprints(tmp_path):

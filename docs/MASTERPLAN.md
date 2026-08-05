@@ -151,6 +151,24 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 ### 3.3 Αλληλεπίδραση με τον αντίπαλο
 Μόνο μέσω αγοράς, αλλά όχι αμελητέα: κοινό inventory ανά προϊόν σημαίνει ότι η υπερπαραγωγή του αντιπάλου **ρίχνει και τις δικές σου τιμές** (και αντίστροφα, οι αγορές του wheat/fertilizer τις ανεβάζουν για σένα). Ορθολογική απάντηση: (α) διαφοροποίηση χαρτοφυλακίου απέναντι σε mono-crop αντιπάλους, (β) προληπτική πώληση πριν την προβλέψιμη συγκομιδή του, (γ) στροφή σε staples όταν τα premium κορεστούν. Ένας agent που *διαβάζει* αγορά + φάρμα αντιπάλου έχει δομικό πλεονέκτημα απέναντι στα trajectory-copy bots που κυριαρχούν στο public LB (discussion.md:136-138) — αυτά δεν προσαρμόζονται όταν η αγορά τους έχει ήδη κορεστεί.
 
+### 3.4 Gap analysis — πού είμαστε πραγματικά (2026-08-05)
+
+Μετά την αποδοχή του v1b (plan.md §3.3), η σύγκριση με το πραγματικό ladder είναι:
+
+| | Εμείς (v1b, τοπικά) | Ladder (πραγματικά δεδομένα, §3.2bis) |
+|---|---|---|
+| Median bank | ~$21k | median winner bank **$50-83k**· median τελικό **$44.8k** |
+| Record | — | **~$180-198k**, σταθεροποιημένο από 08-01 |
+| Quadrants | 1 (NW) | κορυφαίος του dataset: **4/4** |
+| Ζώα | **0** | κορυφαίος: **20** |
+| Crew | ~4 units (farmer + 3 hands) | νικητές 1.19× peak_crew έναντι ηττημένων |
+
+**Συμπέρασμα που καθορίζει προτεραιότητες: το χάσμα είναι δομικό, όχι παραμετρικό.** Ένας agent με 1 quadrant και 0 ζώα έχει ταβάνι ~$25-30k όσο καλά κι αν tunαριστεί — τα ζώα με CARE είναι κατά την §3.2#1 ο ισχυρότερος compounder ($5.575/sheep/season cared). Άρα **κάθε parameter sweep πριν υπάρξουν v1c (γη) και v1d (ζώα) βελτιστοποιεί σε λάθος ταβάνι**. Αντίστροφα: η αιτία που δεν έχουμε ακόμα αυτά τα features δεν είναι έλλειψη χρόνου αλλά ότι **ο scheduler δεν αντέχει το φορτίο** (v1c STOP ×3, review.md C1). Σειρά που προκύπτει: capacity/routing redesign → features → tuning.
+
+**Κενό στα δεδομένα που πρέπει να καλυφθεί:** το `data/kaggriculture-episodes/episode_features.csv` **δεν έχει καμία στήλη για ζώα ή για τελικό πλήθος quadrants** (στήλες: `final_money, peak_crew, total_hires, first_land_day, elbow_day, tiles_planted, plants_*, price_*`). Δηλαδή με τα σημερινά structured δεδομένα **δεν μπορούμε να απαντήσουμε το πιο κρίσιμο ερώτημα σχεδιασμού: πόσα ζώα έχουν οι νικητές, ποιου είδους, και ποια μέρα τα αγοράζουν.** Απαιτεί parsing του raw `replays.parquet` (213MB, kagglehub cache) ή του επίσημου daily dataset — βλ. §5.0 βήμα 3. Δευτερεύον: το community dataset σταματά στις 08-04, άρα re-download αξίζει *περιοδικά* (κάθε 1-2 εβδομάδες), όχι άμεσα.
+
+**Οριοθέτηση της χρήσης replays (διευκρίνιση του Ανοιχτού #11):** αναλύουμε replays για **στόχο και διάγνωση** (τι χαρτοφυλάκιο, ποιο timing, ποια κλίμακα) — ποτέ ως πηγή κινήσεων ή ως BC/IL prior. Η δύναμη των κορυφαίων είναι στην **εκτέλεση** (routing/logistics), που δεν μεταφέρεται με μίμηση: ένα replay λέει «20 ζώα τη μέρα 12», δεν λέει πώς τα τάιζε χωρίς να χάσει το πότισμα. Άρα το «να φτάσουμε στο ίδιο baseline με αντιγραφή και μετά να βελτιώσουμε» **δεν είναι εφικτό** — το replay δίνει target curve, όχι συνταγή.
+
 ---
 
 ## 4. Αρχιτεκτονική λύσης
@@ -174,6 +192,26 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 
 Το παιχνίδι είναι σχεδόν single-agent optimization με ασθενή σύζευξη μέσω αγοράς — η «σκακιστική» συνιστώσα είναι μικρή, η operations-research συνιστώσα τεράστια. Υβριδικό μονοπάτι αν χρειαστεί: κρατάμε τον scheduler και μαθαίνουμε **μόνο** το economic-planner layer (μικρός χώρος παραμέτρων → CMA-ES/Optuna πάνω σε self-play, ή offline RL σε top-episode replays για initialization).
 
+### Ποσοτικοποίηση του «όχι καθαρό RL τώρα» (2026-08-05)
+
+Η απόφαση επανεξετάστηκε ρητά μετά από πρόταση για **παράλληλη** εκπαίδευση RL δίπλα στα heuristics, και **επιβεβαιώνεται** — τώρα με αριθμούς αντί για διαίσθηση:
+
+- **Ταχύτητα simulator:** ~3s ανά 720-step episode (μετρημένο στο Βήμα 0: 24 episodes σε 73s) ⇒ **~240 env-steps/s ανά core**. PPO σε πρόβλημα αυτού του ορίζοντα θέλει 10⁷-10⁸ steps· ακόμα και με 32 cores μιλάμε για **ημέρες** καθαρής προσομοίωσης ανά training run.
+- **Η GPU δεν βοηθά.** Το bottleneck είναι ο Python interpreter του engine (CPU-bound), όχι το backprop. Η αξία του remote server (Ανοιχτό #9) είναι τα **cores**, όχι η RTX 3090.
+- **Πραγματικό κόστος σωστού setup:** vectorized reimplementation του engine (numpy/numba) = 2-4 εβδομάδες, **συν** διαρκές ρίσκο απόκλισης από το ground truth — δηλαδή διπλασιασμός του κόστους συντήρησης του `tests/test_engine_facts.py` (Ρίσκο #1).
+- **Action space:** 1 op ανά unit (5+ units) × ~17 τύποι ops × θέσεις, **συν** έως 10 market orders ανά turn. Χωρίς hierarchical/factored actions + action masking δεν εκπαιδεύεται· και μόλις γραφτεί το masking, έχει ήδη κωδικοποιηθεί χειροκίνητα το μεγαλύτερο μέρος της γνώσης που υποτίθεται ότι θα μάθαινε.
+- **Reward:** sparse, terminal, ορίζοντας 720 βημάτων, credit assignment μέσα από κινούμενη αγορά.
+- **Χρονοδιάγραμμα:** deadline 30 Σεπ ⇒ ~8 εβδομάδες. Το RL θα κατανάλωνε τις μισές με αβέβαιο αποτέλεσμα, ενώ τα ζώα+γη έχουν **γνωστή** αξία (§3.2#1, §3.4).
+- **Meta:** το Bradley-Terry σε binary outcomes ευνοεί deterministic bots (discussion.md:123)· η υψηλή διακύμανση μιας learned policy τιμωρείται, και τα 10 **ισόποσα** βραβεία κάνουν στόχο το «σταθερά top-10», όχι το high-variance #1.
+
+**Κλίμακα ML επιλογών, με φθίνουσα αξία ανά μονάδα ρίσκου:**
+
+1. **Black-box optimization του `CONFIG`** (CMA-ES/Optuna πάνω σε paired self-play) — υπάρχων harness, καμία νέα dependency στο submission, μηδενικό runtime ρίσκο. Είναι το «learning» της Φάσης 4 με το ~1% του κόστους.
+2. **Learned μόνο στο market/timing layer** — με επιφύλαξη: το `market_price()` είναι κλειστού τύπου και importable, άρα ένα *αναλυτικό* μοντέλο εκεί πιθανότατα κερδίζει το learned. Δικαιολογείται μόνο για opponent-reactive timing.
+3. **Πλήρες RL** — μόνο με ρητό trigger (παρακάτω).
+
+**Trigger ενεργοποίησης Φάσης 4-RL** (γράφεται εκ των προτέρων ώστε να μην είναι post-hoc δικαιολόγηση) — απαιτούνται **και τα τέσσερα**: (α) v1e ολοκληρωμένο με γη + ζώα + liquidation, (β) BBO sweep ≥2 γύρων δεν δίνει `IMPROVED` σε 48 seeds, (γ) το τοπικό median bank παραμένει <60% του τρέχοντος ladder median winner bank, (δ) απομένουν ≥3 εβδομάδες πριν το deadline.
+
 ---
 
 ## 5. Οδικός χάρτης υλοποίησης
@@ -182,6 +220,24 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 > (~8 εβδομάδες)· μετά 1-~15 Οκτ episodes χωρίς νέες υποβολές. Ενδεικτική κατανομή: Φάσεις 0-1 μέσα στον
 > Αύγουστο (πρώτο submission στη ladder όσο νωρίτερα γίνεται — δωρεάν πληροφορία), Φάση 2 έως αρχές
 > Σεπτεμβρίου, Φάση 3 έως ~20 Σεπ, τελευταία εβδομάδα μόνο champion/challenger κλείδωμα των 2 slots.
+
+### 5.0 Κατάσταση & άμεση σειρά εργασιών (ενημέρωση 2026-08-05)
+
+Η **Φάση 0 έκλεισε** (engine tests + harness + CLI auth). Η **Φάση 1 έχει v0→v1b αποδεκτά**· **v1c (γη) έχει STOP** μετά από 3 αποτυχημένα capacity variants, **v1d/v1e δεν ξεκίνησαν**. Επιπλέον υπάρχει **ενεργό regression**: το working `agent/` μετά την εφαρμογή του review.md είναι **−$2.195 έναντι του immutable `checkpoints/v1b`** (se≈$93, CI [−2.399, −1.991], 24/24 episode losses, μηδέν errors) — δηλαδή **κάθε μελλοντικό gate είναι σήμερα μπλοκαρισμένο**, αφού όλα τα increments gate-άρουν εναντίον του v1b.
+
+Σειρά προτεραιοτήτων (αιτιολόγηση: §3.4 για το «γιατί δομικό», §4 για το RL, §6.1 για το πρωτόκολλο, §8 για την παρατηρησιμότητα):
+
+| # | Εργασία | Γιατί τώρα |
+|---|---|---|
+| 1 | **Ξεμπλοκάρισμα του −$2.195** μέσω αυτοματοποιημένου ablation: κάθε αλλαγή του τελευταίου session εκτίθεται ως flag στο `CONFIG` και τα combos τρέχουν παράλληλα εναντίον του immutable v1b | Blocker για κάθε gate· και πρώτη πραγματική χρήση της υποδομής του #2 |
+| 2 | **Parallel `compare()` + dev/holdout seed split** (§6.1) | Φθηνό, ξεκλειδώνει τα #1/#5/#6· χωρίς αυτό κάθε sweep είναι ώρες αντί για λεπτά |
+| 3 | **Gap analysis από raw top replays** (§3.4): ζώα/quadrants/crew ανά μέρα για τους top-winrate agents | Απαντά «γη ή ζώα πρώτα;» με δεδομένα αντί για μαντεψιά — ακριβώς το ερώτημα όπου το v1c απέτυχε 3 φορές |
+| 4 | **Episode report + G11 receipts viewer** (§8.1) | Το v1c έχει ήδη αποτύχει 3× «στα τυφλά» (review.md H4)· χωρίς observability το retry είναι 4η τυφλή προσπάθεια |
+| 5 | **v1c/v1d** με capacity/routing redesign (review.md §5 pre-checks 1-9) | Εδώ ζει το πραγματικό χάσμα $21k → $45k+ |
+| 6 | **BBO sweeps (CMA-ES/Optuna) στο `CONFIG`** | Αποδίδουν μόνο αφού υπάρχουν features προς tuning (§3.4) |
+| 7 | **RL** | Μόνο στο trigger της §4 |
+
+**Ρητά εκτός λίστας (αποφασισμένο, να μην επανεξεταστεί χωρίς νέα δεδομένα):** πλήρες RL από τώρα, παράλληλα με τα heuristics (§4)· behavioral cloning / trajectory copying από replays (§3.4 οριοθέτηση)· αύξηση seeds ως *λύση* στο τρέχον regression — το regression έχει se≈$93 και 24/24 ήττες, δεν είναι θόρυβος δείγματος.
 
 ### Φάση 0 — Υποδομή & ground truth (1-2 μέρες δουλειάς)
 - Setup: `pip install -U "kaggle-environments>=1.32.4"`, pin & καταγραφή version (η ladder άλλαξε engine 2 φορές σε μια βδομάδα — viz cell 23).
@@ -225,6 +281,16 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 - **Paired seeds**: κάθε αλλαγή αξιολογείται με A και B στο ίδιο σετ seeds, κριτήριο `|mean(diff)| > 2×SE(diff)` και ομοιόμορφη φορά στα περισσότερα seeds. Το seat μπορεί να επηρεάζει μέσω weed RNG — έλεγχος και στα δύο seats μέχρι να αποδειχθεί συμμετρία για το δικό μας bot (δες §2 Αμφισημία #6: το seat-effect εξαρτάται και από το tile-fill του αντιπάλου, όχι μόνο το seat index).
 - **Πραγματικό μέγεθος variance (2026-08-05, από ladder replays — §3.2bis):** το ίδιο submission έχει game-to-game spread τυπικά **~19% του median bank του, ακραία έως 950%**. Αυτό είναι το ρεαλιστικό benchmark για το πόσο θόρυβο πρέπει να περιμένουμε ακόμα κι από ένα σταθερό δικό μας bot — ενισχύει την ανάγκη για 24-48 seeds ανά σύγκριση (όχι λιγότερα) και εξηγεί γιατί ένα και μοναδικό εντυπωσιακό game δεν αποδεικνύει τίποτα.
 - **Προσοχή**: price-reactive versions αποκλίνουν στο trajectory → το pairing κερδίζει λιγότερο variance reduction από ό,τι στο Carrot Crew (viz cell 52). Αντιστάθμιση: περισσότερα seeds (24-48).
+
+### 6.1 Πειραματικό πρωτόκολλο για sweeps (νέο, 2026-08-05)
+
+Τα παραπάνω αρκούν για «μία αλλαγή τη φορά». Μόλις τρέχουμε **πολλά variants μαζί** (§5.0 #1 και #6) χρειάζονται τρεις επιπλέον κανόνες, αλλιώς τα αποτελέσματα είναι θόρυβος με επίφαση εγκυρότητας:
+
+1. **Dev/holdout seed split.** Σταθερό **dev set** (π.χ. seeds 0-47) για κάθε screening/tuning· **holdout set** (π.χ. 100-147) που **δεν αγγίζεται σε καμία απόφαση tuning** και χρησιμοποιείται μόνο για την τελική επιβεβαίωση ενός increment ή ενός tuned config. Χωρίς αυτό, ένα sweep 20 variants κάνει overfit στα λίγα seeds της v1a-v1b εποχής και το «κέρδος» εξατμίζεται στην ladder.
+2. **Screen → confirm, ποτέ «κράτα το max».** Με spread ~19% του median, αν τρέξεις k variants και κρατήσεις το καλύτερο, επιλέγεις θόρυβο με πιθανότητα που μεγαλώνει με το k (multiple comparisons). Πρωτόκολλο: screen όλων των variants σε dev seeds → κράτα top-3 → **confirm σε holdout με 48+ seeds** και directional verdict· **GO μόνο από το confirm stage**.
+3. **Παραλληλισμός ανά seed.** Το `compare()` είναι CPU-bound και embarrassingly parallel (~3s/episode). Ένα multiprocessing pool πάνω στα seeds είναι το μοναδικό πράγμα που κάνει τα #1/#6 πρακτικά. Απαιτήσεις ορθότητας: fresh process ανά episode (ήδη το πρωτόκολλο ντετερμινισμού), ένα `results.jsonl` row ανά ολοκληρωμένο seed γραμμένο σειριακά από τον parent (ήδη υπάρχει incremental writing), και το fingerprint guard (review.md M2) να ελέγχεται **πριν** το dispatch.
+
+**Μέθοδος bisect για regressions (νέο εργαλείο):** όταν ένα *σύνολο* αλλαγών χαλάει το σκορ, κάθε αλλαγή εκτίθεται ως boolean flag στο `CONFIG` με default = τρέχουσα συμπεριφορά, και τρέχει το πλήρες (ή fractional) factorial σε dev seeds εναντίον του immutable προηγούμενου checkpoint. Αντικαθιστά το χειροκίνητο «δοκίμασε να απενεργοποιήσεις κάτι και ξαναπαίξε», που στο session 2026-08-05 κατανάλωσε ώρες και **δεν** απομόνωσε την αιτία.
 
 ### Πίνακας μετρικών ανά run
 1. Τελικό bank (και το bank του αντιπάλου — το W/L είναι ό,τι μετράει στην ladder).
@@ -274,6 +340,32 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 
 ---
 
+## 8. Παρατηρησιμότητα & Visualization (νέο, 2026-08-05)
+
+Δύο ξεχωριστά προβλήματα με διαφορετικές λύσεις: **(α)** «τι έκανε ο agent σε ένα episode» και **(β)** «ποιο variant/config κερδίζει σε δεκάδες runs».
+
+### 8.1 Παρακολούθηση ενός episode
+
+- **Ο επίσημος interactive player υπάρχει ήδη offline.** Το `kaggle-environments` κουβαλά bundled visualizer (`kaggle_environments/envs/kaggriculture/visualizer/default/dist/index.html`, ~14.7 MB) και το `html_renderer` (engine_reference/kaggriculture.py:992-997). Δηλαδή `env.render(mode="html")` μετά από `env.run(...)` δίνει τον κανονικό οπτικό player του διαγωνισμού **χωρίς Kaggle και χωρίς δίκτυο**. Ροή: play ενός seed → εγγραφή `episode.html` → άνοιγμα στο **VSCode Simple Browser** (`Ctrl+Shift+P` → «Simple Browser: Show»). Σε notebook, το `mode="ipython"` το ενσωματώνει inline.
+- **Text renderer για step-through debugging:** `renderer()` (:965-983) τυπώνει board tile-tile + prices + shed/seeds ανά step — ιδανικό με breakpoint ή ως «ταινία» στο terminal.
+- **Όριο και των δύο:** δείχνουν *τι έγινε στο board*, όχι *γιατί το αποφάσισε ο agent*. Το oscillation του session 2026-08-05 (units που πηγαινοέρχονταν μεταξύ δύο tiles) φαίνεται ως κίνηση, αλλά η αιτία — ποιο task ανατέθηκε, με ποιο slack, γιατί άλλαξε — όχι.
+- **Δικό μας episode report (το πραγματικά διαγνωστικό κομμάτι):** αυτόνομο HTML δίπλα στο replay, χτισμένο πάνω στα ήδη υπάρχοντα `harness/metrics.py` + G11 receipts (`agent/receipts.py`, `agent/debug.py`). Ελάχιστο περιεχόμενο: καμπύλη bank και για τα 2 seats· unit-turns σε κίνηση vs εργασία vs idle· `water_weeds_lost`/`plant_decay_units_lost` ανά μέρα· heatmap κατάστασης farm ανά μέρα· τιμές πώλησης vs base ανά προϊόν· και **timeline ανάθεσης task ανά unit** — η μόνη οπτικοποίηση που θα είχε δείξει το oscillation αμέσως. Μηδενικές εξαρτήσεις, version-controllable.
+
+### 8.2 Παρακολούθηση πειραμάτων (sweeps)
+
+| Επιλογή | Πότε αξίζει |
+|---|---|
+| **W&B** | Sweeps στον remote Linux server με θέαση από παντού· sweep orchestration, parallel-coordinates, σύγκριση configs. Το καλύτερο fit για §5.0 #6 |
+| **Optuna Dashboard** | Αν επιλεγεί Optuna για το BBO — param importance/parallel-coords δωρεάν, τοπικά, χωρίς λογαριασμό |
+| **MLflow** | Self-hosted, offline, καμία εξωτερική εξάρτηση· φτωχότερο UI |
+| **Static HTML report από το `results.jsonl`** | Μηδενικές εξαρτήσεις, version-controlled, ανοίγει στο VSCode Simple Browser |
+
+**Απόφαση:** το `runs/**/results.jsonl` **παραμένει η πηγή αλήθειας** — έχει ήδη `_meta` row με code fingerprints και resume guard (review.md M2) και αποτελεί το reproducibility backbone· **δεν** μεταναστεύει σε εξωτερική υπηρεσία. Οποιοδήποτε tracker μπαίνει **από πάνω ως view**, μόνο για sweeps, και η απώλειά του δεν επιτρέπεται να ακυρώνει κανένα gate.
+
+**Δύο προειδοποιήσεις:** (i) το W&B ανεβάζει config + metrics σε **εξωτερική υπηρεσία** — εν μέσω ενεργού διαγωνισμού αυτό είναι λεπτομέρειες στρατηγικής· τα private projects το καλύπτουν, αλλά είναι συνειδητή απόφαση του χρήστη, όχι default. (ii) Απαιτεί login/API key από τον χρήστη — δεν στήνεται αυτόνομα από τον agent.
+
+---
+
 ## Ανοιχτά Ερωτήματα προς Έρευνα
 
 > Ενημέρωση 2026-08-05: το [competition_info.md](competition_info.md) συμπληρώθηκε και **έλυσε** τα πρώην
@@ -301,5 +393,5 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 8. ~~**Πρόσβαση/χρησιμότητα των replay datasets**~~ **ΠΛΗΡΩΣ ΛΥΘΗΚΕ (2026-08-05):** κατεβάσαμε ζωντανά το community dataset `georgymamarin/kaggriculture-episodes` μέσω `kagglehub` (token σε `.env`, gitignored) — 4.932 decisive πλευρές, 691 ομάδες, όλο το ιστορικό μέχρι σήμερα, ~216MB συνολικά. Δομημένα αρχεία (μικρά, χωράνε στο repo) στο [data/kaggriculture-episodes/](../data/kaggriculture-episodes/); το βαρύ `replays.parquet` (213MB raw replay JSON) έμεινε στο τοπικό kagglehub cache, ξανακατεβαίνει σε δευτερόλεπτα όποτε χρειαστεί. Πλήρη ευρήματα στο §3.2bis: πραγματικό tier list με ονόματα/Wilson CI, primary-crop win rates σε μεγάλο δείγμα, real-$ ημερήσια εξέλιξη. Το επίσημο daily index (`kaggle/kaggriculture-episodes-YYYY-MM-DD`, raw JSON, ως 20GB/μέρα) παραμένει ακατέβατο — δεν χρειάστηκε, το community dataset με το έτοιμο `episode_features.csv` κάλυψε την ανάγκη πιο αποδοτικά. *Γιατί μετράει:* τροφοδοτεί ήδη τη Φάση 3 (meta analysis) νωρίτερα απ' ό,τι προγραμματισμένο, και διόρθωσε ένα λάθος συμπέρασμα (land-timing edge) πριν μπει στο tuning της Φάσης 2.
 9. ~~**Απόφαση χρήστη — compute budget**~~ **ΛΥΘΗΚΕ (2026-08-05):** remote Linux server, RTX 3090 24GB VRAM. Άνετο για paired-seed sweeps (48+ seeds) στη Φάση 2 παράλληλα, και αρκετό για IL initialization + fine-tuning αν ενεργοποιηθεί η Φάση 4. Η GPU δεν παίζει ρόλο στο submission runtime (CPU-only, 1.6 vCPU) — χρησιμοποιείται μόνο offline για tuning/training.
 10. ~~**Απόφαση χρήστη — προτίμηση αρχιτεκτονικής**~~ **ΛΥΘΗΚΕ (2026-08-05):** επιβεβαιώθηκε heuristic scheduler + tuning από την αρχή, RL μόνο αν οι Φάσεις 2-3 δείξουν plateau, όπως στη σύσταση της §4.
-11. ~~**Απόφαση χρήστη — στάση απέναντι στο copying meta**~~ **ΛΥΘΗΚΕ (2026-08-05):** καθαρά αυτόνομος agent — κανένα replay-derived prior/opening. Ο agent στηρίζεται αποκλειστικά στο economic model + adaptive αντίδραση στην ορατή φάρμα του αντιπάλου, όχι σε μιμητισμό δημόσιων trajectories. Η ανάλυση replays στη Φάση 3 (discussion.md:11) χρησιμοποιείται μόνο για benchmarking/counter-στρατηγικές, όχι ως πηγή κίνησεων.
+11. ~~**Απόφαση χρήστη — στάση απέναντι στο copying meta**~~ **ΛΥΘΗΚΕ (2026-08-05):** καθαρά αυτόνομος agent — κανένα replay-derived prior/opening. Ο agent στηρίζεται αποκλειστικά στο economic model + adaptive αντίδραση στην ορατή φάρμα του αντιπάλου, όχι σε μιμητισμό δημόσιων trajectories. Η ανάλυση replays στη Φάση 3 (discussion.md:11) χρησιμοποιείται μόνο για benchmarking/counter-στρατηγικές, όχι ως πηγή κίνησεων. **Διευκρίνιση εύρους (2026-08-05, μετά από ερώτημα χρήστη «να αντιγράψουμε τη στρατηγική των πρώτων»):** επιτρέπεται και ενθαρρύνεται η εξαγωγή **δομής** στρατηγικής από replays (χαρτοφυλάκιο, κλίμακα crew/γης/ζώων, timing) ως **target curve και διαγνωστικό** — απαγορεύεται η αντιγραφή trajectories και κάθε BC/IL prior. Πλήρης αιτιολόγηση στην §3.4.
 12. ~~**Απόφαση χρήστη — team status**~~ **ΛΥΘΗΚΕ (2026-08-05):** solo. Τα 5 submissions/μέρα και 2 active slots είναι εξ ολοκλήρου δικά μας, χωρίς ανάγκη συντονισμού merge πριν το Team Merger Deadline (23 Σεπ 2026).

@@ -37,7 +37,9 @@ class PlayResult:
     statuses: tuple  # final (framework-overwritten) statuses — see `health` for the real picture
     episode_steps: int  # actual episodeSteps the episode ran with (env default if steps=None)
     replay_path: Optional[Path]
-    turn_times: Optional[list]  # per-turn seconds for `profile_seat`, from env.logs duration
+    html_path: Optional[Path] = None  # bundled-visualizer replay, only when render_html=True
+    receipts_path: Optional[Path] = None  # KAGGRI_RECEIPT records, only when non-empty and record=True
+    turn_times: Optional[list] = None  # per-turn seconds for `profile_seat`, from env.logs duration
     metrics: dict = field(default_factory=dict)
     health: dict = field(default_factory=dict)  # {seat: [statuses seen other than ACTIVE/DONE]}
     agent_errors: list = field(default_factory=list)  # [{seat, step, stderr}]
@@ -153,7 +155,8 @@ def play(agent_a, agent_b, seed: int, *,
          profile_seat: Optional[int] = None,
          debug: bool = False,
          strict: bool = True,
-         metrics: bool = True) -> PlayResult:
+         metrics: bool = True,
+         render_html: bool = False) -> PlayResult:
     """Run one episode: agent_a as seat 0, agent_b as seat 1.
 
     agent_* = callable(obs)->action | "main.py"-style path | built-in name ("pass"/"random"/"starter").
@@ -167,6 +170,13 @@ def play(agent_a, agent_b, seed: int, *,
     `clean`/`health`/`agent_errors` on the result instead of raising.
     metrics=False skips extract_metrics() (two full 720-float bank curves per seat) — use it
     for bulk runs like compare() that only need `rewards` (review.md L5).
+    render_html=True (plan.md §1.5.4, requires record=True) additionally writes the engine's
+    own bundled offline visualizer (`env.render(mode="html")`, ~14.7MB, no CDN) to `<run_dir>/
+    episode_seed<N>_seat0-<a>_seat1-<b>.html`. Diagnostics (KAGGRI_RECEIPT records — only
+    non-empty when the agent process had `CONFIG["guards"]["debug"]` on via `KAGGRI_DEBUG=1`,
+    since the agent runs in a separate, freshly-imported process) are persisted next to the
+    replay as `receipts_seed<N>_seat0-<a>_seat1-<b>.jsonl` whenever record=True and there are
+    any — otherwise harness/report.py has no way to find them after the fact.
     """
     configuration = {"seed": seed}
     if steps is not None:
@@ -199,16 +209,33 @@ def play(agent_a, agent_b, seed: int, *,
     turn_times = _turn_durations(env, profile_seat) if profile_seat is not None else None
 
     replay_path = None
+    html_path = None
+    receipts_path = None
     if record:
         out_dir = Path(run_dir) if run_dir is not None else Path("runs") / "adhoc"
         out_dir.mkdir(parents=True, exist_ok=True)
         name_a = _sanitize_filename_part(_agent_name(agent_a))
         name_b = _sanitize_filename_part(_agent_name(agent_b))
-        replay_path = out_dir / f"seed{seed}_seat0-{name_a}_seat1-{name_b}.json.gz"
+        stem = f"seed{seed}_seat0-{name_a}_seat1-{name_b}"
+        replay_path = out_dir / f"{stem}.json.gz"
         with gzip.open(replay_path, "wt", encoding="utf-8") as f:
             json.dump(env_json, f)
 
-    computed_metrics = {0: extract_metrics(env_json, 0), 1: extract_metrics(env_json, 1)} if metrics else {}
+        if render_html:
+            html_path = out_dir / f"episode_{stem}.html"
+            html_path.write_text(env.render(mode="html"), encoding="utf-8")
+
+        if diagnostics:
+            receipts_path = out_dir / f"receipts_{stem}.jsonl"
+            with receipts_path.open("w", encoding="utf-8") as f:
+                for record_ in diagnostics:
+                    f.write(json.dumps(record_) + "\n")
+
+    computed_metrics = (
+        {0: extract_metrics(env_json, 0, diagnostics=diagnostics),
+         1: extract_metrics(env_json, 1, diagnostics=diagnostics)}
+        if metrics else {}
+    )
 
     return PlayResult(
         seed=seed,
@@ -218,6 +245,8 @@ def play(agent_a, agent_b, seed: int, *,
         statuses=statuses,
         episode_steps=episode_steps,
         replay_path=replay_path,
+        html_path=html_path,
+        receipts_path=receipts_path,
         turn_times=turn_times,
         metrics=computed_metrics,
         health=health,
