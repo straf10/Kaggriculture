@@ -74,7 +74,7 @@
 - **Runtime submission**: 1.6 vCPUs, 6.5 GiB RAM, 8 GiB HDD, όριο μεγέθους 100 MiB· τα αρχεία στο `/kaggle_simulations/agent/` — τα imports πρέπει να δείχνουν εκεί (competition_info.md:520-529). Validation episode εναντίον αντιγράφου του εαυτού του· σε Error κατεβαίνουν logs (competition_info.md:44).
 - Υπάρχει επίσημο daily dataset με top episodes (έως 20 GB replays/μέρα) για IL/BC/στατιστικά (discussion.md:8-11), συν το community dataset `georgymamarin/kaggriculture-episodes` (viz cell 53-54).
 - Γνωστή ανησυχία: **trajectory copying** από δημόσια replays — ο μόνος πραγματικός coupling μηχανισμός είναι η κοινή αγορά, και οι οργανωτές το επικαλούνται ως άμυνα («αν πουλάτε και οι δύο το ίδιο, υποφέρουν και τα δύο κέρδη — ο πρώτος που πουλά παίρνει την καλύτερη τιμή», discussion.md:136-140).
-- Ladder benchmark (dataset, ~691 teams): **median τελικό bank ≈ $44.781**· ο κορυφαίος του dataset τελείωσε με 4/4 τεταρτημόρια και 20 ζώα (viz cells 54-56). Για σύγκριση, το Carrot Crew (6 tiles, 1 farmer) βγάζει ~$7-8k.
+- Ladder benchmark **[ενημ. 2026-08-06 — αντικαθιστά την παλιά ανάγνωση «median ≈ $44.781, κορυφαίος με 4/4 τεταρτημόρια και 20 ζώα» (viz cells 54-56, δεδομένα πρώτων ημερών)]:** median νικητήριο bank πλέον **$87.436**, record **$199.499** ([ladder_snapshots daily-8](meta/ladder_snapshots.md#daily-8))· το modal top farm της ελίτ (Elo ≥2800, 08-05) είναι **8 cow + 5 sheep + 6 strawberry + 1 wheat · 12 hands · 3 τεταρτημόρια (NE+NW+SW, SE ποτέ)**, median $125.271 ([topfarms-19](meta/ladder_snapshots.md#topfarms-19)). Για σύγκριση, το Carrot Crew (6 tiles, 1 farmer) βγάζει ~$7-8k. Ο ladder κινείται μέρα-μέρα — η τρέχουσα μέτρηση ζει πάντα στο [meta/ladder_snapshots.md](meta/ladder_snapshots.md), όχι εδώ.
 
 ---
 
@@ -128,6 +128,15 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 8. **Παρατήρηση `unlocked_shops`**: ποια shops άνοιξαν είναι τυχαίο ανά episode — το crop mix mid-season πρέπει να προσαρμόζεται στη ζήτηση που όντως ξεκλείδωσε (π.χ. Pet Café → 12 carrots/μέρα, Yarn Store → 2× wool).
 
 ### 3.2bis Επιβεβαίωση από πραγματικά ladder replays (2026-08-05, πλήρες dataset ιστορικού)
+
+> **[ενημ. 2026-08-06 — φρεσκάδα πηγής]:** τα νούμερα αυτής της ενότητας μετρήθηκαν σε snapshot
+> του community dataset **έως 2026-08-04** και ο ladder έκτοτε κινήθηκε αισθητά (median winner
+> bank $87.436 στις 08-06, +52% σε μία μέρα — [daily-17](meta/ladder_snapshots.md#daily-17))·
+> επιπλέον η 08-05 μόνη της πρόσθεσε ~3.200 episodes (>40% του corpus). Τα δομικά συμπεράσματα
+> (crop tier list, labor edge, όχι land-timing edge) παραμένουν οι καλύτερες εκτιμήσεις μας, αλλά
+> **κάθε απόλυτο νούμερο εδώ είναι ιστορικό** — τρέχουσες τιμές: [meta/ladder_snapshots.md](meta/ladder_snapshots.md).
+> Πριν τη Φάση 3, ξανακατέβασμα του dataset (βλ. τέλος ενότητας) είναι υποχρεωτικό, όχι προαιρετικό.
+
 Δύο notebooks στο repo δίνουν την **μεθοδολογία** parsing πάνω σε πραγματικά replay JSON, αλλά τα δικά τους baked outputs ήταν στατικά snapshots από τις πρώτες 2-3 μέρες. Κατεβάσαμε ζωντανά το community dataset **`georgymamarin/kaggriculture-episodes`** (μέσω `kagglehub`, token σε `.env`/`KAGGLE_API_TOKEN`, gitignored) και τρέξαμε φρέσκια ανάλυση πάνω σε **4.932 decisive ladder πλευρές / 691 ομάδες, όλο το ιστορικό 2026-07-30 έως σήμερα** — δραματικά μεγαλύτερο δείγμα από τα notebooks. Τα δομημένα αρχεία (`episodes.csv`, `agents.csv`, `teams.csv`, `daily_stats.csv`, `episode_features.csv` — το τελευταίο έχει *ήδη* parsed strategy fingerprints ανά επεισόδιο/seat, δεν χρειάζεται δικός μας replay parser) μπήκαν στο repo στο [data/kaggriculture-episodes/](../data/kaggriculture-episodes/); το ογκώδες `replays.parquet` (213MB, raw replay JSON) έμεινε μόνο στο τοπικό kagglehub cache — ξανακατεβαίνει σε δευτερόλεπτα με `kagglehub.dataset_download("georgymamarin/kaggriculture-episodes")` όποτε χρειαστεί.
 
 **Πραγματικό tier list (n≥8 games, Wilson 95% CI)** — π.χ. στα υψηλότερα δείγματα: **Victor @ Tufa Labs** 70.9% winrate σε 117 games, **RuiKimura4** 80.0% σε 55 games, **Raiden.B** 72.6% σε 95 games· χαμηλότερο άκρο **Rudraksh Zodage** 17.8% σε 45 games. Χρήσιμο ως πρώτος πραγματικός opponent bench για τη Φάση 3.
@@ -161,6 +170,8 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 ### 3.3 Αλληλεπίδραση με τον αντίπαλο
 Μόνο μέσω αγοράς, αλλά όχι αμελητέα: κοινό inventory ανά προϊόν σημαίνει ότι η υπερπαραγωγή του αντιπάλου **ρίχνει και τις δικές σου τιμές** (και αντίστροφα, οι αγορές του wheat/fertilizer τις ανεβάζουν για σένα). Ορθολογική απάντηση: (α) διαφοροποίηση χαρτοφυλακίου απέναντι σε mono-crop αντιπάλους, (β) προληπτική πώληση πριν την προβλέψιμη συγκομιδή του, (γ) στροφή σε staples όταν τα premium κορεστούν. Ένας agent που *διαβάζει* αγορά + φάρμα αντιπάλου έχει δομικό πλεονέκτημα απέναντι στα trajectory-copy bots που κυριαρχούν στο public LB (discussion.md:136-138) — αυτά δεν προσαρμόζονται όταν η αγορά τους έχει ήδη κορεστεί.
 
+**[ενημ. 2026-08-06] Το (β) «προληπτική πώληση» αναβαθμίζεται από ιδέα σε σχεδιαστική απαίτηση — «πούλα πριν το κύμα»:** το meta πουλά σε **προβλέψιμο ημερολόγιο** ([topfarms-22](meta/ladder_snapshots.md#topfarms-22): strawberry 1η πώληση μέρα 16, batch 8,9· melon μέρα 10· wool μέρα 9· milk μέρα 8) πάνω σε προϊόντα με γνωστά sell-cliffs στο 1.32.x (**strawberry 62 / wool 59 / milk 76 / melon 158** net μονάδες ως το floor — [reference/market.md](reference/market.md)). Το V13-R3 notebook απέδειξε τοπικά ότι μια μετάθεση πώλησης **ενός μόλις turn** νωρίτερα από το κύμα αξίζει **χιλιάδες $ ανά παιχνίδι** σε mirror matchups (31-1 vs exact V21.1, μέσο margin +$2.304 — [agents-1](meta/ladder_snapshots.md#agents-1))· και το structured-economic-policy δίνει τη θεωρία: το swing από μετάθεση πώλησης = 2× το price-impact ορθογώνιο (§6 του notebook), ενώ το withholding είναι μεταφορά αξίας στον αντίπαλο όταν εκείνος είναι ο μεγαλύτερος πωλητής στο παράθυρο (§8). **Δικός μας μηχανισμός (για v1f+):** πρόβλεψη του κύματος από (i) το meta ημερολόγιο ως prior, (ii) το ζωντανό market inventory, (iii) τα ορατά ώριμα tiles του αντιπάλου — και τοποθέτηση των δικών μας SELL **πριν** το προβλεπόμενο κύμα, με trickle ώστε να μην ανοίγουμε εμείς το cliff. ⚠️ Ρητή πρόβλεψη: **το ημερολόγιο θα μετακινηθεί** όσο περισσότεροι υιοθετούν sell-ahead (ήδη το V13-R3 είναι δημόσιο) — οι αριθμοί του topfarms-22 είναι η *πρώτη βαθμονόμηση*, όχι σταθερά· ο μηχανισμός πρέπει να διαβάζει την αγορά, όχι να hard-codάρει μέρες. Σημείωση συμβατή με το Ανοιχτό #11: χρησιμοποιούμε **στατιστικά του meta** (πότε πουλάνε), όχι trajectories.
+
 ### 3.4 Gap analysis — πού είμαστε πραγματικά (2026-08-05)
 
 Μετά την αποδοχή του v1b (plan.md §3.3), η σύγκριση με το πραγματικό ladder είναι:
@@ -172,6 +183,28 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 | Quadrants | 1 (NW) | κορυφαίος του dataset: **4/4** |
 | Ζώα | **0** | κορυφαίος: **20** |
 | Crew | ~4 units (farmer + 3 hands) | νικητές 1.19× peak_crew έναντι ηττημένων |
+
+**[ενημ. 2026-08-06 — αντικαθιστά τον πίνακα παραπάνω ως τρέχουσα ανάγνωση· ο παλιός μένει για την καμπύλη.]**
+Με το v1e Phase-1 αποδεκτό (median **$42.555** vs starter, 96/96, `checkpoints/v1e` — memory.md 2026-08-06) και τις μετρήσεις 08-05/08-06:
+
+| | Εμείς (v1e, τοπικά vs starter) | Ελίτ ζώνη ≥2800 (08-05, [topfarms-19](meta/ladder_snapshots.md#topfarms-19)) | Full ladder (08-06, [daily-8](meta/ladder_snapshots.md#daily-8)) |
+|---|---|---|---|
+| Median bank | **~$42,6k** | **$125,3k** | median winner $87,4k · record $199,5k |
+| Quadrants | 2 (NW+NE) | **3 (NE+NW+SW)** — SE ποτέ | — |
+| Ζώα | 3 | **13** (8 cow + 5 sheep) | — |
+| Hands | ~6 | **12** | total hires: ισχυρότερο correlate (+0,76, [daily-13](meta/ladder_snapshots.md#daily-13)) |
+
+**Άξονας (α) — το οικονομικό optimum του engine ως στόχος κλίμακας:** το modal top farm
+(8 cow + 5 sheep + 6 strawberry + 1 wheat, 12 hands, γη NE+NW+SW με build order hire@0/cow@0/sheep@0/land@7)
+δεν είναι συνταγή προς αντιγραφή αλλά η καλύτερη διαθέσιμη εκτίμηση του *engine optimum υπό
+ανταγωνισμό* — *αυτό* ορίζει τα capacity targets των v1c/v1d: **3ο τεταρτημόριο, ~13 ζώα
+βαριά σε cow/sheep, crew 12+**. Το SE (κόστος $4k) δεν το αγοράζει κανείς στην ελίτ — να μην
+το αγοράσουμε ούτε εμείς χωρίς μετρημένο λόγο. Δύο επιφυλάξεις: (i) το ανεξάρτητο
+structured-economic-policy notebook συγκλίνει στα δομικά (3 τεταρτημόρια, SE χωρίς ζώα, 12-13
+hands, 15 ζώα) αλλά διαφωνεί στο crop (melon-primary αντί strawberry) — η δομή είναι πιο βέβαιη
+από το crop mix· (ii) στα φρέσκα full-ladder fingerprints εμφανίστηκαν **wheat-primary record
+games** ([daily-11](meta/ladder_snapshots.md#daily-11)) — single-game ενδείξεις, θέλουν δεύτερη
+μέτρηση πριν αλλάξουν το mix μας.
 
 **Συμπέρασμα που καθορίζει προτεραιότητες: το χάσμα είναι δομικό, όχι παραμετρικό.** Ένας agent με 1 quadrant και 0 ζώα έχει ταβάνι ~$25-30k όσο καλά κι αν tunαριστεί — τα ζώα με CARE είναι κατά την §3.2#1 ο ισχυρότερος compounder ($5.575/sheep/season cared). Άρα **κάθε parameter sweep πριν υπάρξουν v1c (γη) και v1d (ζώα) βελτιστοποιεί σε λάθος ταβάνι**. Αντίστροφα: η αιτία που δεν έχουμε ακόμα αυτά τα features δεν είναι έλλειψη χρόνου αλλά ότι **ο scheduler δεν αντέχει το φορτίο** (v1c STOP ×3, review.md C1). Σειρά που προκύπτει: capacity/routing redesign → features → tuning.
 
@@ -247,6 +280,12 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 | 6 | **BBO sweeps (CMA-ES/Optuna) στο `CONFIG`** | Αποδίδουν μόνο αφού υπάρχουν features προς tuning (§3.4) |
 | 7 | **RL** | Μόνο στο trigger της §4 |
 
+**[ενημ. 2026-08-06] Οι τέσσερις στρατηγικοί άξονες, σε σειρά προτεραιότητας** (λεπτομέρειες στις παραπεμπόμενες ενότητες — η σειρά #1-#7 παραπάνω παραμένει ως έχει, οι άξονες λένε *προς τι* χτίζουν τα βήματα):
+- **(α) Κλίμακα προς το engine optimum** (§3.4): v1c/v1d targets = 3ο τεταρτημόριο, ~13 ζώα cow/sheep, crew 12+ — το χάσμα $42,6k → $125k είναι ακόμα δομικό.
+- **(β) Sell-ahead arbitrage** (§3.3): μηχανισμός «πούλα πριν το κύμα» από meta ημερολόγιο + ζωντανό inventory — πρώτο feature *μετά* την κλίμακα, με πρώτη βαθμονόμηση τα [topfarms-22](meta/ladder_snapshots.md#topfarms-22) νούμερα.
+- **(γ) Προσαρμοστικότητα vs copy-bots** (§7#3): διατήρηση του αυτόνομου/adaptive σχεδιασμού· mirror margins στο bench.
+- **(δ) Post-deadline robustness** (Φάση 3): σχεδίαση για εύρος από metas — η τελική BT κατάταξη παίζεται σε meta που δεν έχουμε δει.
+
 **Ρητά εκτός λίστας (αποφασισμένο, να μην επανεξεταστεί χωρίς νέα δεδομένα):** πλήρες RL από τώρα, παράλληλα με τα heuristics (§4)· behavioral cloning / trajectory copying από replays (§3.4 οριοθέτηση)· αύξηση seeds ως *λύση* στο τρέχον regression — το regression έχει se≈$93 και 24/24 ήττες, δεν είναι θόρυβος δείγματος.
 
 ### Φάση 0 — Υποδομή & ground truth (1-2 μέρες δουλειάς)
@@ -271,6 +310,7 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 - Stress tests: mono-crop flooder αντίπαλοι (κάθε προϊόν), αντίπαλος που αγοράζει επιθετικά wheat/fertilizer, do-nothing αντίπαλος (καθαρό optimization ceiling), και τα δύο δικά μας bots αντικριστά (mirror match — ανιχνεύει self-glut).
 - Χειρισμός κάθε συνδυασμού `unlocked_shops` (τυχαίο ανά episode) — το crop mix πρέπει να προσαρμόζεται, όχι να υποθέτει μέση περίπτωση.
 - **Deliverables:** robustness matrix (score vs κάθε αντίπαλο × 24 seeds), hardening fixes.
+- **[ενημ. 2026-08-06] Άξονας (δ) — post-deadline robustness ως ρητό κριτήριο σχεδίασης:** η τελική κατάταξη είναι Bradley-Terry πάνω σε **~2 εβδομάδες episodes ΜΕΤΑ το deadline** (competition_info.md:53-54), δηλαδή ο agent θα κριθεί σε ένα meta που δεν μπορούμε να δούμε πριν κλειδώσει. Και το meta κινείται γρήγορα: median +210% σε 144h ([daily-17](meta/ladder_snapshots.md#daily-17)), route families ανεβοκατεβαίνουν μέσα σε μέρες (§7#3). Άρα η Φάση 3 βελτιστοποιεί για **εύρος από metas, όχι για το σημερινό**: ο robustness matrix να περιλαμβάνει και «αυριανά» σενάρια — αντιπάλους με sell-ahead δικό τους (το V13-R3 είναι δημόσιο, θα αντιγραφεί), μετατοπισμένα sell ημερολόγια (±2-4 μέρες από το topfarms-22), και wheat/staple-βαριά fields — όχι μόνο τους σημερινούς flooders. Το tuning που κερδίζει οριακά στο σημερινό bench αλλά καταρρέει σε μετατοπισμένο ημερολόγιο απορρίπτεται.
 
 ### Φάση 4 — Μάθηση (προαιρετική, μόνο αν η Φάση 2-3 δείξει plateau)
 - Πρώτα black-box optimization (CMA-ES/Optuna) του planner config σε self-play — φθηνό, χωρίς αλλαγή αρχιτεκτονικής.
@@ -341,7 +381,7 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 ### Ρίσκα που μπορούν να ανατρέψουν τη στρατηγική
 1. **Κινούμενο engine**: 2 versions σε μία εβδομάδα (locked-tile passability άλλαξε συμπεριφορά spawn/movement). Κάθε νέα έκδοση `kaggle-environments` απαιτεί re-run του regression suite. Mitigation: pinned version (**1.32.4**, εγκατεστημένο σε `.venv/` — δες §2 Αμφισημία #2) + micro-tests όποτε αλλάξει.
 2. ~~**Το engine source δεν είναι στο repo**~~ **ΛΥΘΗΚΕ (2026-08-05):** διαβάστηκε το πλήρες `kaggriculture.py`, reference copy στο [engine_reference/](../engine_reference/). Οι Αμφισημίες #1-6 της §2 λύθηκαν όλες από αυτό — δεν στηριζόμαστε πια σε δευτερογενείς πηγές για market queue/hands mapping/decay/weed RNG.
-3. **Copying meta στο Bradley-Terry**: αν το τελικό tournament έχει πολλά copy-bots με σχεδόν ίδιες τραγιέκτορίες, τα head-to-head τους κρίνονται σε λεπτομέρειες αγοράς — η προσαρμοστικότητά μας είναι πλεονέκτημα, αλλά η τελική κατάταξη σε πεδίο ομοιογενών αντιπάλων μπορεί να έχει υψηλό variance.
+3. **Copying meta στο Bradley-Terry — [ενημ. 2026-08-06: πλέον εμπειρικά επιβεβαιωμένο, όχι υπόθεση]**: η κορυφή του LB κυριαρχείται από **route families** (177-180 notebook: το παλιό δημόσιο v21/Dennis route έπεσε 19/46 στο φρέσκο top-30, ενώ Konstantin 40/46 και Richard Silence 41/46 medoids κυριαρχούν — route drift σε εξέλιξη)· τα δημόσια V13-R3/93-wr δείχνουν το επόμενο στάδιο του αγώνα: **στα mirror matches η νίκη κρίνεται σε λεπτομέρειες αγοράς** — από +$2.304 μέσο margin με one-turn sell preemption έως μετατροπή draws σε νίκες των **+$3** ([agents-1](meta/ladder_snapshots.md#agents-1))· και το BT μετρά W/L, όχι margin. Συνέπειες: (i) η παλιά ανάγνωση «αντιγράφεις το χθεσινό meta = χάνεις» επιβεβαιώνεται — τα routes μετακινούνται κάτω από τους copiers (και ο record holder της 07-31 «Victor @» εμφανίζει πλέον παιχνίδια κοντά στο μηδέν — fragility)· (ii) **άξονας (γ):** το πλεονέκτημά μας απέναντι σε copy-bots είναι η προσαρμοστικότητα (ζωντανή ανάγνωση αγοράς/αντιπάλου, §3.3), αλλά πρέπει και να **μην χάνουμε τα δικά μας mirrors σε ψίχουλα** — τα stress tests της Φάσης 3 να μετράνε και margin σε mirror, όχι μόνο W/L· (iii) η τελική κατάταξη σε πεδίο ομοιογενών αντιπάλων παραμένει υψηλού variance.
 4. **Matchmaking κατά τη διάρκεια** (αργή σύγκλιση, λιγότερα παιχνίδια σε ψηλό rating — discussion.md:117-127): το mid-competition LB είναι θορυβώδες σήμα· οι αποφάσεις μας πρέπει να στηρίζονται στο local bench, όχι στο ημερήσιο rating.
 5. **Άγνωστη διανομή αντιπάλων στο final**: αν κυριαρχήσουν agents που flood-άρουν συγκεκριμένα προϊόντα, τα tuned sell-thresholds μας μετατοπίζονται — γι' αυτό η Φάση 3 δοκιμάζει flooders κάθε προϊόντος.
 6. **Σιωπηλά no-ops**: bug στο action formatting δεν σκάει ποτέ — μόνο χαμηλώνει το σκορ αθόρυβα. Mitigation: assertion layer τοπικά που επαληθεύει ότι κάθε intended action άλλαξε πράγματι το state.

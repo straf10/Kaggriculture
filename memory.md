@@ -3,8 +3,142 @@
 > Internal project memory, updated at the end of each working session. Newest entry on top.
 > Purpose: let a fresh session (human or assistant) pick up context fast — what changed, why,
 > and what's next — without re-reading the whole git history. Strategy/rules live in
-> [docs/MASTERPLAN.md](docs/MASTERPLAN.md); the current execution plan lives in [plan.md](plan.md).
+> [docs/MASTERPLAN.md](docs/MASTERPLAN.md); the current execution plan lives in
+> [current_phase.md](current_phase.md) (the old `plan.md`, Φάσεις 0-1, was deleted 2026-08-06 —
+> its full history lives in git).
 > This file only records **what happened**, not decisions that belong in those two.
+
+---
+
+## 2026-08-06 (δ) — Session: πρώτο submission ετοιμάστηκε· βρέθηκε ανεξήγητο regression στο τρέχον `agent/`
+
+**Context:** Εκτέλεση του ΜΕΡΟΥΣ Α του current_phase.md ("πρώτο submission ΤΩΡΑ"). Καμία αλλαγή
+στο `agent/`/`harness/` — μόνο έλεγχοι, packaging, τεκμηρίωση.
+
+**Κρίσιμο εύρημα, πριν το packaging:** το current_phase.md (γραμμένο νωρίτερα σήμερα) αντιμετωπίζει
+το *τρέχον* `agent/` working tree ως ισοδύναμο του `checkpoints/v1e` ("v1e (τρέχον
+agent/config.py)"). Δύο commits όμως προστέθηκαν μετά το checkpoint (`99db4fb`, `c7767bb`) χωρίς
+κανένα νέο gate run — και το `c7767bb`'s commit message ("Fix L10 rename") υποεκτιμά δραστικά το
+πραγματικό diff του (482 insertions σε 16 αρχεία, πραγματικές αλλαγές συμπεριφοράς: farmHandCostMult
+threading, harvest-age από CROPS, wheat-retry timing, H8 market-order truncation reprioritization,
+tie-break sort στο scheduler). Fresh `compare(main.py, checkpoints/v1e/main.py, DEV_SEEDS,
+both_seats=True, metrics=True)`: **mean_diff=-613.6 (se=31.3, CI [-676.6,-550.7]),
+episode_wins 8/96 έναντι 88/96 υπέρ του παγωμένου checkpoint, significant=True,
+verdict=WITHIN_MARGIN** (όχι επίσημα REGRESSED λόγω του margin, αλλά ουσιαστικό, μη απομονωμένο
+regression). Root cause **δεν** απομονώθηκε αυτό το session.
+
+Δεύτερο, ανεξάρτητο εύρημα: το νέο metric `weeds_lost_a` (πρόσθεσε το review_4452427 H2/H5)
+είναι μη-μηδενικό (~120/8 episodes) **και για τα δύο** agents (live tree ΚΑΙ frozen checkpoint,
+ίδιο νούμερο) — μοιάζει environment-driven, όχι agent regression, αλλά κάνει το
+`metric_gate_passed` False και για τα δύο υπό τον νέο ορισμό. Επιπλέον `harness/cli.py`'s
+`_results_json_dict` δεν σερβίρει καθόλου τα νέα gate πεδία (`weeds_lost_a`,
+`shed_overflow_burnt_a`, `units_sold_at_or_below_5_a`, `sales_count_a`,
+`unexplained_noops_a`, `market_sim_aborted_a`) στο results.json — ήταν αόρατο μέχρι να διαβαστεί
+απευθείας το `CompareResult` object σε Python.
+
+**Απόφαση:** το submission πακετάρεται από το **παγωμένο `checkpoints/v1e/agent_checkpoint_v1e`**
+(fingerprint `f0ad486b...`), αναδιαμορφωμένο στο σωστό `agent/` package name σε staging dir
+(`.../scratchpad/submission_v1e/`), **όχι** από το τρέχον repo-root `agent/`. Πλήρες validation
+πάνω στο ακριβές staged bundle: G12 loader OK, G13 cross-process determinism (PYTHONHASHSEED 0 vs
+12345) OK, mirror smoke 720 steps clean=True DONE/DONE, timing και στα 2 seats max=8.6ms (στόχος
+<333ms local) PASS, μέγεθος 21.140 bytes. `pytest tests/` (live tree) → 133 passed. Τελικό
+`submission.tar.gz` αντιγράφηκε στο repo root (gitignored).
+
+**Baseline evidence** — `baselines/2026-08-06/`: `local_bench.json` (επαναχρησιμοποιήθηκε από
+`runs/local_bench_v1e_vs_starter` του πρωινού session, ίδιο fingerprint): median $42.555, 96/96
+holdout wins, IMPROVED, GO=True, metric gate (παλιός ορισμός) καθαρό. + νέο smoke evidence vs
+`pass`/`random` (24/24 wins έκαστο). Πλήρες `validation.md` με το checklist Α.1 + το εύρημα
+παραπάνω.
+
+**Υποβλήθηκε:** ο χρήστης ζήτησε ρητά να τρέξει το submit. `kaggle competitions submit
+kaggriculture -f submission.tar.gz -m "v1e rule-based baseline"` → επιτυχές,
+**SUBMISSION_ID 55301989**, 2026-08-06 15:32:19 UTC, status PENDING μετά την υποβολή,
+4 uploads/μέρα απομένουν. Καταγράφηκε στο
+[baselines/2026-08-06/validation.md](baselines/2026-08-06/validation.md).
+
+**Next session should:** (1) bisect το `c7767bb` έναντι `checkpoints/v1e` σε DEV_SEEDS,
+flag-by-flag ή commit-hunk-by-hunk, να απομονωθεί ποιά αλλαγή προκαλεί το -$614/episode πριν
+γίνει βάση για v1f· (2) αποφασίστε αν το `weeds_lost` metric χρειάζεται επαναβαθμονόμηση ή αν το
+`_results_json_dict` απλά πρέπει να σερβίρει τα λείποντα πεδία πρώτα ώστε να φαίνεται στο
+`results.json` χωρίς χειροκίνητο Python introspection· (3) μετά την επιβεβαίωση του submission
+(episodes/leaderboard), προχωρήστε σε v1f (crew scale-up) όπως προγραμματισμένο.
+
+**Follow-up ίδια μέρα — επιβεβαιώθηκε ότι το ladder matchmaking ξεκίνησε ήδη:** ο χρήστης ρώτησε
+πότε θα δει αγώνες vs άλλους agents (νόμιζε ότι έβλεπε μόνο self-play). Έλεγχος
+`kaggle competitions episodes 55301989 -v`: 1 EPISODE_TYPE_VALIDATION (`90467901`, self-play,
+crash-check μόνο) + 2 EPISODE_TYPE_PUBLIC ήδη ολοκληρωμένα. Replays κατέβηκαν
+(`baselines/2026-08-06/live_episodes/`) και επιβεβαιώθηκε ότι **και τα δύο PUBLIC episodes ήταν
+ήδη vs πραγματικές αντίπαλες ομάδες**, όχι self-play: `90468456` vs "saikyo"
+(rewards saikyo=122189, STRAF=41513 — ήττα), `90468450` vs "Om Sangwan"
+(rewards Om Sangwan=7169, STRAF=42900 — νίκη). Άρα το submission status COMPLETE, publicScore
+600.1, ήδη μέσα στο matchmaking pool — ο χρήστης έβλεπε πιθανώς μόνο το VALIDATION episode στο
+UI και το πέρασε για "vs τον εαυτό μου", αλλά PUBLIC αγώνες vs άλλους ήδη τρέχουν.
+
+---
+
+## 2026-08-06 (γ) — Session: 4 notebooks (1 refresh + 3 νέα), snapshot 08-06, MASTERPLAN ενημερώθηκε
+
+**Housekeeping:** το `kaggriculture-daily-replays-the-live-meta-report.ipynb` αντικαταστάθηκε από
+το φρέσκο re-run «(1)» (768.724 bytes, run 08-06 05:47, δεδομένα έως 08-05 23:46 UTC) — παλιό
+διαγράφηκε, νέο πήρε το κανονικό όνομα, extractor ξανάτρεξε. **Κανένα άλλο notebook δεν
+διαγράφηκε** (κανένα δεν είναι superseded — διαφορετικά ερωτήματα/συγγραφείς). Εξήχθησαν και τα
+3 νέα: *structured-economic-policy*, *v13-r3*, *93-wr* (σύνολο 9/9 notebooks με dump). Raw
+εικόνες: 17 PNGs εξετάστηκαν (10 daily / 2 policy / 5 v13r3 / 0 93wr)· chart-only ευρήματα
+πέρασαν στο snapshot (διπλοκόρυφη κατανομή banks, wheat flat sell-curve, LB top-5, spike 08-05).
+
+**Ταξινόμηση των 3 νέων (όλα competitor-agent artifacts = EVIDENCE, όχι πηγή κώδικα):**
+- *structured-economic-policy*: συγγραφέας άγνωστος (χωρίς kaggle metadata), engine **1.32.4
+  pinned+asserted** (cell 1). Melon-primary, 3 τεταρτημόρια (γη μέρες 5&9), SE=0 animal slots,
+  12-13 hands, 15 ζώα. Θεωρία: §6 order-timing symmetry, §8 withholding-is-a-transfer.
+- *v13-r3*: engine 1.32.4, one-turn sell preemption + near-mirror gate. 31-1 vs exact V21.1
+  (+$2.304 μέσο margin), 91-5 vs top-route proxies, 96-0 vs controls. Schedule από OceanMix
+  episode 90343084. Metadata: `v13r3_release: private-review`.
+- *93-wr*: fork του v21.1 του **Kaito Fukami** (→ το 177-180 ταυτοποιήθηκε ως δικό του).
+  ⚠️ ΑΝΑΞΙΟΠΙΣΤΟ ως μέτρηση: run 4s χωρίς κανένα παιχνίδι (πίνακες hardcoded), «12 market
+  orders» (engine cap 10), «margin 53.5» vs +$3 στα episodes, placeholder author στον τίτλο.
+  Χρήσιμο μόνο ως ένδειξη: mirror draws → +$3 νίκες (το BT μετρά W/L, όχι margin).
+
+**Νέο snapshot 2026-08-06 στο `docs/meta/ladder_snapshots.md`** (anchors daily-8/11/13/17,
+agents-1 + 2 νέες γραμμές στον πίνακα πληθυσμών): full ladder median $87.436 (ήταν $39.652 στις
+07-31), record $199.499 ZechHuang, ratio 4,0×→2,3×· +210%/144h, τελευταία μέρα +52%· elbows
+14-18 (ήταν 11-15)· **2/3 κορυφαία fingerprints wheat-primary** (νέο — θέλει 2η μέτρηση)·
+hires +0,76 / land day −0,04· consensus 85%→24% **παραμένει ανεπιβεβαίωτο** (καμία νέα μέρα
+topfarms)· LB πηγές διαφωνούν («somewhere after» ~3.090 community vs Ben Hamilton 3.043 επίσημο).
+
+**MASTERPLAN — ΕΦΑΡΜΟΣΤΗΚΑΝ (με [ενημ. 2026-08-06]):** §1 γρ.77 ladder benchmark (νέο modal
+farm + πόιντερ στο snapshots)· §3.2bis freshness note (dataset έως 08-04 = ιστορικό)· §3.3
+άξονας (β) «πούλα πριν το κύμα» (μηχανισμός v1f+, βαθμονόμηση topfarms-22, πρόβλεψη drift)·
+§3.4 νέος gap πίνακας v1e $42,6k vs ελίτ $125,3k + άξονας (α) targets v1c/v1d (3ο quadrant,
+~13 ζώα, crew 12+)· §5.0 σύνοψη 4 αξόνων· Φάση 3 άξονας (δ) post-deadline robustness· §7#3
+copying meta = εμπειρικά επιβεβαιωμένο + mirror-margin bench. Καμία standing απόφαση δεν
+ανατράπηκε (no RL / no replay priors / capacity→features→tuning ισχύουν).
+
+**Ανοιχτά/αμφίβολα:** wheat-primary στην κορυφή (single-game)· consensus anomaly (θέλει 2η μέρα
+topfarms)· 93-wr όλο ύποπτο· policy author άγνωστος· LB rating discrepancy μεταξύ πηγών.
+
+---
+
+## 2026-08-06 (β) — Session: εξαγωγή 2 νέων notebooks, snapshot 2026-08-05, καμία διαγραφή
+
+**Τι έγινε:** Εξήχθησαν με `nb_extract.py` τα δύο νέα notebooks σε `docs/source/notebooks/`
+(σύνολο πλέον 6/6 με dump): *177/180 Fresh Top-30 v21.1 Conditional Memory* (agent notebook,
+run 08-06 04:29 — route-copy meta στην κορυφή του LB, το παλιό δημόσιο v21 έπεσε 19/46) και
+*What the Top Farms Do — A Live Meta* (cjlcjlcjl, run 08-06 07:05, **επίσημο** dataset 08-05,
+ζώνη Elo ≥2800). Ελέγχθηκαν και οι εικόνες των raw ipynb (21 PNGs) — κανένα chart-only εύρημα
+δεν χάθηκε στην εξαγωγή· όλα τα charts έχουν αντίστοιχους πίνακες/κείμενο.
+
+**Deprecation verdict: ΚΑΝΕΝΑ notebook δεν διαγράφηκε.** Το *what-the-top-farms* (cjlcjlcjl,
+επίσημο dataset) και το *daily-replays* (Mamarin, community dataset) είναι **διαφορετικοί
+συγγραφείς/datasets/ερωτήματα** — αποδείχθηκε από το credit table του 177-180 που τα αναφέρει
+χωριστά. Το daily-replays κρατά μοναδικά ευρήματα (head-to-head, luck spread 19%, coin-curve)·
+είναι απλώς stale (07-31), όχι superseded.
+
+**Κύριο νέο εύρημα (νέα εγγραφή 2026-08-05 στο `docs/meta/ladder_snapshots.md`):** το top meta
+ΔΕΝ είναι πια «4/4 quadrants + 20 ζώα» — modal top farm (22-24% των παικτών ζώνης ≥2700/2800):
+**8 cow + 5 sheep + 6 strawberry + 1 wheat + 12 hands, γη NE+NW+SW, SE ποτέ**, money median
+$125k, build order hire/cow/sheep@0 + land@7. Meta clock: σύγκλιση (τελευταία μέρα +36/+37 Elo).
+Προτάθηκαν (ΔΕΝ εφαρμόστηκαν) diffs για MASTERPLAN §1 γρ.77 και §3.4 gap table — εκκρεμεί
+απόφαση χρήστη.
 
 ---
 

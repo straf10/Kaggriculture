@@ -4,3 +4,5 @@ __pycache__/
 .env
 runs/
 submission.tar.gz
+data/archive/replays.parquet
+baselines/**/live_episodes/

@@ -51,6 +51,14 @@ timings ([data/derived/top_agent_profiles.md](data/derived/top_agent_profiles.md
 Το v1e πληροί τα κριτήρια Φάσης 1 (96/96 vs starter, median ≥$40k). Κάθε μέρα χωρίς submission
 είναι χαμένη πληροφορία ladder. Διαδικασία (από το παλιό plan §6, αμετάβλητη):
 
+> **Ενημέρωση 2026-08-06 (δ) — διορθώθηκε η υπόθεση "τρέχον agent/ == v1e":** το τρέχον
+> repo-root `agent/` **δεν** είναι πλέον ισοδύναμο του `checkpoints/v1e` — δύο commits μετά το
+> checkpoint (`99db4fb`, `c7767bb`) εισήγαγαν ένα μη-απομονωμένο ~$614/episode regression έναντι
+> του παγωμένου checkpoint (DEV_SEEDS, βλ. memory.md 2026-08-06 (δ)). Το πρώτο submission
+> πακετάρεται από το **παγωμένο `checkpoints/v1e`**, όχι από `main.py agent/` του repo root
+> κατά γράμμα — βλ. [baselines/2026-08-06/validation.md](baselines/2026-08-06/validation.md).
+> Το bisect του `c7767bb` είναι εκκρεμότητα πριν αυτό γίνει βάση για v1f.
+
 ### Α.1 Checklist προ-υποβολής
 
 - [ ] **Format**: `tar -czf submission.tar.gz main.py agent/` — `main.py` στο **root** του

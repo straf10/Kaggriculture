@@ -30,6 +30,32 @@
 
 ## Εγγραφές
 
+### 2026-08-06 — Διευκρίνιση: deactivated submissions δεν μετράνε στο τελικό Bradley-Terry
+
+**Πηγή:** forum thread (πρώην docs/source/info.md, item 3· διαγράφηκε μετά την εξαγωγή —
+πλήρες κείμενο στο git history commit πριν από αυτή την εγγραφή). Attribution σε οργανωτή
+**μη επιβεβαιωμένο** — μοιάζει με host reply αλλά δεν αναφέρεται ρητά.
+**Τι λέει:** «The Final B-T tournament will use all episodes between active agents across the
+whole competition. Any episodes your agent played against now deactivated agents will not
+count.» Δηλαδή το τελικό tournament είναι cumulative σε όλη τη διάρκεια (όχι μόνο τις 2
+εβδομάδες μετά το deadline), αλλά episodes εναντίον submissions που έχουν since
+απενεργοποιηθεί (π.χ. αντικαταστάθηκαν από νεότερο upload, δικό μας ή αντιπάλου) αποκλείονται
+εντελώς από το fit.
+**Impact:** Διευκρινίζει το ασαφές σημείο στην εγγραφή 2026-07-29 παρακάτω («εκείνα τα
+episodes» = cumulative minus deactivated, όχι μόνο τα μετά-deadline). Δεν αλλάζει άμεσα
+στρατηγική· FYI για το πώς μετράει η συχνότητα re-submit.
+**Ενέργεια:** καμία (FYI) — αβέβαιο attribution, δεν αλλάζει engine rule ώστε να προωθηθεί σε
+engine_deltas.md.
+
+### 2026-08-06 — Διευκρίνιση: notebook σε "code" mode μετράει ως submission
+
+**Πηγή:** forum thread (πρώην docs/source/info.md, item 6· διαγράφηκε μετά την εξαγωγή).
+**Τι λέει:** Ερώτημα αν notebook ανεβασμένο στο "code" tab του competition μετράει αυτόματα ως
+submission. Απάντηση: ναι, οτιδήποτε submit-άρεται μετράει.
+**Impact:** Καμία επίδραση στη δική μας ροή (CLI submit με main.py/tar.gz, όχι Kaggle Notebook
+editor).
+**Ενέργεια:** καμία (FYI)
+
 ### 2026-08-06 — Αναδιοργάνωση docs· δημιουργία αυτού του ημερολογίου
 
 **Πηγή:** εσωτερική απόφαση (session 2026-08-06)
