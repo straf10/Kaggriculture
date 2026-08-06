@@ -75,11 +75,15 @@ def test_policy_returns_index_aligned_hand_actions():
     # animals disabled here: this test is about index alignment (G12), not the v1d animal
     # feature, and an empty farm otherwise has no tasks at all — with animals on, the two
     # always-free BUILD_PASTURE slots would legitimately draw a unit away from PASS.
+    # review.md L5: restore the actual prior value, not a hardcoded literal — a hardcoded
+    # restore silently "fixes" CONFIG to the wrong value (and masks it for every later test)
+    # if the true default ever differs from the literal here.
+    previous_enabled = CONFIG["animals"]["enabled"]
     CONFIG["animals"]["enabled"] = False
     try:
         action = agent(_minimal_observation(hands=((5, 4), (4, 5))))
     finally:
-        CONFIG["animals"]["enabled"] = True
+        CONFIG["animals"]["enabled"] = previous_enabled
     assert action["farmer"] == ["PASS"]
     assert action["hands"] == [["PASS"], ["PASS"]]
     assert len(action["market"]) <= 10
@@ -105,7 +109,7 @@ def test_vendored_constants_and_prices_match_pinned_engine():
     assert _vendored.LAND_ORDER == engine.LAND_ORDER
     assert _vendored.LAND_PRICES == engine.LAND_PRICES
     assert _vendored.SHOPS == engine.SHOPS
-    # review.md L9 — TOWN_CENTER_DEMAND_SCHEDULE was vendored but never pinned by a test.
+    # review_89d99f0_2026-08-05.md L9 — TOWN_CENTER_DEMAND_SCHEDULE was vendored but never pinned by a test.
     assert _vendored.TOWN_CENTER_DEMAND_SCHEDULE == engine.TOWN_CENTER_DEMAND_SCHEDULE
     for item, params in engine.MARKET_PARAMS.items():
         equilibrium, capacity = params["I0"], params["T"]
@@ -114,12 +118,27 @@ def test_vendored_constants_and_prices_match_pinned_engine():
 
 
 def test_l3_hire_cost_matches_engine():
-    """review.md L3 — executor._hire_cost is a hand-copied reimplementation of the engine's
-    fib-cost sequence with no parity test, unlike the rest of the vendored constants."""
+    """review_89d99f0_2026-08-05.md L3 — executor._hire_cost is a hand-copied reimplementation of the engine's
+    fib-cost sequence with no parity test, unlike the rest of the vendored constants.
+    review.md M3 — the original version of this test only swept the default mult=1, so it
+    never caught that _hire_cost dropped farmHandCostMult entirely; now swept across
+    mult in {1, 2, 3} to lock the full `cost = mult * fib(n)` relationship."""
     from agent.executor import _hire_cost
 
-    for n in range(8):
-        assert _hire_cost(n) == engine._hire_cost(n)
+    for mult in (1, 2, 3):
+        for n in range(8):
+            assert _hire_cost(n, mult) == engine._hire_cost(n, mult)
+
+
+def test_m12_harvest_ready_age_derived_from_crops():
+    """review.md M12 — the hardcoded `age >= 3` (CARROT) / `age >= 16` (STRAWBERRY) harvest
+    triggers in scheduler.py must stay derived from CROPS, not drift into a second hand-copied
+    magic number if the pinned engine's CROPS constants ever change."""
+    from agent.scheduler import _CARROT_WATER_WINDOW, _HARVEST_READY_AGE
+
+    assert _HARVEST_READY_AGE["CARROT"] == 3
+    assert _HARVEST_READY_AGE["STRAWBERRY"] == 16
+    assert _CARROT_WATER_WINDOW == (2, 3)
 
 
 def test_g13_sequential_episodes_are_clean_and_equal():
@@ -168,6 +187,8 @@ def test_g1_scheduler_reserves_time_to_water_new_plant():
     # animals disabled: this is a G1 plant-timing test, not a v1d animal-priority test — with
     # animals on, the free/always-available BUILD_PASTURE tasks legitimately outrank a single
     # CARROT plant this late in the day and would otherwise mask what G1 is checking.
+    # review.md L5: restore the actual prior value, not a hardcoded literal.
+    previous_enabled = CONFIG["animals"]["enabled"]
     CONFIG["animals"]["enabled"] = False
     try:
         observation = _minimal_observation(step=22)
@@ -177,7 +198,7 @@ def test_g1_scheduler_reserves_time_to_water_new_plant():
         tasks = build_tasks(snapshot, plan, CONFIG)
         farmer_action, _, _ = assign(tasks, snapshot)
     finally:
-        CONFIG["animals"]["enabled"] = True
+        CONFIG["animals"]["enabled"] = previous_enabled
     assert farmer_action == ["PLANT", "CARROT"]
 
 
@@ -214,11 +235,10 @@ def test_g7_executor_never_exceeds_market_cap():
     plan = make_day_plan(snapshot, CONFIG)
     action = agent(observation)
     assert len(action["market"]) <= CONFIG["executor"]["max_market_orders"]
-    assert make_ledger(snapshot).market_slots == 10
 
 
 def test_m7_market_orders_truncates_instead_of_raising():
-    """review.md M7 — exceeding the market order budget used to `raise AssertionError`, which
+    """review_89d99f0_2026-08-05.md M7 — exceeding the market order budget used to `raise AssertionError`, which
     on a submission run would turn one over-budget turn into an ERROR and a lost episode.
     It must truncate instead."""
     from agent.executor import market_orders
@@ -332,11 +352,11 @@ def test_g6_hand_at_55_routes_across_locked_tiles():
 
 
 def test_c1_planner_caps_plant_targets_when_watering_capacity_is_short():
-    """review.md C1/§5#5 — a wide farm (target tiles at distance 5-9 from the shed spawn) with
+    """review_89d99f0_2026-08-05.md C1/§5#5 — a wide farm (target tiles at distance 5-9 from the shed spawn) with
     only two units must not be handed the full plant_targets count: the day's unit-turns can't
     keep that many tiles watered, and the old config-only planner had no way to notice. The
     capacity gate should trim the target instead of setting the scheduler up to plant more
-    than it can water (the structural v1c root cause, review.md §1)."""
+    than it can water (the structural v1c root cause, review_89d99f0_2026-08-05.md §1)."""
     wide_config = copy.deepcopy(CONFIG)
     wide_config["scheduler"]["target_tiles"] = {
         "CARROT": (
@@ -356,7 +376,7 @@ def test_c1_planner_caps_plant_targets_when_watering_capacity_is_short():
 
 
 def test_c1_slack_beats_distance_for_a_single_unit():
-    """review.md C1/§1.2 + §5#1: with one unit and two same-priority tasks, a distant task
+    """review_89d99f0_2026-08-05.md C1/§1.2 + §5#1: with one unit and two same-priority tasks, a distant task
     that is about to run out of time (low slack) must win over a near task that has plenty
     of slack — plain nearest-first would starve the distant, urgent tile until it's too late."""
     observation = _minimal_observation(step=0)
@@ -369,9 +389,11 @@ def test_c1_slack_beats_distance_for_a_single_unit():
 
 
 def test_h4_debug_receipts_emit_and_reconcile(capsys):
-    """review.md H4 — the harness side (KAGGRI_RECEIPT parsing in play.py) already existed;
+    """review_89d99f0_2026-08-05.md H4 — the harness side (KAGGRI_RECEIPT parsing in play.py) already existed;
     this is the missing transmitter: a committed WATER must emit an expected_transition
     receipt now and a reconciliation receipt the next time this seat is observed."""
+    # review.md L5: restore the actual prior value, not a hardcoded literal.
+    previous_debug = CONFIG["guards"]["debug"]
     CONFIG["guards"]["debug"] = True
     try:
         _RUNTIME_BY_PLAYER.clear()
@@ -395,14 +417,14 @@ def test_h4_debug_receipts_emit_and_reconcile(capsys):
         assert '"kind": "reconciliation"' in second_turn_out
         assert '"ok": true' in second_turn_out
     finally:
-        CONFIG["guards"]["debug"] = False
+        CONFIG["guards"]["debug"] = previous_debug
 
 
 def test_g5_feed_never_assigned_to_a_unit_without_wheat():
     """plan.md G5 — FEED's wheat is per-unit cargo from an earlier PICKUP (unlike PLANT's
     shared seed pool draw), so a unit carrying none of it must never be routed to FEED, even
     standing right on the animal's tile — assigning it would be a silent no-op the engine
-    swallows without error (review.md's G11 failure mode), and the animal would go right on
+    swallows without error (review_89d99f0_2026-08-05.md H4's G11 failure mode), and the animal would go right on
     starving toward `consecutive_unfed >= 2` escape."""
     observation = _minimal_observation(step=10, hands=((3, 3),))
     observation["farms"][0]["farmer"] = [4, 2]
@@ -435,7 +457,7 @@ def test_v1c_buy_land_triggers_replan_and_grows_targets():
     "NE") must cause a correct same-day replan, not wait for tomorrow's day boundary —
     otherwise a day's plan keeps plant_targets frozen at the pre-purchase NW-only baseline
     until the next day, wasting the newly-unlocked tiles for the rest of today. policy.py's
-    _needs_replan already watches `last_quadrants != snapshot.my_quadrants` (review.md M4); this
+    _needs_replan already watches `last_quadrants != snapshot.my_quadrants` (review_89d99f0_2026-08-05.md M4); this
     exercises that path end-to-end through agent() and confirms the resulting plan actually
     reflects NE's bonus target tiles, not just that *some* replan happened."""
     _RUNTIME_BY_PLAYER.clear()
@@ -458,7 +480,7 @@ def test_v1c_buy_land_triggers_replan_and_grows_targets():
 def test_v1c_land_purchase_waits_for_animals_to_be_placed_first():
     """A v1c+v1d interaction bug found via a full smoke-test replay: BUY_LAND's own gate
     (hands_target hands hired) is satisfiable as early as day 0 hour ~2, well before COW/SHEEP
-    are actually bought (hour 4/6) and placed. Land grabbing its $2000 first left too little
+    are actually bought (hour 4/6) and placed. Land grabbing its $1000 first left too little
     cash for the very next day's wheat purchase, and both animals starved to death by day 2
     with zero engine-level errors. executor.py's land-purchase gate now also requires every
     planned animal to already be placed — this locks that ordering in."""

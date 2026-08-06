@@ -10,8 +10,11 @@ class Snapshot:
     hour: int
     player: int
     money: float
-    opponent_money: float
     my_tiles: list
+    # review.md L9: opponent_money/unlocked_shops had zero real readers and were removed;
+    # opponent_tiles is kept despite also having no current reader — it's reserved for a
+    # Phase 2 opponent-aware selling policy (undercutting/matching the opponent's own sell
+    # behavior), not dead in the same sense.
     opponent_tiles: list
     farmer_pos: tuple[int, int]
     hand_positions: tuple[tuple[int, int], ...]
@@ -20,7 +23,6 @@ class Snapshot:
     inventories: tuple[dict, ...]
     market_inventory: dict
     market_prices: dict
-    unlocked_shops: tuple[str, ...]
     my_quadrants: tuple[str, ...]
     hires_today: int
 
@@ -34,7 +36,6 @@ def parse(obs: Any) -> Snapshot:
     opponent = farms[opponent_index] if opponent_index < len(farms) else {}
     private = obs.get("private", {}) or {}
     market = obs.get("market", {}) or {}
-    town = obs.get("town", {}) or {}
 
     return Snapshot(
         step=int(obs.get("step", 0)),
@@ -42,7 +43,6 @@ def parse(obs: Any) -> Snapshot:
         hour=int(obs.get("hour", 0)),
         player=player,
         money=float(mine.get("money", 0.0)),
-        opponent_money=float(opponent.get("money", 0.0)),
         my_tiles=mine.get("tiles", []),
         opponent_tiles=opponent.get("tiles", []),
         farmer_pos=tuple(mine.get("farmer", (0, 0))),
@@ -52,28 +52,9 @@ def parse(obs: Any) -> Snapshot:
         inventories=tuple(dict(inv) for inv in private.get("inventories", [])),
         market_inventory=dict(market.get("inventory", {})),
         market_prices=dict(market.get("prices", {})),
-        unlocked_shops=tuple(town.get("unlocked_shops", [])),
         my_quadrants=tuple(mine.get("unlocked_quadrants", [])),
         hires_today=int(mine.get("hires_today", 0)),
     )
-
-
-def plants_needing_water(snapshot: Snapshot) -> list[tuple[int, int]]:
-    positions = []
-    for y, row in enumerate(snapshot.my_tiles):
-        for x, tile in enumerate(row):
-            if isinstance(tile, dict) and tile.get("kind") == "PLANT" and not tile.get("watered_today"):
-                positions.append((x, y))
-    return positions
-
-
-def harvestable(snapshot: Snapshot) -> list[tuple[int, int]]:
-    positions = []
-    for y, row in enumerate(snapshot.my_tiles):
-        for x, tile in enumerate(row):
-            if isinstance(tile, dict) and tile.get("yield_units", 0) > 0:
-                positions.append((x, y))
-    return positions
 
 
 def animals_needing(snapshot: Snapshot) -> dict[tuple[int, int], set[str]]:

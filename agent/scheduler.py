@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 from .config import CONFIG
-from .constants import ANIMALS, SHED_ACCESS
+from .constants import ANIMALS, CROPS, SHED_ACCESS
 from .planner import DayPlan
 from .state import Snapshot, animals_needing
 
@@ -10,6 +10,33 @@ from .state import Snapshot, animals_needing
 # already uses, so a runtime.episode_steps change can't silently leave this stale. Every
 # production call site sets deadline_step explicitly — this only backs ad-hoc/test Tasks.
 _DEFAULT_DEADLINE_STEP = CONFIG["runtime"]["episode_steps"] - 1
+
+
+def _harvest_ready_age(crop: str) -> int:
+    """review.md M12: age (days since planted) at which `crop` first reaches its peak
+    yield_units, derived from CROPS instead of a hardcoded magic number. Ongoing crops
+    (STRAWBERRY) keep accumulating yield via the engine's daily refresh at
+    first_yield_day + interval*k; the last production tick (k = max_yield-1) is the day
+    yield peaks (engine kaggriculture.py _daily_refresh_plants, ~L764-780). Non-ongoing
+    crops (CARROT) only gain yield_units through the WATER op inside
+    [(max_yield_day+1)//2, max_yield_day] (engine _apply_op WATER, ~L381-387), so they
+    peak at max_yield_day itself."""
+    data = CROPS[crop]
+    if data["ongoing"]:
+        return data["first_yield_day"] + data["interval"] * (data["max_yield"] - 1)
+    return data["max_yield_day"]
+
+
+def _water_window(crop: str) -> tuple[int, int]:
+    """review.md M12: [start, end] age range in which watering a non-ongoing crop still
+    grows yield_units, mirroring the engine's own `window_start = (max_yield_day+1)//2`
+    (engine kaggriculture.py L384)."""
+    max_yield_day = CROPS[crop]["max_yield_day"]
+    return (max_yield_day + 1) // 2, max_yield_day
+
+
+_HARVEST_READY_AGE = {crop: _harvest_ready_age(crop) for crop in ("CARROT", "STRAWBERRY")}
+_CARROT_WATER_WINDOW = _water_window("CARROT")
 
 
 @dataclass(frozen=True)
@@ -30,10 +57,7 @@ class Task:
 @dataclass
 class ResourceLedger:
     seeds: dict[str, int]
-    unit_inventory: list[dict]
-    shed_free: int
     money: float
-    market_slots: int = 10
 
 
 def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
@@ -65,7 +89,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
     # plant_targets once NE is unlocked, so CARROT's newly-doubled tile count can't starve
     # STRAWBERRY of its share of a budget that never grew to match.
     max_new_plants = int(plan.max_new_plants)
-    # review.md H1/M6: cap PLANT task *creation* to what today's plant budget and the
+    # review_89d99f0_2026-08-05.md H1/M6: cap PLANT task *creation* to what today's plant budget and the
     # currently-observed seed count can actually support, so assign() can never commit more
     # PLANT actions in one turn than the cap allows, and never sends a unit walking toward a
     # PLANT tile whose only seed was already claimed by an earlier task in this same build.
@@ -79,11 +103,11 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             if tile.get("crop") != crop:
                 continue
             age = snapshot.day - tile["planted_day"]
-            # review.md L7: v1b watered CARROT on `age >= 2` unconditionally, including past
+            # review_89d99f0_2026-08-05.md L7: v1b watered CARROT on `age >= 2` unconditionally, including past
             # the engine's yield window (ages 2-3) — a rare, small unit-turn waste, not
             # present in plan.md's ablation table but needed for the all-off self-test to
             # reproduce v1b exactly (criterion #1).
-            carrot_water_age_ok = 2 <= age <= 3
+            carrot_water_age_ok = _CARROT_WATER_WINDOW[0] <= age <= _CARROT_WATER_WINDOW[1]
             needs_water = (
                 not tile.get("watered_today")
                 and (
@@ -99,10 +123,8 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
                     priority=0,
                     deadline_step=day_deadline,
                 ))
-            harvest_due = (
-                crop == "CARROT" and age >= 3
-                or crop == "STRAWBERRY" and age >= 16
-            )
+            harvest_ready_age = _HARVEST_READY_AGE[crop]
+            harvest_due = age >= harvest_ready_age
             if harvest_due and tile.get("yield_units", 0) > 0:
                 tasks.append(Task(
                     id=f"harvest:{x}:{y}",
@@ -110,14 +132,14 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
                     pos=(x, y),
                     priority=(
                         0
-                        if crop == "STRAWBERRY" or tile.get("watered_today") or age > 3
+                        if crop == "STRAWBERRY" or tile.get("watered_today") or age > harvest_ready_age
                         else 1
                     ),
                     deadline_step=min(day_deadline, tile.get("max_lifespan_step", day_deadline)),
                 ))
             continue
 
-        # review.md H5: feasibility used to be judged from the farmer's position only, even
+        # review_89d99f0_2026-08-05.md H5: feasibility used to be judged from the farmer's position only, even
         # though assign() may hand the task to a hand standing somewhere else entirely. Use
         # the closest unit's distance instead, so a hand near a far tile isn't blocked by
         # (and a hand far from a near tile doesn't wrongly greenlight) a farmer-only estimate.
@@ -154,7 +176,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             seeds_budget[crop] -= 1
 
     if plan.force_liquidation:
-        # review.md M1: one DROP task per loaded unit, restricted to that unit, instead of a
+        # review_89d99f0_2026-08-05.md M1: one DROP task per loaded unit, restricted to that unit, instead of a
         # single global task an empty-inventory unit can monopolize with silent no-ops.
         access = (4, 4)  # the only initially unlocked shed-access tile
         # plan.md §5 v1e: WHEAT excluded from "cargo to dump" — it's productive input a unit
@@ -183,7 +205,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
 
     tasks.extend(_build_animal_tasks(snapshot, plan, config, unit_positions, day_deadline))
 
-    # review.md L8: truncation used to follow construction order (CARROT tiles first), not
+    # review_89d99f0_2026-08-05.md L8: truncation used to follow construction order (CARROT tiles first), not
     # priority — a footgun if the task pool ever actually reaches max_tasks (currently
     # unreachable at 400, but not something the code should rely on staying true).
     tasks.sort(key=lambda task: task.priority)
@@ -280,7 +302,7 @@ def _build_animal_tasks(
                 priority=1, item=name, count=1, deadline_step=episode_deadline,
             ))
 
-    # 3. Daily upkeep for whatever's already placed. FEED carries review.md C1's exact
+    # 3. Daily upkeep for whatever's already placed. FEED carries review_89d99f0_2026-08-05.md C1's exact
     # zero-slack death mechanism (`consecutive_unfed >= 2`, engine :795) that WATER has, but
     # worse (escape = $300-500 lost capital, not a replantable tile) — fed every single day,
     # unconditionally, no every-other-day economy like carrot watering. Wheat must already be
@@ -324,11 +346,8 @@ def _build_animal_tasks(
 
 
 def make_ledger(snapshot: Snapshot) -> ResourceLedger:
-    shed_used = sum(snapshot.shed.values())
     return ResourceLedger(
         seeds=dict(snapshot.seeds),
-        unit_inventory=[dict(inv) for inv in snapshot.inventories],
-        shed_free=max(0, 100 - shed_used),
         money=snapshot.money,
     )
 
@@ -355,7 +374,7 @@ def assign(
 ) -> tuple[list[str], list[list[str]], dict[int, str]]:
     """Greedily assign unique tasks to farmer and hands with seed reservations.
 
-    review.md C1/§1.2: each task's `slack` (deadline_step - step - the nearest currently
+    review_89d99f0_2026-08-05.md C1/§1.2: each task's `slack` (deadline_step - step - the nearest currently
     -unassigned unit's travel-and-act turns) leads the sort key ahead of raw distance. A
     task's own urgency is now judged by its *best available* unit, not by whichever unit
     happens to be asking — so a distant task that is about to run out of time is picked for
@@ -387,7 +406,7 @@ def assign(
     new_commitments: dict[int, str] = {}
 
     def _carries_cargo(unit_index: int) -> bool:
-        # plan.md §5.1 v1d / review.md G5: unlike PLANT's seeds (a shared private-state pool
+        # plan.md §5.1 v1d / plan.md G5: unlike PLANT's seeds (a shared private-state pool
         # any co-located unit can draw from), FEED's wheat and PLACE's animal are cargo a
         # specific unit already carried there via an earlier PICKUP — a unit with none of it
         # can never complete the action regardless of distance, so it must not be eligible at
@@ -442,22 +461,29 @@ def assign(
                 distance = abs(unit_pos[0] - task.pos[0]) + abs(unit_pos[1] - task.pos[1])
                 switching = 0 if committed.get(unit_index) == task.id else 1
                 candidates.append((
-                    task.priority,
-                    switching,
-                    urgency_tier,
-                    task_slack,
-                    distance,
-                    task.pos[1],
-                    task.pos[0],
-                    unit_index,
-                    task.id,
+                    (
+                        task.priority,
+                        switching,
+                        urgency_tier,
+                        task_slack,
+                        distance,
+                        task.pos[1],
+                        task.pos[0],
+                        unit_index,
+                        task.id,
+                    ),
                     task,
                 ))
         if not candidates:
             break
 
-        *_sort_key, task = min(candidates)
-        unit_index = _sort_key[-2]
+        # review.md L2: Task is a frozen dataclass without order=True, so it can't be compared
+        # — sorting on (*, task) tuples only worked because (unit_index, task.id) is always
+        # unique, making the tuple comparison stop one element early. Sort on the key tuple
+        # explicitly so a future duplicate key fails loudly in the key, not by TypeError deep
+        # inside tuple comparison.
+        sort_key, task = min(candidates, key=lambda candidate: candidate[0])
+        unit_index = sort_key[-2]
         unit_pos = unit_positions[unit_index]
         if unit_pos != task.pos:
             actions[unit_index] = _move_toward(unit_pos, task.pos)
@@ -472,6 +498,18 @@ def assign(
             actions[unit_index] = [task.kind]
 
         unassigned_units.remove(unit_index)
-        remaining_tasks = [candidate for candidate in remaining_tasks if candidate.pos != task.pos]
+        # review.md M2: only tasks that actually compete for this pos should be dropped.
+        # allowed_unit-restricted tasks (e.g. per-unit liquidation DROPs, all sharing the
+        # shed's access tile) are non-competing by construction — dedup those by task.id so
+        # only the just-assigned one is dropped, not every other unit's own DROP task at the
+        # same pos. Unrestricted tasks keep the old pos-based mutual exclusion.
+        remaining_tasks = [
+            candidate for candidate in remaining_tasks
+            if (
+                candidate.id != task.id
+                if candidate.allowed_unit is not None
+                else candidate.pos != task.pos
+            )
+        ]
 
     return actions[0], actions[1:], new_commitments

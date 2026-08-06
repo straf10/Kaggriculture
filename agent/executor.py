@@ -18,15 +18,19 @@ def _order_tier(order: list) -> int:
     return _ORDER_TIER.get(order[0], len(_ORDER_TIER))
 
 
-def _hire_cost(n_already_today: int) -> int:
+def _hire_cost(n_already_today: int, mult: int = 1) -> int:
+    """review.md M3: mirrors the engine's `cost = mult * _fib(n)`
+    (engine_reference/kaggriculture.py:675-676) — the mult was previously dropped, so a
+    non-default farmHandCostMult would make the agent underestimate cost and emit HIRE
+    orders the engine silently no-ops."""
     first, second = 1, 1
     for _ in range(n_already_today):
         first, second = second, first + second
-    return first
+    return mult * first
 
 
 def _remaining_unplanted_targets(snapshot: Snapshot, plan: DayPlan, config: dict, crop: str) -> int:
-    """review.md M5: how many of today's target tiles for `crop` are not yet planted. Buying
+    """review_89d99f0_2026-08-05.md M5: how many of today's target tiles for `crop` are not yet planted. Buying
     seeds up to a fixed buffer regardless of this left leftover stock (up to seed_buffer per
     crop, no resale) once every target tile was already planted."""
     target_tiles = config["scheduler"]["target_tiles"].get(crop, ())
@@ -45,6 +49,7 @@ def market_orders(
     ledger: ResourceLedger,
     scheduled_unit_actions: list[list[str]],
     config: dict,
+    farm_hand_cost_mult: int = 1,
 ) -> list[list]:
     """Allocate the v1a SELL/BUY_SEED orders within all hard budgets."""
     del scheduled_unit_actions
@@ -124,31 +129,46 @@ def market_orders(
                 orders.append(["BUY_ANIMAL", name, 1])
                 available_money -= cost
 
-        # Wheat is bought once a day, at the top of the day, for every animal already placed
-        # (not yet-to-be-placed ones) — this is the "≥1 turn earlier" plan.md §5.1 asks for:
-        # by hour 0 the shed already holds the day's wheat, leaving the whole day's slack for
-        # PICKUP -> FEED instead of racing FEED's zero-slack `consecutive_unfed` deadline.
-        # Unlike BUY_ANIMAL/new seeds, this must NOT be gated on force_liquidation: planner.py's
-        # make_day_plan deliberately keeps already-placed animals fed through the endgame
-        # ("they keep producing until the episode ends") — gating this on liquidation starved
-        # both animals to death within 2 days of liquidation_day in a v1d smoke test.
-        if snapshot.hour == 0:
-            placed_animals = sum(
-                1 for row in snapshot.my_tiles for tile in row
-                if isinstance(tile, dict) and "animal" in tile
+        # Wheat is bought for every animal already placed (not yet-to-be-placed ones) — this
+        # is the "≥1 turn earlier" plan.md §5.1 asks for: buying as soon as a shortfall shows
+        # up leaves the rest of the day's slack for PICKUP -> FEED instead of racing FEED's
+        # zero-slack `consecutive_unfed` deadline. Unlike BUY_ANIMAL/new seeds, this must NOT
+        # be gated on force_liquidation: planner.py's make_day_plan deliberately keeps
+        # already-placed animals fed through the endgame ("they keep producing until the
+        # episode ends") — gating this on liquidation starved both animals to death within 2
+        # days of liquidation_day in a v1d smoke test.
+        # review.md M4: was gated on `hour == 0` only, so an hour-0 cash shortfall got no
+        # retry even after the same day's SELLs freed up money. wheat_needed is a live
+        # shed+carried check against placed_animals, so re-running every hour is naturally
+        # idempotent (0 once the shortfall is covered) rather than a re-buy risk.
+        placed_animals = sum(
+            1 for row in snapshot.my_tiles for tile in row
+            if isinstance(tile, dict) and "animal" in tile
+        )
+        if placed_animals > 0:
+            wheat_have = int(snapshot.shed.get("WHEAT", 0)) + sum(
+                inv.get("WHEAT", 0) for inv in snapshot.inventories
             )
-            if placed_animals > 0:
-                wheat_have = int(snapshot.shed.get("WHEAT", 0)) + sum(
-                    inv.get("WHEAT", 0) for inv in snapshot.inventories
-                )
-                wheat_needed = max(0, placed_animals - wheat_have)
-                if wheat_needed > 0:
-                    wheat_price = max(1, int(snapshot.market_prices.get("WHEAT", 25)))
-                    affordable = int(available_money // wheat_price)
-                    wheat_to_buy = min(wheat_needed, affordable)
-                    if wheat_to_buy:
-                        orders.append(["BUY_PRODUCT", "WHEAT", wheat_to_buy])
-                        available_money -= wheat_to_buy * wheat_price
+            wheat_needed = max(0, placed_animals - wheat_have)
+            if wheat_needed > 0:
+                wheat_price = max(1, int(snapshot.market_prices.get("WHEAT", 25)))
+                affordable = int(available_money // wheat_price)
+                wheat_to_buy = min(wheat_needed, affordable)
+                if wheat_to_buy:
+                    orders.append(["BUY_PRODUCT", "WHEAT", wheat_to_buy])
+                    available_money -= wheat_to_buy * wheat_price
+                if wheat_to_buy < wheat_needed:
+                    # review.md M4: partial/zero wheat purchases were invisible even in a
+                    # debug run — this is the leading indicator for an animal escape.
+                    emit_receipt({
+                        "kind": "wheat_shortfall",
+                        "step": snapshot.step,
+                        "placed_animals": placed_animals,
+                        "wheat_have": wheat_have,
+                        "wheat_needed": wheat_needed,
+                        "wheat_bought": wheat_to_buy,
+                        "available_money": available_money,
+                    })
 
     if (
         not plan.force_liquidation
@@ -177,7 +197,7 @@ def market_orders(
         hires_needed = plan.hands_target - len(snapshot.hand_positions)
         hires_already = snapshot.hires_today
         for offset in range(hires_needed):
-            cost = _hire_cost(hires_already + offset)
+            cost = _hire_cost(hires_already + offset, farm_hand_cost_mult)
             if available_money < cost:
                 break
             orders.append(["HIRE"])
@@ -185,7 +205,7 @@ def market_orders(
 
     max_orders = int(executor_config["max_market_orders"])
     if len(orders) > max_orders:
-        # review.md M7: raising here would turn one budget slip into a submission ERROR and a
+        # review_89d99f0_2026-08-05.md M7: raising here would turn one budget slip into a submission ERROR and a
         # lost episode. Truncate defensively instead and leave a receipt to catch it in dev.
         # review.md H8: truncate by priority (_ORDER_TIER), not construction order — a stable
         # sort keeps each tier's own relative order (e.g. SELL products stay in their existing

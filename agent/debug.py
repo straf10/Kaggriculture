@@ -1,4 +1,4 @@
-"""Debug-only structured receipts (review.md H4/G11). Off by default (guards.debug=False);
+"""Debug-only structured receipts (review_89d99f0_2026-08-05.md H4/G11). Off by default (guards.debug=False);
 harness.play already parses stdout lines with this prefix into `PlayResult.diagnostics`."""
 import json
 

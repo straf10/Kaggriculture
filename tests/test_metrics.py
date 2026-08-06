@@ -125,7 +125,7 @@ def test_metrics_daily_and_loss_events_present():
 
 
 def test_metrics_own_harvest_not_counted_as_decay():
-    """review.md M8(b) — a HARVEST on the exact step a plant crosses into its decay window
+    """review_89d99f0_2026-08-05.md M8(b) — a HARVEST on the exact step a plant crosses into its decay window
     zeroes yield_units too (by design); that must not be mistaken for decay loss."""
     env = make(
         "kaggriculture",

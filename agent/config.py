@@ -92,7 +92,7 @@ CONFIG = {
         # match CONFIG["animals"]["targets"] — slot index i within a structure kind's tuple
         # is reserved for the i-th target animal using that structure. Chosen close to the
         # shed spawn (distance 2-3) since FEED/CARE is a recurring daily commute cost exactly
-        # like WATER (review.md C1 §1.3).
+        # like WATER (review_89d99f0_2026-08-05.md C1 §1.3).
         "animal_structure_tiles": {
             "PASTURE": ((4, 2), (3, 2)),
             # plan.md §5 v1e: GOOSE's COOP, placed on the reclaimed NW STRAWBERRY tile (3, 0)

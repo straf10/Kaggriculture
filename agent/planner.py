@@ -19,7 +19,7 @@ class DayPlan:
     force_liquidation: bool = False
 
 
-#: review.md C1/§1.3: both crops' watering trigger (scheduler.py needs_water) fires on
+#: review_89d99f0_2026-08-05.md C1/§1.3: both crops' watering trigger (scheduler.py needs_water) fires on
 #: alternating days — `consecutive_unwatered >= 1` means "skip a day, water the next" — not
 #: every day a tile is alive. A demand model that charged a full (distance+1) every day
 #: overshot real demand roughly 2x and throttled plant_targets even at v1b's already-working
@@ -29,7 +29,7 @@ _WATERING_DAYS_PER_TILE_PER_DAY = 0.5
 
 
 def _capacity_limited_targets(snapshot: Snapshot, config: dict, raw_targets: dict[str, int]) -> dict[str, int]:
-    """review.md C1/§1.3 + §5#2: the planner used to set plant_targets from config constants
+    """review_89d99f0_2026-08-05.md C1/§1.3 + §5#2: the planner used to set plant_targets from config constants
     alone, with no notion of whether the fleet can actually keep that many tiles watered.
     Every target tile costs roughly (distance-from-shed-spawn + 1) unit-turns on the days it
     needs watering (units respawn at the shed every EOD, so this commute is a recurring cost,
@@ -37,7 +37,7 @@ def _capacity_limited_targets(snapshot: Snapshot, config: dict, raw_targets: dic
     supply, trim target counts (never below what's already planted, since that watering
     obligation already exists) until it fits, instead of quietly setting up more plants than
     the day can water and losing them to `consecutive_unwatered` deaths (the v1c root cause,
-    review.md §1).
+    review_89d99f0_2026-08-05.md §1).
     """
     scheduler_config = config["scheduler"]
     turns_per_day = config["runtime"]["turns_per_day"]
@@ -84,7 +84,7 @@ def make_day_plan(snapshot: Snapshot, config: dict) -> DayPlan:
     if not planner_config.get("enabled", False):
         return DayPlan()
 
-    # review.md L6: "enabled" used to be dead — liquidation fired unconditionally off
+    # review_89d99f0_2026-08-05.md L6: "enabled" used to be dead — liquidation fired unconditionally off
     # liquidation_day regardless of this flag's value; it's now load-bearing.
     liquidation_active = (
         config["endgame"].get("enabled", False)
@@ -115,7 +115,7 @@ def make_day_plan(snapshot: Snapshot, config: dict) -> DayPlan:
         max_new_plants += int(planner_config.get("ne_max_new_plants_per_day", 0))
 
     # plan.md §5.1 v1d: one animal per fixed target (no capacity math needed at this scale —
-    # only 2 animals total, review.md's C1 capacity lesson matters for tile-count-scale
+    # only 2 animals total, review_89d99f0_2026-08-05.md's C1 capacity lesson matters for tile-count-scale
     # demand, not a handful of fixed structures). LIQUIDATE doesn't touch this: animals aren't
     # sold off early like ongoing crops, they keep producing until the episode ends.
     animals_config = config.get("animals", {})

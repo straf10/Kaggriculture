@@ -78,6 +78,7 @@ def _simulate_market(farms, privates, market, actions, configuration):
         for action in actions
     ]
     sales = [[], []]
+    aborted = False
 
     for order_index in range(max((len(queue) for queue in queues), default=0)):
         order_states = [
@@ -98,8 +99,12 @@ def _simulate_market(farms, privates, market, actions, configuration):
         while True:
             idx_esc += 1
             if idx_esc >= 100_000:
-                # review.md L2: mirror the engine's own runaway-loop guard (kaggriculture.py
+                # review_89d99f0_2026-08-05.md L2: mirror the engine's own runaway-loop guard (kaggriculture.py
                 # market loop) — a pathological replay must not hang metrics extraction.
+                # review.md M11: unlike the engine (which prints a WARNING), this used to break
+                # silently — sales/average_sell_price/units_sold_at_or_below_5 would then be
+                # silently incomplete for this transition with no signal anywhere. Surface it.
+                aborted = True
                 break
             quoted = [None, None]
             for seat, order_state in enumerate(order_states):
@@ -146,7 +151,7 @@ def _simulate_market(farms, privates, market, actions, configuration):
             if not committed_any:
                 break
         engine._refresh_prices(market)
-    return sales
+    return sales, aborted
 
 
 def _transition_events(previous_step, current_step, configuration):
@@ -160,7 +165,7 @@ def _transition_events(previous_step, current_step, configuration):
     previous_day = int(previous_step[0]["observation"].get("day", 0))
 
     overflow = _apply_unit_actions(farms, privates, actions, configuration, previous_day)
-    sales = _simulate_market(farms, privates, market, actions, configuration)
+    sales, market_sim_aborted = _simulate_market(farms, privates, market, actions, configuration)
 
     current_day = int(current_step[0]["observation"].get("day", previous_day))
     if current_day != previous_day:
@@ -169,7 +174,7 @@ def _transition_events(previous_step, current_step, configuration):
             incoming = sum(sum(inventory.values()) for inventory in privates[seat]["inventories"])
             room = max(0, shed_capacity - sum(privates[seat]["shed"].values()))
             overflow[seat] += max(0, incoming - room)
-    return actions, overflow, sales
+    return actions, overflow, sales, market_sim_aborted
 
 
 def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) -> dict:
@@ -182,7 +187,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     against the farm tile at the position the action targeted, and that tile is never touched
     by the day-boundary farmer/hands reset (`_apply_unit_action` lands before `_end_of_day` in
     the engine's own turn order) — so every `ok=False` here is a genuine expected-vs-actual
-    mismatch (review.md H4), not a boundary artifact to swallow. Without diagnostics this is
+    mismatch (review_89d99f0_2026-08-05.md H4), not a boundary artifact to swallow. Without diagnostics this is
     `None`, not `0` — the absence of receipts is not proof of zero unexplained no-ops."""
     opponent = 1 - seat
     steps = env_json["steps"]
@@ -202,6 +207,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     water_weeds_lost = 0
     decay_weeds_lost = 0
     animals_escaped = 0
+    animals_underfed_days = 0
     clipped_production_ticks = 0
     plant_decay_units_lost = 0
     shed_overflow_burnt = 0
@@ -217,6 +223,11 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     # harness/report.py's acceptance criterion is pinpointing *which* tile/step caused a loss,
     # not just a daily count — one record per water_weeds_lost/plant_decay occurrence.
     loss_events = []
+    # review.md M11: True if any transition's market simulation hit the 100k-iteration
+    # runaway-loop guard — when that happens, sales/average_sell_price/units_sold_at_or_below_5
+    # are incomplete for that transition, so this episode's metrics can't be trusted as gate
+    # input even though every individual counter still returned a (silently partial) number.
+    market_sim_aborted = False
 
     for index in range(1, len(steps)):
         previous_step, current_step = steps[index - 1], steps[index]
@@ -228,22 +239,23 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         day_row = daily_by_day.setdefault(int(previous_observation.get("day", 0)), {
             "water_weeds_lost": 0, "plant_decay_units_lost": 0,
             "worker_turns_moving": 0, "worker_turns_working": 0, "worker_turns_idle": 0,
-            "clipped_production_ticks": 0,
+            "clipped_production_ticks": 0, "animals_underfed_days": 0,
         })
 
-        actions, overflow, transition_sales = _transition_events(
+        actions, overflow, transition_sales, transition_aborted = _transition_events(
             previous_step,
             current_step,
             configuration,
         )
         shed_overflow_burnt += overflow[seat]
         sales.extend(transition_sales[seat])
+        market_sim_aborted = market_sim_aborted or transition_aborted
 
         farm = previous_observation["farms"][seat]
         unit_actions = [actions[seat].get("farmer", ["PASS"]), *actions[seat].get("hands", [])]
         unit_actions = unit_actions[:1 + len(farm.get("hands", []))]
         unit_positions = [tuple(farm.get("farmer", (0, 0))), *(tuple(pos) for pos in farm.get("hands", []))]
-        # review.md M8: a HARVEST this seat's own unit just performed can legitimately zero
+        # review_89d99f0_2026-08-05.md M8: a HARVEST this seat's own unit just performed can legitimately zero
         # out yield_units (ongoing crop) or clear "animal" off the tile's product state on the
         # very step the decay-window/escape heuristics below would otherwise misfire on —
         # exclude positions this seat harvested from this turn.
@@ -337,6 +349,18 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
                                     "type": "clipped_production_ticks", "step": previous_engine_step,
                                     "day": int(previous_observation.get("day", 0)), "pos": [x, y],
                                 })
+                    # review.md M4: leading indicator for an escape — engine's own
+                    # `_daily_refresh_animals` (kaggriculture.py:791-795) bumps
+                    # consecutive_unfed on any day-boundary where fed_today is still False;
+                    # two in a row is the escape itself (animals_escaped above), one alone is
+                    # the warning sign the wheat-shortfall receipt should have already caught.
+                    if (
+                        current_observation.get("day") != previous_observation.get("day")
+                        and not harvested_here
+                        and not previous_tile.get("fed_today", False)
+                    ):
+                        animals_underfed_days += 1
+                        day_row["animals_underfed_days"] += 1
 
         for unit_action in unit_actions:
             op = unit_action[0] if isinstance(unit_action, list) and unit_action else "PASS"
@@ -369,7 +393,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     empty_day_row = {
         "water_weeds_lost": 0, "plant_decay_units_lost": 0,
         "worker_turns_moving": 0, "worker_turns_working": 0, "worker_turns_idle": 0,
-        "clipped_production_ticks": 0,
+        "clipped_production_ticks": 0, "animals_underfed_days": 0,
     }
     daily = [
         {"day": day, **daily_by_day.get(day, empty_day_row)}
@@ -387,6 +411,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "water_weeds_lost": water_weeds_lost,
         "decay_weeds_lost": decay_weeds_lost,
         "animals_escaped": animals_escaped,
+        "animals_underfed_days": animals_underfed_days,
         "clipped_production_ticks": clipped_production_ticks,
         "plant_decay_units_lost": plant_decay_units_lost,
         "shed_overflow_burnt": shed_overflow_burnt,
@@ -399,4 +424,5 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "unexplained_noops": unexplained_noops,
         "daily": daily,
         "loss_events": loss_events,
+        "market_sim_aborted": market_sim_aborted,
     }

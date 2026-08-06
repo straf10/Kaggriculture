@@ -35,13 +35,13 @@ def reset_or_get_runtime(snapshot: Snapshot) -> RuntimeContext:
 
 
 def _needs_replan(runtime: RuntimeContext, snapshot: Snapshot) -> bool:
-    """review.md M4: plan.md §3.1 calls for a replan on the day boundary *or* when observed
+    """review_89d99f0_2026-08-05.md M4: plan.md §3.1 calls for a replan on the day boundary *or* when observed
     state diverges from the plan (e.g. a land purchase actually landing) — only the per-day
     trigger existed. `my_quadrants` changing mid-day is one such event v1b can already
     observe (BUY_LAND/animal purchases aren't wired into the executor yet). Hand count is
     another, and a load-bearing one: HIRE orders placed at hour 0 don't show up in
     `hand_positions` until hour 1 (hands are hired *this* turn's market step, hands[] only
-    reflects it next observation), so the capacity gate in make_day_plan (review.md C1 §5#2)
+    reflects it next observation), so the capacity gate in make_day_plan (review_89d99f0_2026-08-05.md C1 §5#2)
     would otherwise plan the whole day around whatever unit count happened to be on the board
     at hour 0 — freshly wiped to 0 by end-of-day, before this turn's hires land."""
     return (
@@ -52,10 +52,16 @@ def _needs_replan(runtime: RuntimeContext, snapshot: Snapshot) -> bool:
     )
 
 
-def agent(obs):
-    """Run the current planner → scheduler → executor policy."""
+def agent(obs, configuration=None):
+    """Run the current planner → scheduler → executor policy.
+
+    review.md M3: kaggle_environments' Agent.act() inspects __code__.co_argcount and, for a
+    2-arg agent function, calls agent(observation, configuration) — this second parameter is
+    how farmHandCostMult reaches the agent at all. Keep it optional so direct unit-style
+    calls (agent(obs)) still work."""
     snapshot = parse(obs)
     runtime = reset_or_get_runtime(snapshot)
+    farm_hand_cost_mult = int((configuration or {}).get("farmHandCostMult", 1))
 
     if CONFIG["guards"].get("debug", False) and runtime.pending_receipts:
         reconcile(runtime.pending_receipts, snapshot)
@@ -72,7 +78,10 @@ def agent(obs):
     farmer_action, hand_actions, commitments = assign(tasks, snapshot, runtime.committed_tasks, CONFIG)
     runtime.committed_tasks = commitments
     unit_actions = [farmer_action, *hand_actions]
-    orders = market_orders(snapshot, runtime.plan, ledger, unit_actions, CONFIG)
+    orders = market_orders(
+        snapshot, runtime.plan, ledger, unit_actions, CONFIG,
+        farm_hand_cost_mult=farm_hand_cost_mult,
+    )
 
     if CONFIG["guards"].get("debug", False):
         unit_positions = (snapshot.farmer_pos, *snapshot.hand_positions)

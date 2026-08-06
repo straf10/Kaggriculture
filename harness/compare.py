@@ -18,6 +18,7 @@ Go/no-go needs directional confidence and a practical margin:
 import concurrent.futures
 import json
 import math
+import multiprocessing
 import os
 import pickle
 import platform as platform_module
@@ -36,9 +37,9 @@ from harness.seeds import CONFIRM_SEED_SETS, DEV_SEEDS, NAMED_SEED_SETS
 # Two-sided 95% t-critical value by degrees of freedom (df = n-1). Exact through df=30,
 # then a handful of anchor points with linear interpolation, 1.96 (normal) beyond df=120 —
 # avoids a hard scipy dependency for what is a small, well-known table (review.md M5).
-MIN_N_FOR_NON_INFERIOR = 12  # review.md M3
+MIN_N_FOR_NON_INFERIOR = 12  # review_89d99f0_2026-08-05.md M3
 
-# plan.md §1.5.3 / review.md §5 check #5: a $-verdict alone can hide a regression that just
+# plan.md §1.5.3 / review_89d99f0_2026-08-05.md §5 check #5: a $-verdict alone can hide a regression that just
 # happens to net positive (e.g. more aggressive selling offsetting worse water discipline).
 # stage tags which decision a report may be used for: dev-screen (tuning) reports must never
 # be read as a GO by themselves — only holdout-confirm, checked exactly once, can be.
@@ -130,21 +131,25 @@ def _agent_spec_label(agent_spec) -> str:
     return agent_spec if isinstance(agent_spec, str) else repr(agent_spec)
 
 
-def _warn_if_not_checkpoint(agent_spec, label: str) -> None:
+def _warn_if_not_checkpoint(agent_spec, label: str) -> Optional[str]:
     """review.md H5 point 3: a go=True from stage='holdout-confirm' should run on immutable
     checkpointed code (has a manifest.json next to it), not live main.py, so the result can
-    be reproduced later. Warn, don't raise — dev workflows legitimately compare live code."""
+    be reproduced later. Warn, don't raise — dev workflows legitimately compare live code.
+    Returns the warning message (review.md L7: so compare() can also collect it onto
+    CompareResult.warnings), or None if no warning was raised."""
     if not isinstance(agent_spec, str):
-        return
+        return None
     path = Path(agent_spec)
     if path.suffix == ".py" and path.exists() and not (path.parent / "manifest.json").exists():
-        warnings.warn(
+        message = (
             f"compare(): {label}={agent_spec!r} has no manifest.json next to it — a GO from "
             "stage='holdout-confirm' should run on checkpointed code (harness.checkpoint."
             "create_checkpoint), not live main.py, so the result can be reproduced later "
-            "(review.md H5)",
-            stacklevel=3,
+            "(review.md H5)"
         )
+        warnings.warn(message, stacklevel=3)
+        return message
+    return None
 
 
 def _read_confirm_ledger(path: Path) -> list:
@@ -188,7 +193,7 @@ class CompareResult:
     mean_diff: float = 0.0
     se_diff: float = 0.0
     n_effective: int = 0
-    t_crit: float = 0.0
+    t_crit: Optional[float] = None  # review.md L8: None (not NaN) — NaN doesn't survive to JSON
     ci95: tuple = (0.0, 0.0)
     wins_a: int = 0
     wins_b: int = 0
@@ -209,6 +214,13 @@ class CompareResult:
     plant_decay_units_lost_a: Optional[int] = None
     animals_escaped_a: Optional[int] = None  # plan.md G5/v1d
     clipped_production_ticks_a: Optional[int] = None  # plan.md G8/v1d
+    # review.md M1: four more signals extract_metrics() already computes but the gate ignored.
+    shed_overflow_burnt_a: Optional[int] = None  # hard gate, same as the four above
+    weeds_lost_a: Optional[int] = None  # broader than water_weeds_lost_a; hard gate
+    units_sold_at_or_below_5_a: Optional[int] = None  # budget (<=2% of sales_count_a), not ==0
+    sales_count_a: Optional[int] = None  # denominator for the units_sold_at_or_below_5_a budget
+    unexplained_noops_a: Optional[int] = None  # None unless diagnostics were collected (KAGGRI_DEBUG)
+    market_sim_aborted_a: Optional[bool] = None  # review.md M11: True fails the gate
     metric_gate_passed: Optional[bool] = None  # None unless metrics_checked
     min_effect_used: float = 0.0  # review.md H1: the actual $ floor this verdict was judged against
     non_inferiority_margin_used: float = 0.0
@@ -221,6 +233,7 @@ class CompareResult:
     platform: str = ""
     python_version: str = ""
     env: dict = field(default_factory=dict)  # every KAGGRI_* env var set during this run
+    warnings: list = field(default_factory=list)  # review.md L7: warnings.warn() messages raised
 
 
 def compare(agent_a, agent_b, seeds: Sequence[int], *,
@@ -271,7 +284,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     results.jsonl. As today, if any orientation for a seed errors, the whole seed is recorded
     as errored — a lone successful sibling orientation is discarded, not silently kept.
 
-    metrics=True (plan.md §1.5.3 / review.md §5 check #5) additionally extracts
+    metrics=True (plan.md §1.5.3 / review_89d99f0_2026-08-05.md §5 check #5) additionally extracts
     water_weeds_lost/plant_decay_units_lost/animals_escaped/clipped_production_ticks for
     agent_a's seat in every orientation played, exposed as `water_weeds_lost_a`/
     `plant_decay_units_lost_a`/`animals_escaped_a`/`clipped_production_ticks_a` (summed) and
@@ -300,7 +313,27 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     """
     if stage is not None and stage not in VALID_STAGES:
         raise ValueError(f"compare(): stage must be one of {VALID_STAGES} or None, got {stage!r}")
+
+    collected_warnings: list = []
+
+    def _warn(message: str) -> None:
+        # review.md L7: results.json used to have no trace that a warning was ever raised —
+        # stacklevel=3 here matches the stacklevel=2 the inlined warnings.warn() calls below
+        # used to have (one extra frame for this wrapper) so the warning still points at
+        # compare()'s caller, not at this function.
+        warnings.warn(message, stacklevel=3)
+        collected_warnings.append(message)
+
     seeds = list(seeds)
+    deduped_seeds = list(dict.fromkeys(seeds))
+    if len(deduped_seeds) != len(seeds):
+        # review.md M8: a duplicate seed in --seeds used to be played and persisted twice,
+        # silently shrinking n_effective below the requested seed count with no signal.
+        _warn(
+            f"compare(): seeds contained {len(seeds) - len(deduped_seeds)} duplicate(s) — "
+            "deduplicated. Pass distinct seeds to avoid wasted compute."
+        )
+    seeds = deduped_seeds
 
     # review.md C2(a): stage and seeds used to be entirely uncross-checked — a --seed-set dev
     # --stage holdout-confirm combination (or any ad-hoc seed list) could produce a GO from
@@ -330,10 +363,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "with unique package namespaces and compare genuinely different versions"
         )
     if len(seeds) < 24:
-        warnings.warn(
+        _warn(
             f"compare(): {len(seeds)} seeds — MASTERPLAN §6 asks for 24-48 for a final go/no-go "
-            "decision; fewer is fine only for catching large, obvious regressions early.",
-            stacklevel=2,
+            "decision; fewer is fine only for catching large, obvious regressions early."
         )
 
     # review.md H7: an ablated/debug-instrumented environment must never produce a "clean"
@@ -347,16 +379,20 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "(review.md H7)."
         )
     if env_snapshot.get("KAGGRI_DEBUG") not in (None, "0"):
-        warnings.warn(
+        _warn(
             f"compare(): KAGGRI_DEBUG={env_snapshot['KAGGRI_DEBUG']!r} is set — this adds "
             "per-turn debug work and receipt emission to every agent call, which will skew "
-            "timing; unset it for a clean gate/timing run (review.md H7).",
-            stacklevel=2,
+            "timing; unset it for a clean gate/timing run (review.md H7)."
         )
 
     if stage == "holdout-confirm":
-        _warn_if_not_checkpoint(agent_a, "agent_a")
-        _warn_if_not_checkpoint(agent_b, "agent_b")
+        collected_warnings.extend(
+            message for message in (
+                _warn_if_not_checkpoint(agent_a, "agent_a"),
+                _warn_if_not_checkpoint(agent_b, "agent_b"),
+            )
+            if message is not None
+        )
 
     # review.md C1/C2: a confirm seed set is checked exactly once per (agent_b, seed set)
     # question. Checked up front (before playing anything) so a disallowed repeat fails fast.
@@ -383,7 +419,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     run_dir_path = Path(run_dir) if run_dir is not None else None
     jsonl_path = run_dir_path / "results.jsonl" if run_dir_path is not None else None
 
-    # review.md M2: rows used to carry no version identity, so `--resume` after changing the
+    # review_89d99f0_2026-08-05.md M2: rows used to carry no version identity, so `--resume` after changing the
     # agent under test silently mixed seeds from two different code versions into one verdict
     # that still looked complete. review.md C3: the meta line now records the *whole* run
     # contract (not just fingerprints) — metrics/both_seats/steps — and resuming into a
@@ -425,7 +461,22 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 "two different agent versions or run contracts"
             )
         else:
+            # review.md L3: an empty results.jsonl (a run that died before its first _persist)
+            # used to fall through here with no meta line ever written — the *next* --resume
+            # would then see a non-empty file with ordinary seed rows and raise the wrong
+            # diagnosis ("no recorded code fingerprints"). Write the meta line now, same as the
+            # fresh-run branch below, so this behaves like the fresh run it actually is.
             data_lines = []
+            jsonl_path.write_text(
+                json.dumps({
+                    "_meta": True,
+                    "code_fingerprints": list(code_fingerprints),
+                    "metrics": metrics,
+                    "both_seats": both_seats,
+                    "steps": steps,
+                }) + "\n",
+                encoding="utf-8",
+            )
         for line in data_lines:
             row = json.loads(line)
             done[row["seed"]] = row
@@ -466,9 +517,20 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             plant_decay_units_lost_a = sum(o.get("plant_decay_units_lost_a", 0) for o in orientations)
             animals_escaped_a = sum(o.get("animals_escaped_a", 0) for o in orientations)
             clipped_production_ticks_a = sum(o.get("clipped_production_ticks_a", 0) for o in orientations)
+            # review.md M1/M11: same summed-not-averaged pattern as the four counters above.
+            shed_overflow_burnt_a = sum(o.get("shed_overflow_burnt_a", 0) for o in orientations)
+            weeds_lost_a = sum(o.get("weeds_lost_a", 0) for o in orientations)
+            units_sold_at_or_below_5_a = sum(o.get("units_sold_at_or_below_5_a", 0) for o in orientations)
+            sales_count_a = sum(o.get("sales_count_a", 0) for o in orientations)
+            noop_values = [o.get("unexplained_noops_a") for o in orientations]
+            unexplained_noops_a = None if any(v is None for v in noop_values) else sum(noop_values)
+            market_sim_aborted_a = any(o.get("market_sim_aborted_a", False) for o in orientations)
         else:
             water_weeds_lost_a = plant_decay_units_lost_a = None
             animals_escaped_a = clipped_production_ticks_a = None
+            shed_overflow_burnt_a = weeds_lost_a = units_sold_at_or_below_5_a = None
+            sales_count_a = unexplained_noops_a = None
+            market_sim_aborted_a = None
         return {
             "seed": seed,
             "seat_layout": [o["layout"] for o in orientations],
@@ -481,19 +543,24 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "plant_decay_units_lost_a": plant_decay_units_lost_a,
             "animals_escaped_a": animals_escaped_a,
             "clipped_production_ticks_a": clipped_production_ticks_a,
+            "shed_overflow_burnt_a": shed_overflow_burnt_a,
+            "weeds_lost_a": weeds_lost_a,
+            "units_sold_at_or_below_5_a": units_sold_at_or_below_5_a,
+            "sales_count_a": sales_count_a,
+            "unexplained_noops_a": unexplained_noops_a,
+            "market_sim_aborted_a": market_sim_aborted_a,
         }
 
-    # review.md M2/M6 fields above already guard resume; a callable agent_spec (lambda,
+    # review_89d99f0_2026-08-05.md M2 / review.md M6 fields above already guard resume; a callable agent_spec (lambda,
     # nested function) can't cross a spawned worker process, so workers>1 degrades to
     # sequential rather than raising (plan.md §1.5.1 (a)).
     effective_workers = workers
     if workers > 1 and not (_is_picklable(agent_a) and _is_picklable(agent_b)):
-        warnings.warn(
+        _warn(
             "compare(): agent_a/agent_b is not picklable (e.g. a lambda or nested function) "
             "— ProcessPoolExecutor requires picklable arguments, so falling back to workers=1 "
             "(sequential). Use a file path, built-in name, or a top-level function to get "
-            "parallel speedup.",
-            stacklevel=2,
+            "parallel speedup."
         )
         effective_workers = 1
 
@@ -517,53 +584,89 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         # same seed is discarded (existing policy, now made explicit in code, not just timing).
         partial: dict = {}
         errored_seeds: set = set()
-        with concurrent.futures.ProcessPoolExecutor(max_workers=effective_workers) as executor:
-            future_to_job = {}
-            for seed, swap in jobs:
-                first, second = (agent_b, agent_a) if swap else (agent_a, agent_b)
-                fut = executor.submit(_play_orientation, first, second, seed, steps, run_dir,
-                                       record, strict, metrics)
-                future_to_job[fut] = (seed, swap)
-            for fut in concurrent.futures.as_completed(future_to_job):
-                seed, swap = future_to_job[fut]
-                if seed in errored_seeds:
-                    continue
-                try:
-                    rewards, seat_metrics = fut.result()
-                except Exception as e:  # per-future try/except — one bad seed doesn't kill the pool
-                    errored_seeds.add(seed)
-                    partial.pop(seed, None)
-                    err_row = {"seed": seed, "error": repr(e)}
+        try:
+            # review.md M6: default start method is fork on Linux — a forked worker inherits
+            # the parent's already-imported agent.config, so an env-var-based override never
+            # gets re-read (the H4 failure mode). spawn always re-imports from scratch.
+            mp_context = multiprocessing.get_context("spawn")
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=effective_workers, mp_context=mp_context,
+            ) as executor:
+                future_to_job = {}
+                for seed, swap in jobs:
+                    first, second = (agent_b, agent_a) if swap else (agent_a, agent_b)
+                    fut = executor.submit(_play_orientation, first, second, seed, steps, run_dir,
+                                           record, strict, metrics)
+                    future_to_job[fut] = (seed, swap)
+                for fut in concurrent.futures.as_completed(future_to_job):
+                    seed, swap = future_to_job[fut]
+                    if seed in errored_seeds:
+                        continue
+                    try:
+                        rewards, seat_metrics = fut.result()
+                    except Exception as e:  # per-future try/except — one bad seed doesn't kill the pool
+                        errored_seeds.add(seed)
+                        partial.pop(seed, None)
+                        err_row = {"seed": seed, "error": repr(e)}
+                        computed[seed] = err_row
+                        _persist(err_row)
+                        continue
+                    partial.setdefault(seed, {})[swap] = (rewards, seat_metrics)
+                    needed = {False, True} if both_seats else {False}
+                    if not needed <= partial[seed].keys():
+                        continue
+                    rewards0, metrics0 = partial[seed][False]
+                    orientation0 = {"layout": "A@0/B@1", "bank_a": rewards0[0], "bank_b": rewards0[1]}
+                    if metrics:
+                        m0 = metrics0.get(0, {})
+                        orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
+                        orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
+                        orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
+                        orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
+                        orientation0["shed_overflow_burnt_a"] = m0.get("shed_overflow_burnt", 0)
+                        orientation0["weeds_lost_a"] = m0.get("weeds_lost", 0)
+                        orientation0["units_sold_at_or_below_5_a"] = m0.get("units_sold_at_or_below_5", 0)
+                        orientation0["sales_count_a"] = len(m0.get("market_sales", []))
+                        orientation0["unexplained_noops_a"] = m0.get("unexplained_noops")
+                        orientation0["market_sim_aborted_a"] = bool(m0.get("market_sim_aborted", False))
+                    orientations = [orientation0]
+                    if both_seats:
+                        rewards1, metrics1 = partial[seed][True]
+                        orientation1 = {"layout": "B@0/A@1", "bank_a": rewards1[1], "bank_b": rewards1[0]}
+                        if metrics:
+                            m1 = metrics1.get(1, {})
+                            orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
+                            orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
+                            orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
+                            orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
+                            orientation1["shed_overflow_burnt_a"] = m1.get("shed_overflow_burnt", 0)
+                            orientation1["weeds_lost_a"] = m1.get("weeds_lost", 0)
+                            orientation1["units_sold_at_or_below_5_a"] = m1.get("units_sold_at_or_below_5", 0)
+                            orientation1["sales_count_a"] = len(m1.get("market_sales", []))
+                            orientation1["unexplained_noops_a"] = m1.get("unexplained_noops")
+                            orientation1["market_sim_aborted_a"] = bool(m1.get("market_sim_aborted", False))
+                        orientations.append(orientation1)
+                    row = _finalize(seed, orientations)
+                    computed[seed] = row
+                    _persist(row)
+                    del partial[seed]
+        except Exception as e:
+            # review.md M9: a pool-level failure (e.g. BrokenProcessPool from OOM during
+            # submit) used to propagate straight out of compare() and lose every in-memory
+            # result. H6 already persists each seed as soon as its orientation(s) land, so the
+            # only gap left is whatever never got that far — record those explicitly instead of
+            # losing the whole run silently.
+            already_done = sum(1 for seed in pending_seeds if seed in computed)
+            _warn(
+                f"compare(): worker pool failed ({e!r}) — {already_done}/{len(pending_seeds)} "
+                "pending seeds had already completed and were persisted; the rest are recorded "
+                "as errored."
+            )
+            for seed in pending_seeds:
+                if seed not in computed:
+                    err_row = {"seed": seed, "error": f"pool failure: {e!r}"}
                     computed[seed] = err_row
                     _persist(err_row)
-                    continue
-                partial.setdefault(seed, {})[swap] = (rewards, seat_metrics)
-                needed = {False, True} if both_seats else {False}
-                if not needed <= partial[seed].keys():
-                    continue
-                rewards0, metrics0 = partial[seed][False]
-                orientation0 = {"layout": "A@0/B@1", "bank_a": rewards0[0], "bank_b": rewards0[1]}
-                if metrics:
-                    m0 = metrics0.get(0, {})
-                    orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
-                    orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
-                    orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
-                    orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
-                orientations = [orientation0]
-                if both_seats:
-                    rewards1, metrics1 = partial[seed][True]
-                    orientation1 = {"layout": "B@0/A@1", "bank_a": rewards1[1], "bank_b": rewards1[0]}
-                    if metrics:
-                        m1 = metrics1.get(1, {})
-                        orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
-                        orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
-                        orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
-                        orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
-                    orientations.append(orientation1)
-                row = _finalize(seed, orientations)
-                computed[seed] = row
-                _persist(row)
-                del partial[seed]
     else:
         for seed in pending_seeds:
             try:
@@ -581,6 +684,12 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
                     orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
                     orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
+                    orientation0["shed_overflow_burnt_a"] = m0.get("shed_overflow_burnt", 0)
+                    orientation0["weeds_lost_a"] = m0.get("weeds_lost", 0)
+                    orientation0["units_sold_at_or_below_5_a"] = m0.get("units_sold_at_or_below_5", 0)
+                    orientation0["sales_count_a"] = len(m0.get("market_sales", []))
+                    orientation0["unexplained_noops_a"] = m0.get("unexplained_noops")
+                    orientation0["market_sim_aborted_a"] = bool(m0.get("market_sim_aborted", False))
                 orientations.append(orientation0)
 
                 if both_seats:
@@ -597,6 +706,12 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                         orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
                         orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
                         orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
+                        orientation1["shed_overflow_burnt_a"] = m1.get("shed_overflow_burnt", 0)
+                        orientation1["weeds_lost_a"] = m1.get("weeds_lost", 0)
+                        orientation1["units_sold_at_or_below_5_a"] = m1.get("units_sold_at_or_below_5", 0)
+                        orientation1["sales_count_a"] = len(m1.get("market_sales", []))
+                        orientation1["unexplained_noops_a"] = m1.get("unexplained_noops")
+                        orientation1["market_sim_aborted_a"] = bool(m1.get("market_sim_aborted", False))
                     orientations.append(orientation1)
 
                 row = _finalize(seed, orientations)
@@ -624,6 +739,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     mean_diff = statistics.mean(diffs) if n else 0.0
     stdev = statistics.stdev(diffs) if n > 1 else 0.0
     se_diff = (stdev / (n ** 0.5)) if n > 1 else 0.0
+    # review.md L8: NaN isn't valid JSON — kept as float("nan") for the n>1-only arithmetic
+    # below (significant/ci95), reported as None on CompareResult instead.
     t_crit = _t_crit(n - 1) if n > 1 else float("nan")
 
     if n <= 1 or se_diff == 0:
@@ -663,7 +780,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         and n >= MIN_N_FOR_NON_INFERIOR
         and se_diff > 0
     ):
-        # review.md M3: a degenerate CI (n=1, or se_diff==0 with n>1) let a single lucky seed
+        # review_89d99f0_2026-08-05.md M3: a degenerate CI (n=1, or se_diff==0 with n>1) let a single lucky seed
         # or a coincidentally-constant diff pass as NON_INFERIOR with no statistical basis.
         # review.md H2: an entirely-negative CI (confirmed regression, just a small one) is a
         # different claim from a CI straddling zero (genuine equivalence) — split it out as
@@ -702,13 +819,34 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         plant_decay_units_lost_a = sum(row["plant_decay_units_lost_a"] for row in per_seed)
         animals_escaped_a = sum(row.get("animals_escaped_a", 0) for row in per_seed)
         clipped_production_ticks_a = sum(row.get("clipped_production_ticks_a", 0) for row in per_seed)
+        # review.md M1: shed_overflow_burnt/weeds_lost are hard gates (same pattern as the four
+        # above); units_sold_at_or_below_5 is a budget against total sales, not a ==0 gate,
+        # since some floor-price selling is expected. review.md M11: market_sim_aborted means
+        # these metrics themselves are incomplete for at least one episode — fail the gate.
+        shed_overflow_burnt_a = sum(row.get("shed_overflow_burnt_a", 0) for row in per_seed)
+        weeds_lost_a = sum(row.get("weeds_lost_a", 0) for row in per_seed)
+        units_sold_at_or_below_5_a = sum(row.get("units_sold_at_or_below_5_a", 0) for row in per_seed)
+        sales_count_a = sum(row.get("sales_count_a", 0) for row in per_seed)
+        noop_rows = [row.get("unexplained_noops_a") for row in per_seed]
+        unexplained_noops_a = None if any(v is None for v in noop_rows) else sum(noop_rows)
+        market_sim_aborted_a = any(row.get("market_sim_aborted_a", False) for row in per_seed)
+        units_sold_budget_ok = (
+            sales_count_a == 0 or (units_sold_at_or_below_5_a / sales_count_a) <= 0.02
+        )
         metric_gate_passed = (
             water_weeds_lost_a == 0 and plant_decay_units_lost_a == 0
             and animals_escaped_a == 0 and clipped_production_ticks_a == 0
+            and shed_overflow_burnt_a == 0 and weeds_lost_a == 0
+            and units_sold_budget_ok
+            and (unexplained_noops_a is None or unexplained_noops_a == 0)
+            and not market_sim_aborted_a
         )
     else:
         water_weeds_lost_a = plant_decay_units_lost_a = None
         animals_escaped_a = clipped_production_ticks_a = None
+        shed_overflow_burnt_a = weeds_lost_a = units_sold_at_or_below_5_a = None
+        sales_count_a = unexplained_noops_a = None
+        market_sim_aborted_a = None
         metric_gate_passed = None
 
     # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
@@ -744,7 +882,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         mean_diff=mean_diff,
         se_diff=se_diff,
         n_effective=n,
-        t_crit=t_crit,
+        t_crit=t_crit if n > 1 else None,
         ci95=ci95,
         wins_a=wins_a,
         wins_b=wins_b,
@@ -765,6 +903,12 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         plant_decay_units_lost_a=plant_decay_units_lost_a,
         animals_escaped_a=animals_escaped_a,
         clipped_production_ticks_a=clipped_production_ticks_a,
+        shed_overflow_burnt_a=shed_overflow_burnt_a,
+        weeds_lost_a=weeds_lost_a,
+        units_sold_at_or_below_5_a=units_sold_at_or_below_5_a,
+        sales_count_a=sales_count_a,
+        unexplained_noops_a=unexplained_noops_a,
+        market_sim_aborted_a=market_sim_aborted_a,
         metric_gate_passed=metric_gate_passed,
         min_effect_used=effective_min_effect,
         non_inferiority_margin_used=effective_non_inferiority_margin,
@@ -777,4 +921,5 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         platform=platform_module.platform(),
         python_version=platform_module.python_version(),
         env=env_snapshot,
+        warnings=collected_warnings,
     )

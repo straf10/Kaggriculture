@@ -33,7 +33,7 @@ episode στο Kaggle, (β) νικά τον built-in `"starter"` σε 24/24 orie
 | **1.5.4** Episode report + receipts | γνωστά προβληματικό episode → οπτικός εντοπισμός αιτίου σε <2′· `unexplained_noops == 0` σε καθαρό v1b episode |
 | **1.5.5** Gap analysis από replays | αριθμητικές απαντήσεις στα 3 ερωτήματα του §1.5.5 (quadrant days, ζώα, bank@10/20/30) στο `data/derived/top_agent_profiles.csv` |
 | 1.v1c-v1e | metric gate (`water_weeds_lost == 0` **και** `plant_decay_units_lost == 0`) **πριν** από το $-gate· έπειτα directional `IMPROVED`/`NON_INFERIOR` έναντι immutable checkpoint· αρνητικό practical diff ποτέ GO |
-| 1 τελικό | 24/24 orientation wins vs `starter`· median bank ≥ **$40k** στα ίδια 24 episodes (relative μετρική, review.md M11)· cold-process profile και στα 2 seats, steady-state `max_turn × 3 < 1s` |
+| 1 τελικό | 24/24 orientation wins vs `starter`· median bank ≥ **$40k** στα ίδια 24 episodes (relative μετρική, review_89d99f0_2026-08-05.md M11)· cold-process profile και στα 2 seats, steady-state `max_turn × 3 < 1s` |
 | 2 | Submission δεκτό, validation Complete, ≥20 episodes καταγεγραμμένα, `baselines/` γεμάτο |
 
 ### 1.1 Ρητά ΕΚΤΟΣ scope της Φάσης 1
@@ -78,13 +78,13 @@ Kaggle CLI auth) έκλεισε πλήρως· η αναλυτική του πρ
 ```
 main.py                   # submission entrypoint: top-level `from agent.policy import agent`,
                           # ΚΑΝΕΝΑ dirname(__file__) shim (ο loader κάνει exec χωρίς __file__ —
-                          # review.md C3), κανένα callable import μετά (C2/G12)
+                          # review_89d99f0_2026-08-05.md C3), κανένα callable import μετά (C2/G12)
 agent/
 ├── constants.py          # engine constants με try/except → _vendored.py fallback (Υ6)
 ├── _vendored.py          # verbatim αντίγραφο, parity-tested έναντι engine 1.32.4
 ├── state.py              # parse(obs) -> Snapshot· καμία απόφαση
 ├── planner.py            # Layer 1: make_day_plan(snapshot, config) -> DayPlan
-│                         #   + _capacity_limited_targets() (capacity gate, review.md C1 §1.3)
+│                         #   + _capacity_limited_targets() (capacity gate, review_89d99f0_2026-08-05.md C1 §1.3)
 ├── scheduler.py          # Layer 2: build_tasks(snapshot, plan, config) -> list[Task]
 │                         #   assign(tasks, snapshot, committed) -> (farmer, hands, commitments)
 ├── executor.py           # Layer 3: market_orders(snapshot, plan, ledger, unit_actions, config)
@@ -100,7 +100,7 @@ agent/
   → αγορές/HIRE του turn είναι διαθέσιμα από το επόμενο turn. `hands_actions[i]` ↔ `farm["hands"][i]`.
 - **Ένα tile-op ανά tile ανά turn** — τα επόμενα units κάνουν silent no-op. Το `assign()` το τηρεί
   αφαιρώντας κάθε task με ίδιο `pos` μετά την ανάθεση ([scheduler.py:287](agent/scheduler.py#L287)).
-- **Units συνυπάρχουν σε tile** — καμία collision avoidance (review.md §1.6, ρητά αποκλεισμένο).
+- **Units συνυπάρχουν σε tile** — καμία collision avoidance (review_89d99f0_2026-08-05.md §1.6, ρητά αποκλεισμένο).
 - **Hands διαγράφονται κάθε EOD και ξαναγεννιούνται στο shed** → το commute είναι **ημερήσιο**
   κόστος, όχι εφάπαξ. Ο farmer respawnάρει στο shed ([:857-860](engine_reference/kaggriculture.py#L857)).
 - **Seeds = ξεχωριστό `private["seeds"]`**, δεν περνούν από shed/inventory· atomic PLANT ελέγχει
@@ -122,15 +122,15 @@ transition test για engine pipeline, full-episode metric μόνο όπου τ
 | G4 | Price discipline | OPEN/GROW: 0 units sold ≤ threshold (trace reconstruction)· LIQUIDATE επιτρέπει έως $1 | 🟢 |
 | G5 | Feed logistics | `animals_escaped == 0`· wheat reserved στο inventory **πριν** το FEED | ⚪ δεν εφαρμόζεται ακόμα (v1d) |
 | G6 | Hand σε locked spawn | Hands από (5,4)/(5,5) περνούν από LOCKED tiles· κανένα δεν θεωρείται trapped | 🟢 |
-| G7 | 10-order/resource budget | `len(market) <= 10` κάθε turn· κάθε order καλυμμένο από predicted money/shed/slot ledger | 🟢 (max 7 by construction· truncation αντί raise — review.md M7) |
+| G7 | 10-order/resource budget | `len(market) <= 10` κάθε turn· κάθε order καλυμμένο από predicted money/shed/slot ledger | 🟢 (max 7 by construction· truncation αντί raise — review_89d99f0_2026-08-05.md M7) |
 | G8 | Ζώα `max_held` | 0 clipped production ticks | ⚪ δεν εφαρμόζεται ακόμα (v1d) |
 | G9 | Harvest πριν το decay | 0 μονάδες χαμένες σε `_decay_plants`· deadline σε `max_lifespan_step`, decay ανά 2 **steps** | 🟡 πράσινο στο v1b· **κόκκινο στο working agent** (~14 `plant_decay_units_lost`/episode) |
 | G10 | Horizon-aware strawberry deadline | PLANT μόνο αν όλες οι αναμενόμενες παραγωγές προλαβαίνουν HARVEST→DROP→SELL | 🟢 |
-| G11 | Silent no-op detector | preconditions + action-specific receipts + boundary-aware reconciliation· **`unexplained_noops == 0`** | 🟡 **μερικώς**: `receipts.py`/`debug.py` εκπέμπουν και το `play()` τα συλλέγει, αλλά **δεν υπάρχει `unexplained_noops` metric** (review.md H4) → §1.5.4 |
+| G11 | Silent no-op detector | preconditions + action-specific receipts + boundary-aware reconciliation· **`unexplained_noops == 0`** | 🟡 **μερικώς**: `receipts.py`/`debug.py` εκπέμπουν και το `play()` τα συλλέγει, αλλά **δεν υπάρχει `unexplained_noops` metric** (review_89d99f0_2026-08-05.md H4) → §1.5.4 |
 | G12 | Loader contract | `main.py` φορτώνει lazy όπως ο server· exported `agent` = τελευταίο callable· imports top-level | 🟢 |
 | G13 | Runtime isolation & determinism | Mirror seats/διαδοχικά episodes δεν μοιράζονται plan/receipts· ίδιο seed σε fresh processes και διαφορετικό `PYTHONHASHSEED` → ίδιο trajectory | 🟢 |
 | G14 | Endgame liquidation | 0 avoidable unsold value· καμία late αγορά χωρίς cashable payoff | ⚪ δεν εφαρμόζεται ακόμα (v1e) |
-| G15 | Version identity | Κάθε `compare(new, prev)` καταγράφει διαφορετικά immutable fingerprints· collision/stale import αποτυγχάνει πριν το πρώτο seed | 🟢 (+ manifest verification, review.md H3) |
+| G15 | Version identity | Κάθε `compare(new, prev)` καταγράφει διαφορετικά immutable fingerprints· collision/stale import αποτυγχάνει πριν το πρώτο seed | 🟢 (+ manifest verification, review_89d99f0_2026-08-05.md H3) |
 
 Το G11 **δεν** είναι generic `state_before != state_after`: WATER/FEED/CARE στο hour 23, farmer
 reset, hand deletion, production, auto-drop, weeds και market interleaving έχουν action-specific
@@ -146,7 +146,7 @@ postconditions. Receipts → structured stdout → `env.logs`· debug **off** σ
 | v1a′ | + πρώιμα strawberries: vs v1a 24/24, median **$10.832**, `IMPROVED` CI +$1.326k…+$2.259k | [checkpoints/v1a_prime](checkpoints/v1a_prime) |
 | v1b | + 3 daily hands, deterministic multi-unit assign: vs v1a′ 24/24, median **$20.695**, `IMPROVED` CI +$9.818k…+$10.909k | [checkpoints/v1b](checkpoints/v1b) ← **immutable baseline όλων των gates** |
 
-- [x] **Commit των 4 checkpoints** (review.md §5 check #7 / H2) — έγινε `git add`/commit στο
+- [x] **Commit των 4 checkpoints** (review_89d99f0_2026-08-05.md §5 check #7 / H2) — έγινε `git add`/commit στο
   86db6b6 (2026-08-06), μαζί με το §1.5.3-§1.5.5 work· `checkpoints/` πλέον tracked.
 
 ---
@@ -174,7 +174,10 @@ postconditions. Receipts → structured stdout → `env.logs`· debug **off** σ
     dispatch· αν κάποιο δεν είναι picklable (nested func/lambda) → αυτόματο fallback σε
     `workers=1` με `warnings.warn`, όχι exception.
   - **(β) Το `results.jsonl` γράφεται ΜΟΝΟ από τον parent** μέσω `_persist()`, αφού κάθε future
-    επιστρέψει — οι workers επιστρέφουν μόνο `rewards`, καμία εγγραφή αρχείου από worker.
+    επιστρέψει. **Προσοχή (review_4452427 M7):** αυτό ισχύει μόνο για το `results.jsonl` — αν
+    περαστεί `run_dir`/`record`, οι workers ΓΡΑΦΟΥΝ replays (`.json.gz` + receipts) απευθείας
+    από τη διεργασία τους, με μοναδικό όνομα ανά (seed, orientation)· δεν επιστρέφουν "μόνο
+    rewards".
   - **(γ) Ο fingerprint guard και ο έλεγχος A≠B** τρέχουν στον **parent, πριν** το dispatch
     (αμετάβλητο σημείο κώδικα).
 - [x] Per-future `try/except` — ένα seed που σκάει (`job_errors`) δεν σκοτώνει το pool.
@@ -194,7 +197,7 @@ callable-fallback (α).
 
 ### 1.5.2 — Ξεμπλοκάρισμα του −$2.195 με αυτοματοποιημένο ablation — ✅ ΟΛΟΚΛΗΡΩΜΕΝΟ 2026-08-05
 
-> ⚠ **ΑΠΟΣΥΡΘΗΚΕ 2026-08-06 (review.md H3):** η ablation υποδομή περιγράφεται παρακάτω **όπως ήταν
+> ⚠ **ΑΠΟΣΥΡΘΗΚΕ 2026-08-06 (review_89d99f0_2026-08-05.md H3):** η ablation υποδομή περιγράφεται παρακάτω **όπως ήταν
 > τη 2026-08-05**, με baseline `checkpoints/v1b`. Από το v1c/v1d/v1e και μετά το `main.py` έχει
 > feature surface (animals, land, NE tiles, endgame WHEAT) χωρίς αντίστοιχα ablation flags, οπότε
 > «όλα τα flags off» δεν επαναφέρει πια το v1b — το self-test αποτυγχάνει δομικά. Ο σκοπός της
@@ -203,7 +206,7 @@ callable-fallback (α).
 > `agent/{scheduler,executor,planner,policy}.py` (κάθε flag κράτησε τη σημερινή — `True` — τιμή του
 > ως μόνιμη συμπεριφορά). **Δεν είναι πλέον διαθέσιμο εργαλείο.** Τα checkpoints `v1c/v1d/v1e` είναι
 > immutable και κρατούν το δικό τους αντίγραφο του παλιού ablation κώδικα (αδρανές — δεν διαβάζεται
-> `KAGGRI_ABLATION` πουθενά πια), βλ. review.md §6 σημείωση.
+> `KAGGRI_ABLATION` πουθενά πια), βλ. review_89d99f0_2026-08-05.md §6 σημείωση.
 
 **Πλαίσιο:** `main.py` vs `checkpoints/v1b` = **−$2.195** (se≈$93, CI [−2.399, −1.991], 24/24
 episode losses, μηδέν errors). **Ήδη ΑΠΟΚΛΕΙΣΤΗΚΑΝ χειροκίνητα — μην τα ξαναψάξεις πρώτα:** το
@@ -255,8 +258,8 @@ H1 plant-cap enforcement (η χαλάρωσή της τα έκανε *χειρό
 να βγει κανένα συμπέρασμα από αυτήν** — αυτό διορθώνεται πρώτο, πριν τρέξει το (β).
 
 **Κριτήριο αποδοχής #2:** γραπτή **απόδοση αιτίου** — ποιο flag ή ποιο ζεύγος flags ευθύνεται, με
-CI, και **προτεινόμενη διόρθωση ΧΩΡΙΣ να θυσιαστεί το εύρημα του review.md που το γέννησε** (π.χ.
-αν φταίει το `slack_assign`, η λύση δεν είναι «βγάλε το slack» — το review.md §1.2 δείχνει ότι
+CI, και **προτεινόμενη διόρθωση ΧΩΡΙΣ να θυσιαστεί το εύρημα του review_89d99f0_2026-08-05.md που το γέννησε** (π.χ.
+αν φταίει το `slack_assign`, η λύση δεν είναι «βγάλε το slack» — το review_89d99f0_2026-08-05.md §1.2 δείχνει ότι
 χωρίς slack ο scheduler είναι δομικά τυφλός στο «μακρινό αλλά επείγον»).
 
 **Κριτήριο αποδοχής #3 (έξοδος από το βήμα):** `main.py` vs `checkpoints/v1b` σε **HOLDOUT_SEEDS**
@@ -268,7 +271,7 @@ CI, και **προτεινόμενη διόρθωση ΧΩΡΙΣ να θυσι�
 → `compare("main.py", "checkpoints/v1b/main.py", DEV_SEEDS)` = `mean_diff=0.0`, **48/48 seeds με diff
 ακριβώς 0** (96 episodes, `both_seats=True`). Το `carrot_water_window` δεν ήταν στον αρχικό πίνακα·
 βρέθηκε επειδή χωρίς αυτό, το all-off self-test απέτυχε (nonzero diffs σε rare CARROT-over-age
-περιπτώσεις, review.md L7).
+περιπτώσεις, review_89d99f0_2026-08-05.md L7).
 
 **One-at-a-time OFF sweep σε πλήρες `DEV_SEEDS` (48 seeds, 96 episodes/combo, `workers=8`):**
 
@@ -302,7 +305,7 @@ task κινδυνεύει πραγματικά να χάσει το deadline, α
 unit-turns σε μετακινήσεις προς μακρινά tiles ενώ κοντινά περιμένουν — συνεπές με το μέγεθος και
 τον χαρακτήρα της απώλειας.
 
-**Διόρθωση (χωρίς να θυσιαστεί το review.md §1.2 εύρημα):** το slack δεν αφαιρέθηκε. Αντ' αυτού,
+**Διόρθωση (χωρίς να θυσιαστεί το review_89d99f0_2026-08-05.md §1.2 εύρημα):** το slack δεν αφαιρέθηκε. Αντ' αυτού,
 το queue-jump του slack **μπλοκάρεται πίσω από ένα urgency gate** — μόνο tasks που είναι όντως
 κοντά στο να γίνουν ανέφικτα ταξινομούνται με slack πριν την απόσταση (tier 0, το «μακρινό αλλά
 επείγον» του C1/§1.2)· όλα τα υπόλοιπα («άνετα») tasks επιστρέφουν σε καθαρό nearest-first (tier 1,
@@ -329,7 +332,7 @@ tasks.
   καλύτερο από k» επιλέγει θόρυβο με πιθανότητα που μεγαλώνει με το k.
   *Εκτελεστικός έλεγχος:* κάθε gate report καταγράφει `stage` (`dev-screen` / `holdout-confirm`)
   και το seed-set· ένα GO με `stage=dev-screen` είναι άκυρο εξ ορισμού.
-- [x] **Metric gates πριν από το $-verdict** (review.md §5 check #5) — προστίθενται ρητά στα gates
+- [x] **Metric gates πριν από το $-verdict** (review_89d99f0_2026-08-05.md §5 check #5) — προστίθενται ρητά στα gates
   **όλων** των increments: `water_weeds_lost == 0` **και** `plant_decay_units_lost == 0`. Τα metrics
   υπάρχουν ήδη στο [harness/metrics.py:300,303](harness/metrics.py#L300).
   *Τεχνική προϋπόθεση:* το `compare()` περνά σήμερα `metrics=False`
@@ -387,7 +390,7 @@ tasks.
   6. **ΥΠΟΧΡΕΩΤΙΚΑ: timeline ανάθεσης task ανά unit** — μία γραμμή ανά unit, χρώμα ανά task kind.
      Αυτό είναι το μόνο που θα είχε δείξει το oscillation του προηγούμενου session **αμέσως**.
 - [x] **[harness/metrics.py](harness/metrics.py): πρόσθεσε `unexplained_noops`** (λείπει —
-  review.md H4) ώστε ο **G11 να είναι πραγματικά πράσινος**. Υπογραφή:
+  review_89d99f0_2026-08-05.md H4) ώστε ο **G11 να είναι πραγματικά πράσινος**. Υπογραφή:
   `extract_metrics(env_json, seat, diagnostics=None)` — όταν δίνονται diagnostics, μετρά τα
   reconciliation mismatches που **δεν** ταξινομούνται ως expected no-op (hour-23 boundary, farmer
   reset, hand deletion, auto-drop)· χωρίς diagnostics επιστρέφει `None`, όχι `0` (η απουσία
@@ -529,7 +532,13 @@ package namespace → **metric gate** (§1.5.3) → `compare(new, prev)` σε DE
 HOLDOUT 48 seeds. `REGRESSED` = STOP και revert. `INCONCLUSIVE` σε HOLDOUT = STOP για απόφαση —
 δεν βαφτίζεται μη-χειροτέρευση.
 
-> ⚠ **review.md C1 — το v1c GO επιβεβαιώθηκε 2026-08-06 σε νέο, άθικτο σετ.** Το αρχικό
+> **review_4452427 M10:** immutable checkpoint γίνεται σε **κάθε** αποδεκτή κατάσταση
+> (`NON_INFERIOR`/`IMPROVED` έναντι του τρέχοντος baseline), όχι μόνο στα ονομασμένα increments
+> (v1c/v1d/v1e). Ένα `main.py` που πέρασε gate/confirm αλλά δεν έχει δικό του checkpoint είναι
+> ένα state που δεν μπορεί να χρησιμεύσει ως baseline σύγκρισης αν αλλάξει ξανά — βλ. §1.5.2's
+> ίδιο κενό πριν λυθεί με M10.
+
+> ⚠ **review_89d99f0_2026-08-05.md C1 — το v1c GO επιβεβαιώθηκε 2026-08-06 σε νέο, άθικτο σετ.** Το αρχικό
 > `NON_INFERIOR/GO=True` (mean_diff=−297.0) προέκυψε από best-of-2 τράβηγμα πάνω στο **ίδιο**
 > `HOLDOUT_SEEDS` (`gate_v1c_holdout` INCONCLUSIVE → αλλαγή `ne_carrot_tiles: 7→3` →
 > `gate_v1c_holdout2` NON_INFERIOR) — μεθοδολογικά άκυρο βάσει §1.5.1/§1.5.3, ανεξαρτήτως αν το
@@ -541,15 +550,15 @@ HOLDOUT 48 seeds. `REGRESSED` = STOP και revert. `INCONCLUSIVE` σε HOLDOUT 
 > `wins_a=1 wins_b=46 ties=1` (v1c χάνει σχεδόν παντού από v1d· `sign_test_p≈6.8e-13`) ·
 > `mean_diff=−298.9` — **σχεδόν ταυτόσημο με το αρχικό −297.0**, άρα η προκατειλημμένη επιλογή
 > δεν διόγκωσε ουσιωδώς το νούμερο εδώ · `ci95=(−364.3, −233.6)` εξ ολοκλήρου αρνητικό ⇒
-> **`verdict=WITHIN_MARGIN`** (review.md H2 category): στατιστικά σημαντικό αλλά εντός του
+> **`verdict=WITHIN_MARGIN`** (review_89d99f0_2026-08-05.md H2 category): στατιστικά σημαντικό αλλά εντός του
 > προεγγεγραμμένου margin ($766.5) — `practical=False`, `metric_gate_passed=True`. `GO=False` σε
 > αυτό το run **εκ σχεδιασμού** (το WITHIN_MARGIN απαιτεί ρητό `--accept-within-margin`, ποτέ δεν
 > περνάει σιωπηλά).
 > **Απόφαση:** η γη (v1c) κοστίζει σταθερά ~$299 έναντι του v1d baseline, καλά εντός του margin —
-> **όχι REGRESSED/INCONCLUSIVE**, άρα το βήμα 3 του review.md C1 (αναθεώρηση NE tiles στο DEV, ή
+> **όχι REGRESSED/INCONCLUSIVE**, άρα το βήμα 3 του review_89d99f0_2026-08-05.md C1 (αναθεώρηση NE tiles στο DEV, ή
 > `land.enabled=False` για την πρώτη υποβολή) **δεν ενεργοποιείται**. Το v1c GO **παραμένει**,
 > τώρα τεκμηριωμένο σε αμερόληπτα δεδομένα αντί για best-of-2. Το `CONFIRM2_SEEDS` θεωρείται πλέον
-> καμένο για αυτό το ερώτημα (μία χρήση, όπως το HOLDOUT πριν) — βλ. review.md C1 βήμα 1 «μην
+> καμένο για αυτό το ερώτημα (μία χρήση, όπως το HOLDOUT πριν) — βλ. review_89d99f0_2026-08-05.md C1 βήμα 1 «μην
 > ξανατρέξεις». Το βήμα 4 (Phase-1 acceptance `compare(v1e, "starter", HOLDOUT)`,
 > mean_diff=+$38.788, 96/96 wins) παραμένει ανεπηρέαστο, όπως προέβλεπε το review.
 
@@ -573,19 +582,19 @@ HOLDOUT 48 seeds. `REGRESSED` = STOP και revert. `INCONCLUSIVE` σε HOLDOUT 
   νωρίτερα. Target: COW (85% των top teams, μέρα 0) πρώτο, SHEEP (56%, μέρα 5) δεύτερο — το
   GOOSE (μόλις 15% υιοθέτηση, μέρα 12) **δεν** είναι προτεραιότητα v1d, μπορεί να μπει στο v1e.
   CARE απαιτείται για το **οικονομικό bonus** όταν συνδυάζεται με FEED, όχι για survival.
-  **Προαπαιτούμενα (πριν γραφτεί κώδικας v1d):** review.md §5 checks 1-9 (όπως και για v1c,
+  **Προαπαιτούμενα (πριν γραφτεί κώδικας v1d):** review_89d99f0_2026-08-05.md §5 checks 1-9 (όπως και για v1c,
   βλ. παρακάτω) — τα zero-slack θέματα του v1c ισχύουν αυτούσια εδώ.
   *Αποδοχή:* **metric gate** (+ `animals_escaped == 0`, 0 clipped production) →
   **έπειτα** directional $-gate vs `checkpoints/v1b`· G3/G5/G8/G11 πράσινα.
   ⚠ Το FEED έχει τον **ίδιο zero-slack θάνατο** με το WATER (`consecutive_unfed >= 2`,
   [engine:795](engine_reference/kaggriculture.py#L795)) αλλά με χειρότερη ζημιά: escape = χαμένο
-  κεφάλαιο $300-500. Χωρίς το capacity redesign του review.md C1, το v1d σκάει **χειρότερα** από
+  κεφάλαιο $300-500. Χωρίς το capacity redesign του review_89d99f0_2026-08-05.md C1, το v1d σκάει **χειρότερα** από
   το v1c.
 - [ ] **v1c — γη**: BUY_LAND NE on-trigger (χρήματα ≥ $1k **και** υπάρχει εργατικό δυναμικό να το
   δουλέψει — MASTERPLAN §3.2#7: γη χωρίς hands = νεκρό κεφάλαιο), επέκταση φυτέματος στο NE.
   Target: 2ο quadrant μέχρι μέρα ~9 (top-decile median). **Προαπαιτούμενα (όλα, πριν γραφτεί
   κώδικας v1c):**
-  - **review.md §5 checks 1-9** — τα 1-5 blockers: slack+per-unit feasibility με margin ≥1-2 turns,
+  - **review_89d99f0_2026-08-05.md §5 checks 1-9** — τα 1-5 blockers: slack+per-unit feasibility με margin ≥1-2 turns,
     planner capacity gate που διαβάζει board state, same-turn plant budget στο `assign()`,
     minimum G11 receipts, metric gate. Τα 6-9: on-event replan για BUY_LAND, commit των
     checkpoints, fingerprints στο `results.jsonl`, σχεδιαστικές σταθερές (units συνυπάρχουν —
@@ -655,7 +664,7 @@ kaggle competitions leaderboard kaggriculture -s
 
 > **Ο στόχος «πρώτο submission ~08-14/15» ΑΝΑΘΕΩΡΕΙΤΑΙ ΠΡΟΣ ΤΑ ΠΙΣΩ.** Δύο λόγοι: (α) το ενεργό
 > −$2.195 regression μπλοκάρει κάθε gate και πρέπει να λυθεί πριν από οποιοδήποτε feature, (β) το
-> v1c απαιτεί redesign (review.md §5 checks 1-5), όχι retry. **Νέα εκτίμηση πρώτου submission:
+> v1c απαιτεί redesign (review_89d99f0_2026-08-05.md §5 checks 1-5), όχι retry. **Νέα εκτίμηση πρώτου submission:
 > ~08-22/24.** Παραμένουν ~5,5 εβδομάδες buffer πριν το deadline — ο χρόνος **δεν** είναι ο
 > περιοριστικός πόρος· η ποιότητα του gate είναι.
 
@@ -677,7 +686,7 @@ kaggle competitions leaderboard kaggriculture -s
 
 | # | Κίνδυνος | Σύμπτωμα | Fallback |
 |---|---|---|---|
-| 1 | **Το ablation δεν απομονώνει το −$2.195** (καμία μεμονωμένη ή ζευγαρωτή αιτία) | όλα τα combos κοντά στο −$2.195 | Το κριτήριο #1 αποκλείει «σπασμένη υποδομή» ως εξήγηση. Αν επιβεβαιωθεί διάχυτη αιτία: revert σε `checkpoints/v1b` και **επανεφαρμογή των review.md fixes μία-μία με gate ανά fix** — αργότερο αλλά ντετερμινιστικό |
+| 1 | **Το ablation δεν απομονώνει το −$2.195** (καμία μεμονωμένη ή ζευγαρωτή αιτία) | όλα τα combos κοντά στο −$2.195 | Το κριτήριο #1 αποκλείει «σπασμένη υποδομή» ως εξήγηση. Αν επιβεβαιωθεί διάχυτη αιτία: revert σε `checkpoints/v1b` και **επανεφαρμογή των review_89d99f0_2026-08-05.md fixes μία-μία με gate ανά fix** — αργότερο αλλά ντετερμινιστικό |
 | 2 | **Σιωπηλά no-ops** — bug χαμηλώνει το σκορ αθόρυβα (το engine δεν πετά ποτέ error) | intended action χωρίς το expected effect | G11 receipts + `unexplained_noops` (§1.5.4) — αυτό ακριβώς έλειψε στη διάγνωση του v1c |
 | 3 | **Engine version bump** στη ladder πριν το submission | νέο `kaggle-environments` στο PyPI | `pip install -U` + `pytest tests/` = ο detector (§2 κανόνας 2)· το pinned 1.32.4 μένει η βάση μέχρι να περάσει το suite στη νέα |
 | 4 | **Server runtime διαφορές** (1.6 vCPU, import paths, validation fail) | Submission Error / timeout | ×3 timing margin· vendored constants fallback· σε Error: `kaggle competitions logs` + fix-forward (5 submissions/μέρα ⇒ 2-3 προσπάθειες την ίδια μέρα) |

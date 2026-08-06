@@ -19,7 +19,7 @@ from harness.compare import VALID_STAGES, compare
 from harness.play import play
 from harness.profile import report
 from harness.report import load_receipts, load_replay, write_report
-from harness.seeds import NAMED_SEED_SETS
+from harness.seeds import DEV_SEEDS, NAMED_SEED_SETS
 
 _SEED_SETS = dict(NAMED_SEED_SETS)
 
@@ -226,9 +226,10 @@ def main():
     p_compare = sub.add_parser("compare")
     p_compare.add_argument("agent_a")
     p_compare.add_argument("agent_b")
-    p_compare.add_argument("--seeds", default="0-47",
-                            help="e.g. '0-23,40'; ignored if --seed-set is given "
-                                 "(default matches harness.seeds.DEV_SEEDS)")
+    p_compare.add_argument(
+        "--seeds", default=f"{DEV_SEEDS.start}-{DEV_SEEDS.stop - 1}",
+        help="e.g. '0-23,40'; ignored if --seed-set is given "
+             "(default matches harness.seeds.DEV_SEEDS)")
     p_compare.add_argument("--seed-set", choices=sorted(_SEED_SETS), default=None,
                             help="dev|holdout|smoke — overrides --seeds with the matching "
                                  "harness.seeds constant")

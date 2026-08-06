@@ -1,4 +1,4 @@
-"""review.md H4/G11: the scheduler commits WATER/PLANT/HARVEST expecting a specific tile
+"""review_89d99f0_2026-08-05.md H4/G11: the scheduler commits WATER/PLANT/HARVEST expecting a specific tile
 transition, but nothing ever checked whether the engine actually produced it — on an engine
 that never raises, this was the only tool that could have turned "we lost $8k" into "the
 WATER at (7,2) on step 341 didn't do what we expected", and it was missing. This module
@@ -25,7 +25,7 @@ def expected_transition(unit_index: int, action: list, pos: tuple[int, int],
         # A WATER committed on the day's last hour is only visible as `watered_today` for the
         # instant before end-of-day resets it; by the time this seat is observed again the
         # day has rolled over, so check the *effect* of that reset (consecutive_unwatered
-        # dropping to 0) instead of the flag itself (review.md H4 "boundary-aware").
+        # dropping to 0) instead of the flag itself (review_89d99f0_2026-08-05.md H4 "boundary-aware").
         if snapshot.hour == turns_per_day - 1:
             return {"kind": "expected_transition", "step": snapshot.step, "unit": unit_index,
                     "action": "WATER", "pos": list(pos), "field": "consecutive_unwatered",

@@ -12,7 +12,7 @@ _PACKAGE_IMPORT_RE = re.compile(
     r"^\s*from\s+([A-Za-z_][A-Za-z0-9_]*)\.policy\s+import\s+agent\s*$",
     re.MULTILINE,
 )
-# review.md H2 — checkpoints used to default under runs/, which is entirely gitignored
+# review_89d99f0_2026-08-05.md H2 — checkpoints used to default under runs/, which is entirely gitignored
 # (consumable replay output); that erased the only record of every accepted regression
 # baseline (v0/v1a/v1a'/v1b) from git history, with no way to reconstruct or bisect them.
 DEFAULT_CHECKPOINT_ROOT = "checkpoints"
@@ -20,7 +20,7 @@ DEFAULT_CHECKPOINT_ROOT = "checkpoints"
 
 def _hash_package(package_dir: Path) -> str:
     digest = hashlib.sha256()
-    # review.md L4: __pycache__ is copied into checkpoints (copytree, below) but must not
+    # review_89d99f0_2026-08-05.md L4: __pycache__ is copied into checkpoints (copytree, below) but must not
     # affect the fingerprint — it's derived, non-deterministic clutter, not source.
     files = (
         source
@@ -38,12 +38,12 @@ def _hash_package(package_dir: Path) -> str:
 def agent_fingerprint(agent_spec) -> str:
     """Hash an agent package independently of its checkpoint package name.
 
-    review.md H3: if `agent_spec` is a main.py sitting next to a manifest.json (i.e. a
+    review_89d99f0_2026-08-05.md H3: if `agent_spec` is a main.py sitting next to a manifest.json (i.e. a
     checkpoint produced by `create_checkpoint`), verify the checkpoint hasn't been modified
     since creation — a checkpoint edited by accident, a tool, or a merge must not silently
     pass as "the immutable vX" and quietly invalidate every gate compared against it.
 
-    review.md L10 [edge case, not handled here]: this reads from disk every call, but a
+    review_89d99f0_2026-08-05.md L10 [edge case, not handled here]: this reads from disk every call, but a
     module already imported earlier in this same process (`sys.modules`) keeps running
     whatever it loaded at import time. That can only diverge from a fresh on-disk hash within
     one long-lived process reusing an in-process callable across an edit — never for the
