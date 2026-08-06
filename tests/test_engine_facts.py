@@ -577,3 +577,15 @@ def test_engine_reference_matches_installed():
         assert installed_json.read_bytes() == reference_json.read_bytes(), (
             "engine_reference/kaggriculture.json is stale — re-copy from the installed package."
         )
+
+    # The shipped prose docs are line-cited too: MASTERPLAN §1 cites `README.md:NNN` against
+    # engine_reference/README.md ever since docs/game_rules.md (a byte-identical third copy) was
+    # dropped in the 2026-08-06 docs reorg. Same tripwire, same reason as the .py above.
+    for name in ("README.md", "AGENTS.md"):
+        installed_doc = installed.parent / name
+        reference_doc = REPO_ROOT / "engine_reference" / name
+        if installed_doc.exists() and reference_doc.exists():
+            assert installed_doc.read_bytes() == reference_doc.read_bytes(), (
+                f"engine_reference/{name} is stale — re-copy from the installed package and "
+                f"re-check every `{name}:NNN` citation (MASTERPLAN §1-§2, docs/reference/)."
+            )

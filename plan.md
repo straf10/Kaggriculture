@@ -236,7 +236,8 @@ H1 plant-cap enforcement (η χαλάρωσή της τα έκανε *χειρό
   εφαρμόζει πάνω στα defaults. Απαραίτητο γιατί ο agent τρέχει σε ξεχωριστή διεργασία από τον
   ablation runner. **Καμία μεταβολή runtime** — τα flags διαβάζονται μία φορά, ώστε το
   `CONFIG["ablation"]` να μη σπάει το **G13 determinism**.
-- [x] **Νέο [harness/ablate.py](harness/ablate.py)**: τρέχει σύνολο flag-combos εναντίον ενός
+- [x] **Νέο `harness/ablate.py`** (αφαιρέθηκε 2026-08-06 — βλ. τη σημείωση ΑΠΟΣΥΡΘΗΚΕ πιο πάνω):
+  τρέχει σύνολο flag-combos εναντίον ενός
   **σταθερού baseline** (`checkpoints/v1b`) σε `DEV_SEEDS` με `workers>1`· γράφει **ένα row ανά
   combo** (`flags`, `mean_diff`, `se_diff`, `ci95`, `verdict`) σε `ablation.jsonl` + περίληψη
   ταξινομημένη κατά `mean_diff`.

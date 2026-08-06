@@ -8,6 +8,63 @@
 
 ---
 
+## 2026-08-06 — Session: αναδιοργάνωση του `docs/` σε source / reference / meta
+
+**Context:** Το `docs/` είχε μαζευτεί σε επίπεδο σωρό αρχείων και το κείμενο των κανόνων υπήρχε
+**τρεις φορές** στο repo (`README.md` root, `docs/game_rules.md`, `engine_reference/README.md` —
+byte-identical). Στόχος: να βρίσκει ένας μελλοντικός agent γρήγορα τις βέλτιστες τεχνικές.
+**Καμία αλλαγή κώδικα agent/harness.**
+
+**Νέα δομή (3 στρώματα, με κανόνα εγγραφής το καθένα):**
+- `docs/source/` — **RAW, ποτέ δεν επεξεργάζεται**: `competition_info.md`, `discussion.md`,
+  `notebooks/` (4 dumps).
+- `docs/reference/` — **DERIVED, curated, κάθε νούμερο με παραπομπή**: `engine_deltas.md`,
+  `economics.md`, `market.md`, `api_cheatsheet.md`.
+- `docs/meta/` — **LIVE, append-only, με ημερομηνία**: `ladder_snapshots.md`,
+  `competition_updates.md`.
+- `docs/INDEX.md` — router: πίνακας «ψάχνω X → άνοιξε Y», κανόνες εγγραφής ανά στρώμα, ροή «πού
+  πάει η νέα πληροφορία», χάρτης παλιών → νέων διαδρομών.
+- `docs/reviews/` — τα δύο reviews (`89d99f0`, `4452427`· το δεύτερο ήρθε από το root `review.md`).
+
+**Νέο εργαλείο:** [analysis/nb_extract.py](analysis/nb_extract.py) — μετατρέπει `.ipynb` σε
+markdown με `## cell [N]` headings (23 MB → ~7 KB, `--no-code` για μόνο outputs, pandas
+`to_html` πίνακες → pipe rows). Απαραίτητο γιατί τα δύο community notebooks **ξανατρέχουν
+προγραμματισμένα** στο Kaggle: κάθε re-download είναι **νέα μέτρηση**, όχι διόρθωση της παλιάς.
+
+**Ό,τι εξήχθη από τα notebooks και ζει πλέον σε md:** profit/tile-day ανά crop, πίνακας ζώων
+cared-vs-fed, labor curve, market saturation (melon $1 floor στις 158 μονάδες· γεμάτο shed 100
+melons = 87% της υποσχεμένης αξίας), town demand schedule ×1/×2/×4 + τα 8 shop menus, win rate
+ανά primary crop (STRAWBERRY 53% n=515 — de facto meta), κατανομή banks (median $39.652, record
+$157.449), strategy fingerprints, και το εύρημα ότι **στην κορυφή οι μετρήσεις όγκου νικητών και
+ηττημένων είναι ταυτόσημες** (λόγοι 0,9-1,0 σε plant/sell/hire/harvest/fert/buy_animal/buy_land).
+
+**Δύο ουσιαστικά ευρήματα, όχι απλή μεταφορά:**
+- Ο median $39,6k και το «μέσο profit νικητή $118k» **μετρούν διαφορετικούς πληθυσμούς** (πλήρες
+  crawl vs δείγμα ≤300 top-rated). Δεν διαφωνούν — αλλά ο στόχος «median bank ≥ $40k» της Φάσης 1
+  είναι ο **median όλου του ladder**, όχι το ταβάνι.
+- Το χάσμα μας παραμένει **δομικό**: 2 quadrants / 3 ζώα έναντι 4 / ~20 στην κορυφή.
+
+**Αποφάσεις:** `docs/game_rules.md` **διαγράφηκε** (byte-identical με το
+`engine_reference/README.md`, που είναι πλέον ο μοναδικός στόχος κάθε `README.md:NNN`)· τα νέα
+curated docs γράφονται **ελληνικά με αγγλικούς τεχνικούς όρους** ώστε τα identifiers/action names
+να παραμένουν grep-able έναντι του κώδικα· τα markdown links **root-relative** (η σύμβαση του repo).
+
+**Tripwire επεκτάθηκε:** το `test_engine_reference_matches_installed` συγκρίνει πλέον byte-προς-byte
+και τα `README.md` / `AGENTS.md` του `engine_reference/`, όχι μόνο τα `.py`/`.json` — γιατί οι
+παραπομπές `README.md:NNN` του MASTERPLAN δείχνουν πλέον εκεί. `pytest tests/test_engine_facts.py`:
+**37 passed**.
+
+**MASTERPLAN & reviews:** άθικτα ως προς περιεχόμενο· **μόνο** διαδρομές παραπομπών ανανεώθηκαν
+(+ ένα block «Οδηγός παραπομπών» στην κεφαλίδα του MASTERPLAN που επιλύει τα `viz cell N` μέσω
+anchors στο `reference/`).
+
+**Επόμενο:** κάθε νέα πληροφορία από τη σελίδα του διαγωνισμού (ανακοινώσεις, απαντήσεις
+οργανωτών, διορθώσεις) προσγειώνεται **πρώτα** στο
+[docs/meta/competition_updates.md](docs/meta/competition_updates.md) και μετά προωθείται κατά τον
+τεκμηριωμένο κύκλο ζωής.
+
+---
+
 ## 2026-08-06 — Session: v1d, v1c, v1e υλοποιήθηκαν και gated σειριακά — Φάση 1 ολοκληρώθηκε
 
 **Context:** Συνέχεια της §5.1 planning δουλειάς (βλ. entry παρακάτω) — υλοποίηση των τριών
@@ -418,7 +475,8 @@ commit history, όχι σαν ξεχωριστό έγγραφο (ίδιο σκε
 .gitignore, data/). Μόνο ανάλυση — **καμία αλλαγή κώδικα**. Κάθε εύρημα επαληθεύτηκε εκτελεστικά
 στο `.venv`, όχι μόνο με ανάγνωση.
 
-**Παραδοτέο:** [review.md](review.md) — 3 Critical, 4 High, 11 Medium, 15 Low, + section
+**Παραδοτέο:** `review.md` (διαγράφηκε αφού εφαρμόστηκε — δεν είναι κανένα από τα δύο στο
+[docs/reviews/](docs/reviews/)) — 3 Critical, 4 High, 11 Medium, 15 Low, + section
 "Pre-Submission Checks" + self-check section με ό,τι ελέγχθηκε και βρέθηκε καθαρό.
 
 **Τα 3 blockers (όλα πριν γραφτεί το `agent/`):**

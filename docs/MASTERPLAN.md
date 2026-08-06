@@ -1,13 +1,23 @@
 # MASTERPLAN — Kaggriculture Competitive Agent
 
-> Βασισμένο αποκλειστικά στο περιεχόμενο του repo: [README.md](README.md), [discussion.md](discussion.md),
-> [competition_info.md](competition_info.md) (επίσημη σελίδα διαγωνισμού: Overview, Timeline, Evaluation,
+> Βασισμένο αποκλειστικά στο περιεχόμενο του repo: [README.md](engine_reference/README.md), [discussion.md](docs/source/discussion.md),
+> [competition_info.md](docs/source/competition_info.md) (επίσημη σελίδα διαγωνισμού: Overview, Timeline, Evaluation,
 > How to Play, CLI workflow, FAQ),
-> [kaggriculture-getting-started.ipynb](kaggriculture-getting-started.ipynb),
-> [kaggriculture-visualized-what-every-crop-pays.ipynb](kaggriculture-visualized-what-every-crop-pays.ipynb).
+> [kaggriculture-getting-started.ipynb](notebooks/kaggriculture-getting-started.ipynb),
+> [kaggriculture-visualized-what-every-crop-pays.ipynb](notebooks/kaggriculture-visualized-what-every-crop-pays.ipynb).
 > Το engine (`kaggriculture.py`) **δεν βρίσκεται στο repo** — ζει στο πακέτο `kaggle-environments`
 > (η ladder τρέχει ≥1.32.3, το viz notebook έτρεξε σε 1.32.4). Όπου docs και engine διαφωνούν,
 > **υπερισχύει το engine** — οι γνωστές αποκλίσεις καταγράφονται στην §7.
+>
+> **Οδηγός παραπομπών (reorg 2026-08-06 — μόνο διαδρομές άλλαξαν, κανένα περιεχόμενο):**
+> `README.md:NNN` → [engine_reference/README.md](engine_reference/README.md) (το πρώην
+> `docs/game_rules.md` ήταν byte-identical αντίγραφό του και διαγράφηκε)·
+> `discussion.md:NNN` → [source/discussion.md](docs/source/discussion.md)·
+> `competition_info.md:NNN` → [source/competition_info.md](docs/source/competition_info.md)·
+> `viz cell N` / `meta cell N` → `## cell [N]` στο [source/notebooks/](docs/source/notebooks/), με τους
+> αριθμούς συγκεντρωμένους σε [reference/economics.md](docs/reference/economics.md),
+> [reference/market.md](docs/reference/market.md) και [meta/ladder_snapshots.md](docs/meta/ladder_snapshots.md).
+> Πλοήγηση σε όλα: [INDEX.md](docs/INDEX.md).
 
 ---
 
@@ -370,7 +380,7 @@ private       # ΜΟΝΟ δικό σου: shed{...}, seeds{...}, inventories[far
 
 ## Ανοιχτά Ερωτήματα προς Έρευνα
 
-> Ενημέρωση 2026-08-05: το [competition_info.md](competition_info.md) συμπληρώθηκε και **έλυσε** τα πρώην
+> Ενημέρωση 2026-08-05: το [competition_info.md](docs/source/competition_info.md) συμπληρώθηκε και **έλυσε** τα πρώην
 > ερωτήματα για timeline/prizes (deadline 30 Σεπ 2026, top-10 × $5.000), submission limits (5/μέρα,
 > latest 2 active και στο final, όριο 100 MiB), server resources (1.6 vCPU / 6.5 GiB RAM / 8 GiB HDD,
 > αρχεία στο `/kaggle_simulations/agent/`), competition slug (`kaggriculture` — το
