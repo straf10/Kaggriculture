@@ -44,9 +44,6 @@ def _needs_replan(runtime: RuntimeContext, snapshot: Snapshot) -> bool:
     reflects it next observation), so the capacity gate in make_day_plan (review.md C1 §5#2)
     would otherwise plan the whole day around whatever unit count happened to be on the board
     at hour 0 — freshly wiped to 0 by end-of-day, before this turn's hires land."""
-    if not CONFIG["ablation"]["on_event_replan"]:
-        # v1b behavior: replan only on the day boundary.
-        return runtime.plan is None or runtime.planned_day != snapshot.day
     return (
         runtime.plan is None
         or runtime.planned_day != snapshot.day

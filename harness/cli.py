@@ -19,9 +19,9 @@ from harness.compare import VALID_STAGES, compare
 from harness.play import play
 from harness.profile import report
 from harness.report import load_receipts, load_replay, write_report
-from harness.seeds import DEV_SEEDS, HOLDOUT_SEEDS, SMOKE_SEEDS
+from harness.seeds import NAMED_SEED_SETS
 
-_SEED_SETS = {"dev": DEV_SEEDS, "holdout": HOLDOUT_SEEDS, "smoke": SMOKE_SEEDS}
+_SEED_SETS = dict(NAMED_SEED_SETS)
 
 
 def _parse_seeds(spec: str):
@@ -57,7 +57,51 @@ def _cmd_play(args):
         print(f"receipts: {result.receipts_path}")
 
 
-_STAGE_BY_SEED_SET = {"dev": "dev-screen", "holdout": "holdout-confirm"}  # smoke: no stage, never a GO
+_STAGE_BY_SEED_SET = {
+    "dev": "dev-screen", "holdout": "holdout-confirm", "confirm2": "holdout-confirm",
+}  # smoke: no stage, never a GO
+
+
+def _results_json_dict(result) -> dict:
+    return {
+        "per_seed": result.per_seed,
+        "errors": result.errors,
+        "mean_diff": result.mean_diff,
+        "se_diff": result.se_diff,
+        "n_effective": result.n_effective,
+        "t_crit": result.t_crit,
+        "ci95": result.ci95,
+        "wins_a": result.wins_a,
+        "wins_b": result.wins_b,
+        "ties": result.ties,
+        "episode_wins_a": result.episode_wins_a,
+        "episode_wins_b": result.episode_wins_b,
+        "episode_ties": result.episode_ties,
+        "median_bank_a": result.median_bank_a,
+        "significant": result.significant,
+        "practical": result.practical,
+        "sign_test_p": result.sign_test_p,
+        "verdict": result.verdict,
+        "code_fingerprints": result.code_fingerprints,
+        "stage": result.stage,
+        "metrics_checked": result.metrics_checked,
+        "water_weeds_lost_a": result.water_weeds_lost_a,
+        "plant_decay_units_lost_a": result.plant_decay_units_lost_a,
+        "animals_escaped_a": result.animals_escaped_a,
+        "clipped_production_ticks_a": result.clipped_production_ticks_a,
+        "metric_gate_passed": result.metric_gate_passed,
+        "min_effect_used": result.min_effect_used,
+        "non_inferiority_margin_used": result.non_inferiority_margin_used,
+        "go": result.go,
+        "repeat_confirm_index": result.repeat_confirm_index,
+        "agent_a_spec": result.agent_a_spec,
+        "agent_b_spec": result.agent_b_spec,
+        "seed_set_name": result.seed_set_name,
+        "harness_git_sha": result.harness_git_sha,
+        "platform": result.platform,
+        "python_version": result.python_version,
+        "env": result.env,
+    }
 
 
 def _cmd_compare(args):
@@ -67,15 +111,22 @@ def _cmd_compare(args):
     result = compare(args.agent_a, args.agent_b, seeds, both_seats=not args.single_seat,
                       steps=args.steps, run_dir=out_dir, record=args.record,
                       strict=not args.no_strict, resume=args.resume, workers=args.workers,
-                      metrics=args.metrics, stage=stage)
-    print(f"seeds={len(seeds)} both_seats={not args.single_seat} workers={args.workers}")
-    print(f"stage={result.stage} metrics_checked={result.metrics_checked}")
+                      metrics=args.metrics, stage=stage,
+                      accept_within_margin=args.accept_within_margin,
+                      allow_repeat_confirm=args.allow_repeat_confirm,
+                      confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None)
+    print(f"seeds={len(seeds)} ({result.seed_set_name}) both_seats={not args.single_seat} "
+          f"workers={args.workers}")
+    print(f"stage={result.stage} metrics_checked={result.metrics_checked} "
+          f"repeat_confirm_index={result.repeat_confirm_index}")
     print(f"wins_a={result.wins_a} wins_b={result.wins_b} ties={result.ties} "
-          f"errors={len(result.errors)}")
+          f"sign_test_p={result.sign_test_p} errors={len(result.errors)}")
     print(f"episode_wins_a={result.episode_wins_a} episode_wins_b={result.episode_wins_b} "
           f"episode_ties={result.episode_ties} median_bank_a={result.median_bank_a:.1f}")
     print(f"mean_diff={result.mean_diff:.1f} se_diff={result.se_diff:.1f} "
-          f"ci95=({result.ci95[0]:.1f}, {result.ci95[1]:.1f})")
+          f"ci95=({result.ci95[0]:.1f}, {result.ci95[1]:.1f}) "
+          f"min_effect_used={result.min_effect_used:.1f} "
+          f"non_inferiority_margin_used={result.non_inferiority_margin_used:.1f}")
     print(f"significant={result.significant} practical={result.practical} "
           f"verdict={result.verdict}")
     if result.metrics_checked:
@@ -84,41 +135,24 @@ def _cmd_compare(args):
               f"animals_escaped_a={result.animals_escaped_a} "
               f"clipped_production_ticks_a={result.clipped_production_ticks_a} "
               f"metric_gate_passed={result.metric_gate_passed}")
+    if result.env:
+        print(f"env={result.env}")
     print(f"GO={result.go}")
     if result.errors:
         print(f"errored seeds: {[e['seed'] for e in result.errors]}")
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)
         results_path = out_dir / "results.json"
-        results_path.write_text(json.dumps({
-            "per_seed": result.per_seed,
-            "errors": result.errors,
-            "mean_diff": result.mean_diff,
-            "se_diff": result.se_diff,
-            "n_effective": result.n_effective,
-            "t_crit": result.t_crit,
-            "ci95": result.ci95,
-            "wins_a": result.wins_a,
-            "wins_b": result.wins_b,
-            "ties": result.ties,
-            "episode_wins_a": result.episode_wins_a,
-            "episode_wins_b": result.episode_wins_b,
-            "episode_ties": result.episode_ties,
-            "median_bank_a": result.median_bank_a,
-            "significant": result.significant,
-            "practical": result.practical,
-            "verdict": result.verdict,
-            "code_fingerprints": result.code_fingerprints,
-            "stage": result.stage,
-            "metrics_checked": result.metrics_checked,
-            "water_weeds_lost_a": result.water_weeds_lost_a,
-            "plant_decay_units_lost_a": result.plant_decay_units_lost_a,
-            "animals_escaped_a": result.animals_escaped_a,
-            "clipped_production_ticks_a": result.clipped_production_ticks_a,
-            "metric_gate_passed": result.metric_gate_passed,
-            "go": result.go,
-        }, indent=2))
+        results_json = json.dumps(_results_json_dict(result), indent=2)
+        results_path.write_text(results_json)
         print(f"results written to {results_path}")
+        # review.md H5: runs/ (replays, per-episode jsonl) stays gitignored — this small
+        # results.json is copied into a tracked directory so a gate's evidence survives a
+        # `git clean` / disk cleanup instead of only living in gitignored runs/.
+        gates_path = Path(args.gates_dir) / out_dir.name / "results.json"
+        gates_path.parent.mkdir(parents=True, exist_ok=True)
+        gates_path.write_text(results_json)
+        print(f"results also written to {gates_path} (tracked)")
 
 
 def _cmd_profile(args):
@@ -212,6 +246,22 @@ def main():
                                  "animals_escaped/clipped_production_ticks for agent_a and "
                                  "require all four ==0 for the metric gate (plan.md §1.5.3, "
                                  "G5/G8); required (with --stage holdout-confirm) for GO=True")
+    p_compare.add_argument("--accept-within-margin", action="store_true",
+                            help="allow GO=True when verdict=WITHIN_MARGIN (a statistically "
+                                 "confirmed regression that's still inside the margin) or when "
+                                 "a sign test confirms wins_b>wins_a at p<0.01 — otherwise "
+                                 "either blocks GO regardless of the $-verdict (review.md H2)")
+    p_compare.add_argument("--allow-repeat-confirm", action="store_true",
+                            help="allow a second stage=holdout-confirm run against the same "
+                                 "(agent_b, seed set) already recorded in the confirm ledger — "
+                                 "otherwise this raises (review.md C1/C2)")
+    p_compare.add_argument("--confirm-ledger", default=None,
+                            help="path to the confirm ledger jsonl (default: "
+                                 "harness.compare.DEFAULT_CONFIRM_LEDGER, gates/confirm_log.jsonl)")
+    p_compare.add_argument("--gates-dir", default="gates",
+                            help="tracked directory that also receives a copy of --out's "
+                                 "results.json (small, no replays) — the durable, git-tracked "
+                                 "evidence a gate ran (review.md H5)")
     p_compare.add_argument("--stage", choices=VALID_STAGES, default=None,
                             help="dev-screen|holdout-confirm — defaults to the matching stage "
                                  "for --seed-set dev/holdout; smoke has no default stage and "
@@ -245,6 +295,17 @@ def main():
     p_checkpoint.set_defaults(func=_cmd_checkpoint)
 
     args = parser.parse_args()
+    # review.md C2(c): --stage silently overrode --seed-set's implied stage with no warning,
+    # so `--seed-set dev --stage holdout-confirm` could produce a GO from seeds that were just
+    # tuned on. A mismatched explicit pair is now a usage error, not a silent override.
+    if args.command == "compare" and args.stage is not None and args.seed_set is not None:
+        expected_stage = _STAGE_BY_SEED_SET.get(args.seed_set)
+        if expected_stage is not None and args.stage != expected_stage:
+            p_compare.error(
+                f"--stage {args.stage!r} conflicts with --seed-set {args.seed_set!r} (expects "
+                f"--stage {expected_stage!r}) — pass matching flags, or omit --stage to use "
+                "the seed-set's default"
+            )
     args.func(args)
 
 

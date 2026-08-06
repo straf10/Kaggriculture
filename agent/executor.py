@@ -6,6 +6,18 @@ from .scheduler import ResourceLedger, animal_placed, animal_structure_ready
 from .state import Snapshot
 
 
+# review.md H8: truncation used to keep construction order (SELL first, HIRE/BUY_LAND last),
+# so a budget-tight turn silently dropped HIRE and BUY_LAND — the two orders with the largest
+# measured ROI — in favor of a SELL FERTILIZER worth a few dollars. Lower number = kept first
+# when max_market_orders forces a cut. WHEAT is life-or-death for placed animals
+# (consecutive_unfed >= 2 escapes them); HIRE has the largest observed ROI of any order kind.
+_ORDER_TIER = {"HIRE": 0, "BUY_PRODUCT": 1, "BUY_ANIMAL": 2, "BUY_SEED": 3, "BUY_LAND": 4, "SELL": 5}
+
+
+def _order_tier(order: list) -> int:
+    return _ORDER_TIER.get(order[0], len(_ORDER_TIER))
+
+
 def _hire_cost(n_already_today: int) -> int:
     first, second = 1, 1
     for _ in range(n_already_today):
@@ -81,13 +93,8 @@ def market_orders(
             if plan.plant_targets.get(crop, 0) <= 0:
                 continue
             seed_count = int(ledger.seeds.get(crop, 0))
-            if config["ablation"]["seed_cap_by_remaining_targets"]:
-                remaining_unplanted = _remaining_unplanted_targets(snapshot, plan, config, crop)
-                seeds_to_buy = max(0, min(seed_buffer, remaining_unplanted) - seed_count)
-            else:
-                # v1b behavior: flat seed_buffer target regardless of how many target tiles
-                # actually still need a seed.
-                seeds_to_buy = max(0, seed_buffer - seed_count)
+            remaining_unplanted = _remaining_unplanted_targets(snapshot, plan, config, crop)
+            seeds_to_buy = max(0, min(seed_buffer, remaining_unplanted) - seed_count)
             affordable = int(available_money // CROPS[crop]["seed"])
             seeds_to_buy = min(seeds_to_buy, affordable)
             if seeds_to_buy:
@@ -180,11 +187,15 @@ def market_orders(
     if len(orders) > max_orders:
         # review.md M7: raising here would turn one budget slip into a submission ERROR and a
         # lost episode. Truncate defensively instead and leave a receipt to catch it in dev.
+        # review.md H8: truncate by priority (_ORDER_TIER), not construction order — a stable
+        # sort keeps each tier's own relative order (e.g. SELL products stay in their existing
+        # order among themselves), only reordering across tiers.
         emit_receipt({
             "kind": "market_order_budget_truncated",
             "step": snapshot.step,
             "requested": len(orders),
             "max_orders": max_orders,
+            "dropped": sorted(orders, key=_order_tier)[max_orders:],
         })
-        orders = orders[:max_orders]
+        orders = sorted(orders, key=_order_tier)[:max_orders]
     return orders

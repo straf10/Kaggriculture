@@ -1,48 +1,6 @@
 """All tunable agent settings, grouped for later sweeps."""
 import os
 
-_ABLATION_DEFAULTS = {
-    # plan.md §1.5.2: every flag defaults True (= today's behavior, one per review.md fix
-    # from the 2026-08-05 session). Flipping a flag False must reproduce EXACTLY the v1b
-    # behavior at that point, so ablate.py can attribute the -$2.195 regression vs v1b to a
-    # specific flag (or pair of flags) instead of reverting the whole session blind.
-    "slack_assign": True,
-    "task_stickiness": True,
-    "per_unit_plant_feasibility": True,
-    "plant_task_cap": True,
-    "capacity_gate": True,
-    "drop_task_per_unit": True,
-    "on_event_replan": True,
-    "seed_cap_by_remaining_targets": True,
-    "priority_sort_before_truncate": True,
-    "endgame_enabled": True,
-    # review.md L7 — not in plan.md's §1.5.2 table, but a real v1b-vs-main behavior delta
-    # found while validating the ablation self-test (criterion #1): without this flag, an
-    # all-off run still showed nonzero per-seed diffs.
-    "carrot_water_window": True,
-}
-
-
-def _load_ablation_overrides() -> dict:
-    """Parse KAGGRI_ABLATION="flag1=0,flag2=1" once at import time (plan.md §1.5.2). The
-    ablation runner and the agent run in separate processes (harness.compare spawns workers),
-    so an env var read once at import is the only way to inject a combo without either
-    rewriting config.py per run or mutating CONFIG at runtime — the latter would break G13
-    determinism by making behavior depend on call order within a process."""
-    raw = os.environ.get("KAGGRI_ABLATION", "")
-    overrides = {}
-    for part in raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        name, _, value = part.partition("=")
-        name = name.strip()
-        if name not in _ABLATION_DEFAULTS:
-            raise ValueError(f"KAGGRI_ABLATION: unknown flag {name!r}")
-        overrides[name] = bool(int(value.strip()))
-    return overrides
-
-
 CONFIG = {
     "planner": {
         "enabled": True,
@@ -188,15 +146,13 @@ CONFIG = {
         "liquidation_day": 26,
     },
     "guards": {
-        # plan.md §1.5.4: same env-mechanism as KAGGRI_ABLATION (agent/config.py's module
-        # docstring) — the agent runs in a separate, freshly-imported process from whatever
-        # invoked it (harness CLI, a ProcessPoolExecutor worker), so this must be steered by
-        # an env var read once at import, never by mutating CONFIG after the fact.
+        # plan.md §1.5.4: the agent runs in a separate, freshly-imported process from
+        # whatever invoked it (harness CLI, a ProcessPoolExecutor worker), so this must be
+        # steered by an env var read once at import, never by mutating CONFIG after the fact.
         "debug": os.environ.get("KAGGRI_DEBUG", "0") == "1",
     },
     "runtime": {
         "turns_per_day": 24,
         "episode_steps": 720,
     },
-    "ablation": {**_ABLATION_DEFAULTS, **_load_ablation_overrides()},
 }

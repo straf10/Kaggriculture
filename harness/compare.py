@@ -8,20 +8,30 @@ Go/no-go needs directional confidence and a practical margin:
   seed-independent difference, not a real effect).
 - `practical`: the mean diff also clears an absolute-$ floor, so a statistically "significant"
   but trivial $1 diff doesn't read as a real result.
-- `verdict`: IMPROVED/NON_INFERIOR/REGRESSED/INCONCLUSIVE/INCOMPLETE. A negative practical
-  result can never be approved by taking `abs(mean_diff)`.
+- `verdict`: IMPROVED/NON_INFERIOR/WITHIN_MARGIN/REGRESSED/INCONCLUSIVE/INCOMPLETE. A negative
+  practical result can never be approved by taking `abs(mean_diff)`. WITHIN_MARGIN (review.md
+  H2) is NON_INFERIOR's confirmed-regression sibling: the paired-seed CI is entirely negative
+  (not straddling zero — that's genuine equivalence, still NON_INFERIOR) but still inside the
+  margin. It reads as a different claim ("regressed, but not by much" vs "didn't regress") and
+  a GO built on it requires `accept_within_margin=True`, never silently.
 """
 import concurrent.futures
 import json
+import math
+import os
 import pickle
+import platform as platform_module
 import statistics
+import subprocess
 import warnings
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
 from harness.checkpoint import agent_fingerprint
 from harness.play import play
+from harness.seeds import CONFIRM_SEED_SETS, DEV_SEEDS, NAMED_SEED_SETS
 
 # Two-sided 95% t-critical value by degrees of freedom (df = n-1). Exact through df=30,
 # then a handful of anchor points with linear interpolation, 1.96 (normal) beyond df=120 —
@@ -33,6 +43,11 @@ MIN_N_FOR_NON_INFERIOR = 12  # review.md M3
 # stage tags which decision a report may be used for: dev-screen (tuning) reports must never
 # be read as a GO by themselves — only holdout-confirm, checked exactly once, can be.
 VALID_STAGES = ("dev-screen", "holdout-confirm")
+
+# review.md H5: the only durable, git-tracked evidence that a gate ran and what it decided.
+# runs/ (replays, per-episode jsonl) stays gitignored — this is deliberately small.
+GATES_DIR = Path("gates")
+DEFAULT_CONFIRM_LEDGER = GATES_DIR / "confirm_log.jsonl"
 
 _T_TABLE = {
     1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
@@ -57,6 +72,95 @@ def _t_crit(df: int) -> float:
     hi = min(k for k in keys if k > df)
     frac = (df - lo) / (hi - lo)
     return _T_TABLE[lo] + frac * (_T_TABLE[hi] - _T_TABLE[lo])
+
+
+def _sign_test_p(k: int, n: int) -> Optional[float]:
+    """Two-sided exact binomial sign-test p-value for `k` (the less frequent outcome) out of
+    `n` non-tied trials under H0: p=0.5 (review.md H2) — same no-scipy-dependency reasoning
+    as `_t_crit`'s vendored table. None when there are no non-tied trials to test."""
+    if n <= 0:
+        return None
+    k = min(k, n - k)
+    cumulative = sum(math.comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    return min(1.0, 2 * cumulative)
+
+
+def _seed_set_label(seeds: Sequence[int]) -> str:
+    """A stable, human-readable name for a seed collection, used in provenance fields and
+    the confirm ledger key (review.md C2/H5). Exact-matches a registered harness.seeds range
+    first; falls back to a descriptive range string for ad-hoc subsets so the ledger key still
+    means something instead of colliding across genuinely different seed lists."""
+    seeds_set = set(seeds)
+    for name, registered in NAMED_SEED_SETS.items():
+        if seeds_set == set(registered):
+            return name
+    if not seeds_set:
+        return "custom[empty]"
+    return f"custom[{min(seeds_set)}-{max(seeds_set)},n={len(seeds_set)}]"
+
+
+_HARNESS_GIT_SHA_CACHE: Optional[str] = None
+
+
+def _harness_git_sha() -> Optional[str]:
+    """review.md H5: which harness/agent commit produced this result — best-effort, None
+    (not raised) outside a git checkout or without git installed, since compare() must keep
+    working in either case."""
+    global _HARNESS_GIT_SHA_CACHE
+    if _HARNESS_GIT_SHA_CACHE is None:
+        try:
+            _HARNESS_GIT_SHA_CACHE = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True,
+                cwd=Path(__file__).resolve().parent.parent,
+            ).stdout.strip()
+        except Exception:
+            _HARNESS_GIT_SHA_CACHE = ""
+    return _HARNESS_GIT_SHA_CACHE or None
+
+
+def _kaggri_env() -> dict:
+    """review.md H7: every KAGGRI_* env var currently set, recorded so a gate artefact never
+    looks 'clean' while having actually run under debug instrumentation or (for older
+    checkpoints that still read it) an ablation override."""
+    return {k: v for k, v in sorted(os.environ.items()) if k.startswith("KAGGRI_")}
+
+
+def _agent_spec_label(agent_spec) -> str:
+    return agent_spec if isinstance(agent_spec, str) else repr(agent_spec)
+
+
+def _warn_if_not_checkpoint(agent_spec, label: str) -> None:
+    """review.md H5 point 3: a go=True from stage='holdout-confirm' should run on immutable
+    checkpointed code (has a manifest.json next to it), not live main.py, so the result can
+    be reproduced later. Warn, don't raise — dev workflows legitimately compare live code."""
+    if not isinstance(agent_spec, str):
+        return
+    path = Path(agent_spec)
+    if path.suffix == ".py" and path.exists() and not (path.parent / "manifest.json").exists():
+        warnings.warn(
+            f"compare(): {label}={agent_spec!r} has no manifest.json next to it — a GO from "
+            "stage='holdout-confirm' should run on checkpointed code (harness.checkpoint."
+            "create_checkpoint), not live main.py, so the result can be reproduced later "
+            "(review.md H5)",
+            stacklevel=3,
+        )
+
+
+def _read_confirm_ledger(path: Path) -> list:
+    if not path.exists():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _append_confirm_ledger(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row) + "\n")
 
 
 def _play_orientation(agent_first, agent_second, seed, steps, run_dir, record, strict, metrics):
@@ -95,17 +199,28 @@ class CompareResult:
     median_bank_a: float = 0.0
     significant: Optional[bool] = False  # None when se_diff==0 (undefined, not "infinitely true")
     practical: Optional[bool] = False
+    sign_test_p: Optional[bool] = None  # review.md H2: exact binomial sign test on wins_a/wins_b
     verdict: str = "INCONCLUSIVE"
     incomplete: bool = False  # True if any seed errored or was otherwise skipped
     code_fingerprints: tuple = ("", "")
     stage: Optional[str] = None  # "dev-screen" | "holdout-confirm" | None (plan.md §1.5.3)
     metrics_checked: bool = False  # whether the metrics param was on for this run
-    water_weeds_lost_a: int = 0  # summed over agent_a's seat across all played orientations
-    plant_decay_units_lost_a: int = 0
-    animals_escaped_a: int = 0  # plan.md G5/v1d
-    clipped_production_ticks_a: int = 0  # plan.md G8/v1d
+    water_weeds_lost_a: Optional[int] = None  # None unless metrics_checked (review.md C3)
+    plant_decay_units_lost_a: Optional[int] = None
+    animals_escaped_a: Optional[int] = None  # plan.md G5/v1d
+    clipped_production_ticks_a: Optional[int] = None  # plan.md G8/v1d
     metric_gate_passed: Optional[bool] = None  # None unless metrics_checked
+    min_effect_used: float = 0.0  # review.md H1: the actual $ floor this verdict was judged against
+    non_inferiority_margin_used: float = 0.0
     go: bool = False  # True only for stage="holdout-confirm" + IMPROVED/NON_INFERIOR + metric gate passed
+    repeat_confirm_index: int = 0  # review.md C2: 0 = first confirm for this (agent_b, seed set)
+    agent_a_spec: str = ""  # review.md H5: raw spec strings, seed set name, and run provenance
+    agent_b_spec: str = ""
+    seed_set_name: str = ""
+    harness_git_sha: Optional[str] = None
+    platform: str = ""
+    python_version: str = ""
+    env: dict = field(default_factory=dict)  # every KAGGRI_* env var set during this run
 
 
 def compare(agent_a, agent_b, seeds: Sequence[int], *,
@@ -120,7 +235,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             require_distinct_versions: bool = True,
             workers: int = 1,
             metrics: bool = False,
-            stage: Optional[str] = None) -> CompareResult:
+            stage: Optional[str] = None,
+            accept_within_margin: bool = False,
+            allow_repeat_confirm: bool = False,
+            confirm_ledger_path: Optional[Path] = None) -> CompareResult:
     """Paired-seed protocol: A and B play the same seeds. With both_seats=True (default),
     each seed is played twice — A@seat0/B@seat1 and B@seat0/A@seat1 — since the weed-RNG
     seat coupling (MASTERPLAN §2#6) means seat 0/1 are not interchangeable. A seed's diff is
@@ -132,34 +250,79 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     run that dies partway (an errored seed, a crashed process) can continue instead of
     restarting (review.md M6). strict is forwarded to `play()`; a per-seed exception (from a
     strict violation or anything else) is caught, recorded in `errors`, and that seed is
-    skipped rather than losing every seed played before it.
+    skipped rather than losing every seed played before it. Resuming re-checks the full run
+    contract recorded in the first line of results.jsonl (code_fingerprints, metrics,
+    both_seats, steps) and raises on any mismatch (review.md C3) — an unmeasured metric gate
+    or a single-seat run must never silently launder into a "complete" both-seats/metrics
+    report just because --resume skipped every seed as already done.
 
     min_effect is the absolute-$ floor for `practical` (default max($200, 2% of mean bank_b)).
-    non_inferiority_margin defaults to the same value. Directional verdicts are:
-    IMPROVED, NON_INFERIOR, REGRESSED, INCONCLUSIVE, or INCOMPLETE.
+    non_inferiority_margin defaults to the same value; both are exposed on the result as
+    `min_effect_used`/`non_inferiority_margin_used` (review.md H1) since the percentage
+    default drifts as bank_b grows. Directional verdicts are: IMPROVED, NON_INFERIOR,
+    WITHIN_MARGIN, REGRESSED, INCONCLUSIVE, or INCOMPLETE.
 
     workers>1 runs one (seed, orientation) play() per ProcessPoolExecutor job (plan.md
     §1.5.1); per-seed diffs are identical to workers=1 for the same seeds/agents — only
     wall time changes. A non-picklable agent_a/agent_b (e.g. a lambda) falls back to
-    workers=1 with a warning instead of raising.
+    workers=1 with a warning instead of raising. Results are persisted (when run_dir is
+    given) as soon as each seed's orientation(s) all land, not only after the whole pool
+    finishes (review.md H6) — a run killed partway through still leaves a resumable
+    results.jsonl. As today, if any orientation for a seed errors, the whole seed is recorded
+    as errored — a lone successful sibling orientation is discarded, not silently kept.
 
     metrics=True (plan.md §1.5.3 / review.md §5 check #5) additionally extracts
     water_weeds_lost/plant_decay_units_lost/animals_escaped/clipped_production_ticks for
     agent_a's seat in every orientation played, exposed as `water_weeds_lost_a`/
     `plant_decay_units_lost_a`/`animals_escaped_a`/`clipped_production_ticks_a` (summed) and
     `metric_gate_passed` (all four counters exactly 0 — plan.md G5/G8 for the latter two, v1d).
-    Off by default — extract_metrics() is not free (review.md L5) and most calls (e.g.
-    ablation sweeps) only need `rewards`.
+    Off by default — extract_metrics() is not free (review.md L5) and most calls only need
+    `rewards`. When metrics=False these four fields are None, not 0 (review.md C3) — the
+    absence of measurement is not proof of zero loss.
 
     stage tags which decision this report may back: "dev-screen" (tuning/screening — never a
-    GO by itself) or "holdout-confirm" (the one-shot final check). `go` is only ever True for
-    stage="holdout-confirm" with verdict IMPROVED/NON_INFERIOR *and* metrics_checked with the
-    metric gate passed — a $-verdict computed without metrics never counts as a GO (plan.md
-    §1.5.3: "το $-gate δεν μετράει αν τα metric gates δεν έχουν τρέξει").
+    GO by itself, seeds must be a subset of harness.seeds.DEV_SEEDS) or "holdout-confirm"
+    (the one-shot final check, seeds must be a subset of the union of
+    harness.seeds.CONFIRM_SEED_SETS) — any other seeds for either stage raises (review.md C2).
+    A stage="holdout-confirm" call also checks+appends a tracked confirm ledger
+    (confirm_ledger_path, default harness.compare.DEFAULT_CONFIRM_LEDGER): a repeat confirm
+    for the same (agent_b fingerprint, seed set) raises unless allow_repeat_confirm=True, in
+    which case it's recorded as `repeat_confirm_index` (review.md C1/C2) instead of silently
+    picking the best of several pulls. It also raises if KAGGRI_ABLATION is set in the
+    environment, and warns if KAGGRI_DEBUG is (review.md H7) — both are recorded either way
+    in the `env` field.
+
+    `go` is only ever True for stage="holdout-confirm" with verdict IMPROVED or NON_INFERIOR
+    (or WITHIN_MARGIN with accept_within_margin=True) *and* metrics_checked with the metric
+    gate passed *and* no sign-test-confirmed regression (review.md H2: wins_b > wins_a at
+    p<0.01 blocks go unless accept_within_margin=True) — a $-verdict computed without metrics
+    never counts as a GO (plan.md §1.5.3).
     """
     if stage is not None and stage not in VALID_STAGES:
         raise ValueError(f"compare(): stage must be one of {VALID_STAGES} or None, got {stage!r}")
     seeds = list(seeds)
+
+    # review.md C2(a): stage and seeds used to be entirely uncross-checked — a --seed-set dev
+    # --stage holdout-confirm combination (or any ad-hoc seed list) could produce a GO from
+    # seeds that were just tuned on. Each stage now only accepts seeds actually drawn from the
+    # seed set(s) that stage means.
+    if stage == "holdout-confirm":
+        valid_confirm_seeds = set().union(*(set(s) for s in CONFIRM_SEED_SETS))
+        if not set(seeds) <= valid_confirm_seeds:
+            raise ValueError(
+                "compare(): stage='holdout-confirm' requires seeds drawn from a seed set "
+                "registered in harness.seeds.CONFIRM_SEED_SETS (HOLDOUT_SEEDS/CONFIRM2_SEEDS/"
+                "...) — got seeds outside all of them. A holdout-confirm gate must never run "
+                "on dev-screen or ad-hoc seeds (review.md C2)."
+            )
+    elif stage == "dev-screen":
+        if not set(seeds) <= set(DEV_SEEDS):
+            raise ValueError(
+                "compare(): stage='dev-screen' requires seeds drawn from harness.seeds."
+                "DEV_SEEDS — got seeds outside it, which could silently mix confirm-set seeds "
+                "into what's supposed to be a tuning-only report (review.md C2)."
+            )
+
     code_fingerprints = (agent_fingerprint(agent_a), agent_fingerprint(agent_b))
     if require_distinct_versions and code_fingerprints[0] == code_fingerprints[1]:
         raise ValueError(
@@ -173,31 +336,93 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             stacklevel=2,
         )
 
+    # review.md H7: an ablated/debug-instrumented environment must never produce a "clean"
+    # confirm artefact with no trace of it.
+    env_snapshot = _kaggri_env()
+    if stage == "holdout-confirm" and "KAGGRI_ABLATION" in env_snapshot:
+        raise ValueError(
+            "compare(): KAGGRI_ABLATION is set in the environment during a stage="
+            "'holdout-confirm' run — a confirm gate must never run under an ablation "
+            f"override (got {env_snapshot['KAGGRI_ABLATION']!r}); unset it before confirming "
+            "(review.md H7)."
+        )
+    if env_snapshot.get("KAGGRI_DEBUG") not in (None, "0"):
+        warnings.warn(
+            f"compare(): KAGGRI_DEBUG={env_snapshot['KAGGRI_DEBUG']!r} is set — this adds "
+            "per-turn debug work and receipt emission to every agent call, which will skew "
+            "timing; unset it for a clean gate/timing run (review.md H7).",
+            stacklevel=2,
+        )
+
+    if stage == "holdout-confirm":
+        _warn_if_not_checkpoint(agent_a, "agent_a")
+        _warn_if_not_checkpoint(agent_b, "agent_b")
+
+    # review.md C1/C2: a confirm seed set is checked exactly once per (agent_b, seed set)
+    # question. Checked up front (before playing anything) so a disallowed repeat fails fast.
+    ledger_path = Path(confirm_ledger_path) if confirm_ledger_path is not None else DEFAULT_CONFIRM_LEDGER
+    seed_set_name = _seed_set_label(seeds)
+    repeat_confirm_index = 0
+    if stage == "holdout-confirm":
+        prior_entries = _read_confirm_ledger(ledger_path)
+        repeat_confirm_index = sum(
+            1 for row in prior_entries
+            if row.get("agent_b_fp") == code_fingerprints[1]
+            and row.get("seed_set_name") == seed_set_name
+        )
+        if repeat_confirm_index > 0 and not allow_repeat_confirm:
+            raise ValueError(
+                f"compare(): stage='holdout-confirm' already has {repeat_confirm_index} "
+                f"recorded confirm(s) for agent_b fingerprint {code_fingerprints[1][:12]}... "
+                f"on seed set {seed_set_name!r} in {ledger_path} — a confirm set is checked "
+                "exactly once per question (plan.md §1.5.3 / review.md C1). Pass "
+                "allow_repeat_confirm=True only if this repeat is deliberate; it will be "
+                "recorded as repeat_confirm_index in the ledger and the result."
+            )
+
     run_dir_path = Path(run_dir) if run_dir is not None else None
     jsonl_path = run_dir_path / "results.jsonl" if run_dir_path is not None else None
 
     # review.md M2: rows used to carry no version identity, so `--resume` after changing the
     # agent under test silently mixed seeds from two different code versions into one verdict
-    # that still looked complete. The first line of results.jsonl now records the
-    # code_fingerprints this run was started with; resuming checks it matches.
+    # that still looked complete. review.md C3: the meta line now records the *whole* run
+    # contract (not just fingerprints) — metrics/both_seats/steps — and resuming into a
+    # results.jsonl recorded under a different contract raises, instead of silently averaging
+    # an unmeasured metric gate or a single-seat run into what looks like a complete report.
     done = {}
     if resume and jsonl_path is not None and jsonl_path.exists():
         lines = [line for line in jsonl_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         if lines and json.loads(lines[0]).get("_meta"):
-            recorded = tuple(json.loads(lines[0]).get("code_fingerprints", ()))
-            if recorded != code_fingerprints:
+            meta = json.loads(lines[0])
+            recorded_fingerprints = tuple(meta.get("code_fingerprints", ()))
+            if recorded_fingerprints != code_fingerprints:
                 raise ValueError(
                     f"compare(): --resume run_dir {run_dir_path} was recorded with code "
-                    f"fingerprints {recorded}, but this call is comparing {code_fingerprints} "
-                    f"— delete {jsonl_path} or use a different run_dir instead of mixing "
-                    "results from two different agent versions"
+                    f"fingerprints {recorded_fingerprints}, but this call is comparing "
+                    f"{code_fingerprints} — delete {jsonl_path} or use a different run_dir "
+                    "instead of mixing results from two different agent versions"
                 )
+            for contract_field, current_value in (
+                ("metrics", metrics), ("both_seats", both_seats), ("steps", steps),
+            ):
+                recorded_value = meta.get(contract_field, "<missing, predates this check>")
+                if contract_field not in meta or recorded_value != current_value:
+                    raise ValueError(
+                        f"compare(): --resume run_dir {run_dir_path} was recorded with "
+                        f"{contract_field}={recorded_value!r}, but this call passes "
+                        f"{contract_field}={current_value!r} — delete {jsonl_path} or use a "
+                        "different run_dir instead of resuming with different run parameters "
+                        "(review.md C3: an unmeasured metric gate or a single-seat run must "
+                        "never silently launder into a measured GO just because every seed "
+                        "looks 'done')"
+                    )
             data_lines = lines[1:]
         elif lines:
             raise ValueError(
                 f"compare(): --resume run_dir {run_dir_path} has a results.jsonl with no "
                 f"recorded code fingerprints (predates this check) — delete {jsonl_path} or "
-                "use a different run_dir; resuming into it could silently mix agent versions"
+                "use a different run_dir; resuming into it could silently mix results from "
+                "two different agent versions or run contracts"
             )
         else:
             data_lines = []
@@ -207,7 +432,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     elif jsonl_path is not None:
         run_dir_path.mkdir(parents=True, exist_ok=True)
         jsonl_path.write_text(
-            json.dumps({"_meta": True, "code_fingerprints": list(code_fingerprints)}) + "\n",
+            json.dumps({
+                "_meta": True,
+                "code_fingerprints": list(code_fingerprints),
+                "metrics": metrics,
+                "both_seats": both_seats,
+                "steps": steps,
+            }) + "\n",
             encoding="utf-8",
         )
 
@@ -226,6 +457,18 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         bank_b = statistics.mean(o["bank_b"] for o in orientations)
         diff = bank_a - bank_b
         winner = "a" if diff > 0 else ("b" if diff < 0 else "tie")
+        # plan.md §1.5.3: summed (not averaged) over every orientation played this seed — a
+        # defect that shows up in one orientation but not the other must still fail the gate,
+        # not get diluted into a mean. review.md C3: None (not 0) when metrics wasn't on for
+        # this run — a metric that was never measured must never read as "measured, zero".
+        if metrics:
+            water_weeds_lost_a = sum(o.get("water_weeds_lost_a", 0) for o in orientations)
+            plant_decay_units_lost_a = sum(o.get("plant_decay_units_lost_a", 0) for o in orientations)
+            animals_escaped_a = sum(o.get("animals_escaped_a", 0) for o in orientations)
+            clipped_production_ticks_a = sum(o.get("clipped_production_ticks_a", 0) for o in orientations)
+        else:
+            water_weeds_lost_a = plant_decay_units_lost_a = None
+            animals_escaped_a = clipped_production_ticks_a = None
         return {
             "seed": seed,
             "seat_layout": [o["layout"] for o in orientations],
@@ -234,13 +477,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "bank_b": bank_b,
             "diff": diff,
             "winner": winner,
-            # plan.md §1.5.3: summed (not averaged) over every orientation played this seed —
-            # a defect that shows up in one orientation but not the other must still fail the
-            # gate, not get diluted into a mean.
-            "water_weeds_lost_a": sum(o.get("water_weeds_lost_a", 0) for o in orientations),
-            "plant_decay_units_lost_a": sum(o.get("plant_decay_units_lost_a", 0) for o in orientations),
-            "animals_escaped_a": sum(o.get("animals_escaped_a", 0) for o in orientations),
-            "clipped_production_ticks_a": sum(o.get("clipped_production_ticks_a", 0) for o in orientations),
+            "water_weeds_lost_a": water_weeds_lost_a,
+            "plant_decay_units_lost_a": plant_decay_units_lost_a,
+            "animals_escaped_a": animals_escaped_a,
+            "clipped_production_ticks_a": clipped_production_ticks_a,
         }
 
     # review.md M2/M6 fields above already guard resume; a callable agent_spec (lambda,
@@ -269,8 +509,14 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             if both_seats:
                 jobs.append((seed, True))
 
-        raw_results = {}
-        job_errors = {}
+        # review.md H6: finalize+persist as soon as a seed's orientation(s) all land, instead
+        # of waiting for every future in the whole pool — a run killed partway (Ctrl-C, OOM,
+        # reboot) at seed 47/48 used to lose all 47 already-finished seeds because nothing was
+        # written until the pool closed. If any orientation for a seed errors, the whole seed
+        # is recorded as errored immediately and a later-arriving sibling orientation for the
+        # same seed is discarded (existing policy, now made explicit in code, not just timing).
+        partial: dict = {}
+        errored_seeds: set = set()
         with concurrent.futures.ProcessPoolExecutor(max_workers=effective_workers) as executor:
             future_to_job = {}
             for seed, swap in jobs:
@@ -280,39 +526,44 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 future_to_job[fut] = (seed, swap)
             for fut in concurrent.futures.as_completed(future_to_job):
                 seed, swap = future_to_job[fut]
+                if seed in errored_seeds:
+                    continue
                 try:
-                    raw_results[(seed, swap)] = fut.result()
+                    rewards, seat_metrics = fut.result()
                 except Exception as e:  # per-future try/except — one bad seed doesn't kill the pool
-                    job_errors.setdefault(seed, repr(e))
-
-        for seed in pending_seeds:
-            if seed in job_errors:
-                err_row = {"seed": seed, "error": job_errors[seed]}
-                computed[seed] = err_row
-                _persist(err_row)
-                continue
-            rewards0, metrics0 = raw_results[(seed, False)]
-            orientation0 = {"layout": "A@0/B@1", "bank_a": rewards0[0], "bank_b": rewards0[1]}
-            if metrics:
-                m0 = metrics0.get(0, {})
-                orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
-                orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
-                orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
-                orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
-            orientations = [orientation0]
-            if both_seats:
-                rewards1, metrics1 = raw_results[(seed, True)]
-                orientation1 = {"layout": "B@0/A@1", "bank_a": rewards1[1], "bank_b": rewards1[0]}
+                    errored_seeds.add(seed)
+                    partial.pop(seed, None)
+                    err_row = {"seed": seed, "error": repr(e)}
+                    computed[seed] = err_row
+                    _persist(err_row)
+                    continue
+                partial.setdefault(seed, {})[swap] = (rewards, seat_metrics)
+                needed = {False, True} if both_seats else {False}
+                if not needed <= partial[seed].keys():
+                    continue
+                rewards0, metrics0 = partial[seed][False]
+                orientation0 = {"layout": "A@0/B@1", "bank_a": rewards0[0], "bank_b": rewards0[1]}
                 if metrics:
-                    m1 = metrics1.get(1, {})
-                    orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
-                    orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
-                    orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
-                    orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
-                orientations.append(orientation1)
-            row = _finalize(seed, orientations)
-            computed[seed] = row
-            _persist(row)
+                    m0 = metrics0.get(0, {})
+                    orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
+                    orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
+                    orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
+                    orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
+                orientations = [orientation0]
+                if both_seats:
+                    rewards1, metrics1 = partial[seed][True]
+                    orientation1 = {"layout": "B@0/A@1", "bank_a": rewards1[1], "bank_b": rewards1[0]}
+                    if metrics:
+                        m1 = metrics1.get(1, {})
+                        orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
+                        orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
+                        orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
+                        orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
+                    orientations.append(orientation1)
+                row = _finalize(seed, orientations)
+                computed[seed] = row
+                _persist(row)
+                del partial[seed]
     else:
         for seed in pending_seeds:
             try:
@@ -414,13 +665,24 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     ):
         # review.md M3: a degenerate CI (n=1, or se_diff==0 with n>1) let a single lucky seed
         # or a coincidentally-constant diff pass as NON_INFERIOR with no statistical basis.
-        verdict = "NON_INFERIOR"
+        # review.md H2: an entirely-negative CI (confirmed regression, just a small one) is a
+        # different claim from a CI straddling zero (genuine equivalence) — split it out as
+        # WITHIN_MARGIN so it can never silently read as "didn't get worse".
+        verdict = "WITHIN_MARGIN" if ci95[1] < 0 else "NON_INFERIOR"
     else:
         verdict = "INCONCLUSIVE"
 
     wins_a = sum(1 for row in per_seed if row["winner"] == "a")
     wins_b = sum(1 for row in per_seed if row["winner"] == "b")
     ties = sum(1 for row in per_seed if row["winner"] == "tie")
+    # review.md H2: a paired-seed sign test — independent of the $-magnitude verdict above —
+    # catches a directionally-consistent regression (e.g. 5/43 wins) that nets under the
+    # margin. wins_a/wins_b (not episode_wins_*) since those are the actual paired trials.
+    sign_trials = wins_a + wins_b
+    sign_test_p = _sign_test_p(min(wins_a, wins_b), sign_trials) if sign_trials else None
+    sign_test_blocks_go = bool(
+        sign_test_p is not None and wins_b > wins_a and sign_test_p < 0.01 and not accept_within_margin
+    )
     raw_orientations = [
         orientation
         for row in per_seed
@@ -435,25 +697,46 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         else 0.0
     )
 
-    water_weeds_lost_a = sum(row["water_weeds_lost_a"] for row in per_seed)
-    plant_decay_units_lost_a = sum(row["plant_decay_units_lost_a"] for row in per_seed)
-    animals_escaped_a = sum(row.get("animals_escaped_a", 0) for row in per_seed)
-    clipped_production_ticks_a = sum(row.get("clipped_production_ticks_a", 0) for row in per_seed)
-    metric_gate_passed = (
-        (
+    if metrics:
+        water_weeds_lost_a = sum(row["water_weeds_lost_a"] for row in per_seed)
+        plant_decay_units_lost_a = sum(row["plant_decay_units_lost_a"] for row in per_seed)
+        animals_escaped_a = sum(row.get("animals_escaped_a", 0) for row in per_seed)
+        clipped_production_ticks_a = sum(row.get("clipped_production_ticks_a", 0) for row in per_seed)
+        metric_gate_passed = (
             water_weeds_lost_a == 0 and plant_decay_units_lost_a == 0
             and animals_escaped_a == 0 and clipped_production_ticks_a == 0
-        ) if metrics else None
-    )
+        )
+    else:
+        water_weeds_lost_a = plant_decay_units_lost_a = None
+        animals_escaped_a = clipped_production_ticks_a = None
+        metric_gate_passed = None
+
     # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
     # verdict, AND the metric gate having actually run and passed — an unmeasured metric
-    # gate must never silently count as passed.
+    # gate must never silently count as passed. review.md H2: WITHIN_MARGIN (a confirmed
+    # regression under the margin) only counts toward go with an explicit override, same as
+    # a sign-test-confirmed regression.
+    verdict_allows_go = verdict in ("IMPROVED", "NON_INFERIOR") or (
+        verdict == "WITHIN_MARGIN" and accept_within_margin
+    )
     go = bool(
         stage == "holdout-confirm"
-        and verdict in ("IMPROVED", "NON_INFERIOR")
+        and verdict_allows_go
         and metrics
         and metric_gate_passed
+        and not sign_test_blocks_go
     )
+
+    if stage == "holdout-confirm":
+        _append_confirm_ledger(ledger_path, {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "agent_a_fp": code_fingerprints[0],
+            "agent_b_fp": code_fingerprints[1],
+            "seed_set_name": seed_set_name,
+            "verdict": verdict,
+            "go": go,
+            "repeat_confirm_index": repeat_confirm_index,
+        })
 
     return CompareResult(
         per_seed=per_seed,
@@ -472,6 +755,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         median_bank_a=median_bank_a,
         significant=significant,
         practical=practical,
+        sign_test_p=sign_test_p,
         verdict=verdict,
         incomplete=incomplete,
         code_fingerprints=code_fingerprints,
@@ -482,5 +766,15 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         animals_escaped_a=animals_escaped_a,
         clipped_production_ticks_a=clipped_production_ticks_a,
         metric_gate_passed=metric_gate_passed,
+        min_effect_used=effective_min_effect,
+        non_inferiority_margin_used=effective_non_inferiority_margin,
         go=go,
+        repeat_confirm_index=repeat_confirm_index,
+        agent_a_spec=_agent_spec_label(agent_a),
+        agent_b_spec=_agent_spec_label(agent_b),
+        seed_set_name=seed_set_name,
+        harness_git_sha=_harness_git_sha(),
+        platform=platform_module.platform(),
+        python_version=platform_module.python_version(),
+        env=env_snapshot,
     )

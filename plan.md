@@ -9,7 +9,7 @@
 > Τελευταία ενημέρωση: **2026-08-05** (μετά το review.md). Deadline: **30 Σεπ 2026**.
 
 **Πού είμαστε σε μία παράγραφο:** Βήμα 0 κλειστό. v0→v1b αποδεκτά (median bank ~$21k).
-**v1c μπλοκαρισμένο** (3 αποτυχίες, root cause στο [review.md](review.md) §1). **Ενεργό
+**v1c μπλοκαρισμένο** (3 αποτυχίες, root cause στο [review.md](docs/reviews/review_89d99f0_2026-08-05.md) §1). **Ενεργό
 regression:** το working `agent/` είναι **−$2.195 έναντι του `checkpoints/v1b`** (se≈$93,
 CI [−2.399, −1.991], 24/24 episode losses) — άρα **κάθε gate είναι σήμερα μπλοκαρισμένο**, αφού
 όλα τα increments gate-άρουν εναντίον του v1b. Το επόμενο έργο δεν είναι feature αλλά
@@ -193,6 +193,17 @@ ci95=(1864.1,2372.4), verdict=IMPROVED και στα δύο runs — ίδιο α
 callable-fallback (α).
 
 ### 1.5.2 — Ξεμπλοκάρισμα του −$2.195 με αυτοματοποιημένο ablation — ✅ ΟΛΟΚΛΗΡΩΜΕΝΟ 2026-08-05
+
+> ⚠ **ΑΠΟΣΥΡΘΗΚΕ 2026-08-06 (review.md H3):** η ablation υποδομή περιγράφεται παρακάτω **όπως ήταν
+> τη 2026-08-05**, με baseline `checkpoints/v1b`. Από το v1c/v1d/v1e και μετά το `main.py` έχει
+> feature surface (animals, land, NE tiles, endgame WHEAT) χωρίς αντίστοιχα ablation flags, οπότε
+> «όλα τα flags off» δεν επαναφέρει πια το v1b — το self-test αποτυγχάνει δομικά. Ο σκοπός της
+> (attribution του −$2.195) είχε ήδη ολοκληρωθεί, οπότε αντί για re-baseline **`harness/ablate.py`,
+> `CONFIG["ablation"]`, `KAGGRI_ABLATION` και όλα τα v1b-reproduction branches αφαιρέθηκαν** από
+> `agent/{scheduler,executor,planner,policy}.py` (κάθε flag κράτησε τη σημερινή — `True` — τιμή του
+> ως μόνιμη συμπεριφορά). **Δεν είναι πλέον διαθέσιμο εργαλείο.** Τα checkpoints `v1c/v1d/v1e` είναι
+> immutable και κρατούν το δικό τους αντίγραφο του παλιού ablation κώδικα (αδρανές — δεν διαβάζεται
+> `KAGGRI_ABLATION` πουθενά πια), βλ. review.md §6 σημείωση.
 
 **Πλαίσιο:** `main.py` vs `checkpoints/v1b` = **−$2.195** (se≈$93, CI [−2.399, −1.991], 24/24
 episode losses, μηδέν errors). **Ήδη ΑΠΟΚΛΕΙΣΤΗΚΑΝ χειροκίνητα — μην τα ξαναψάξεις πρώτα:** το
@@ -516,6 +527,30 @@ NW) = **9** (n=649). **0 < 9 → η σειρά αντιστρέφεται σε v
 package namespace → **metric gate** (§1.5.3) → `compare(new, prev)` σε DEV (screen) → confirm σε
 HOLDOUT 48 seeds. `REGRESSED` = STOP και revert. `INCONCLUSIVE` σε HOLDOUT = STOP για απόφαση —
 δεν βαφτίζεται μη-χειροτέρευση.
+
+> ⚠ **review.md C1 — το v1c GO επιβεβαιώθηκε 2026-08-06 σε νέο, άθικτο σετ.** Το αρχικό
+> `NON_INFERIOR/GO=True` (mean_diff=−297.0) προέκυψε από best-of-2 τράβηγμα πάνω στο **ίδιο**
+> `HOLDOUT_SEEDS` (`gate_v1c_holdout` INCONCLUSIVE → αλλαγή `ne_carrot_tiles: 7→3` →
+> `gate_v1c_holdout2` NON_INFERIOR) — μεθοδολογικά άκυρο βάσει §1.5.1/§1.5.3, ανεξαρτήτως αν το
+> νούμερο ήταν σωστό. Επανάληψη **μία και μόνη φορά** σε νέο σετ:
+> `compare(checkpoints/v1c/main.py, checkpoints/v1d/main.py, CONFIRM2_SEEDS=range(200,248),
+> stage="holdout-confirm", metrics=True, both_seats=True)`, καταγεγραμμένο στο confirm ledger
+> (`repeat_confirm_index=0`), αποτέλεσμα σε
+> [gates/gate_v1c_confirm2/results.json](gates/gate_v1c_confirm2/results.json):
+> `wins_a=1 wins_b=46 ties=1` (v1c χάνει σχεδόν παντού από v1d· `sign_test_p≈6.8e-13`) ·
+> `mean_diff=−298.9` — **σχεδόν ταυτόσημο με το αρχικό −297.0**, άρα η προκατειλημμένη επιλογή
+> δεν διόγκωσε ουσιωδώς το νούμερο εδώ · `ci95=(−364.3, −233.6)` εξ ολοκλήρου αρνητικό ⇒
+> **`verdict=WITHIN_MARGIN`** (review.md H2 category): στατιστικά σημαντικό αλλά εντός του
+> προεγγεγραμμένου margin ($766.5) — `practical=False`, `metric_gate_passed=True`. `GO=False` σε
+> αυτό το run **εκ σχεδιασμού** (το WITHIN_MARGIN απαιτεί ρητό `--accept-within-margin`, ποτέ δεν
+> περνάει σιωπηλά).
+> **Απόφαση:** η γη (v1c) κοστίζει σταθερά ~$299 έναντι του v1d baseline, καλά εντός του margin —
+> **όχι REGRESSED/INCONCLUSIVE**, άρα το βήμα 3 του review.md C1 (αναθεώρηση NE tiles στο DEV, ή
+> `land.enabled=False` για την πρώτη υποβολή) **δεν ενεργοποιείται**. Το v1c GO **παραμένει**,
+> τώρα τεκμηριωμένο σε αμερόληπτα δεδομένα αντί για best-of-2. Το `CONFIRM2_SEEDS` θεωρείται πλέον
+> καμένο για αυτό το ερώτημα (μία χρήση, όπως το HOLDOUT πριν) — βλ. review.md C1 βήμα 1 «μην
+> ξανατρέξεις». Το βήμα 4 (Phase-1 acceptance `compare(v1e, "starter", HOLDOUT)`,
+> mean_diff=+$38.788, 96/96 wins) παραμένει ανεπηρέαστο, όπως προέβλεπε το review.
 
 ### 5.1 Decision point: γη πρώτα ή ζώα πρώτα; — ✅ ΛΥΘΗΚΕ ΑΡΙΘΜΗΤΙΚΑ 2026-08-06
 

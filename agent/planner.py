@@ -85,12 +85,9 @@ def make_day_plan(snapshot: Snapshot, config: dict) -> DayPlan:
         return DayPlan()
 
     # review.md L6: "enabled" used to be dead — liquidation fired unconditionally off
-    # liquidation_day regardless of this flag's value. ablation.endgame_enabled=False
-    # reproduces that v1b behavior (unconditional on liquidation_day) as a control: the flag
-    # is already True by default, so it should be a no-op — a non-zero diff here would mean
-    # the ablation infrastructure itself is broken, not that this flag matters.
+    # liquidation_day regardless of this flag's value; it's now load-bearing.
     liquidation_active = (
-        (config["endgame"].get("enabled", False) if config["ablation"]["endgame_enabled"] else True)
+        config["endgame"].get("enabled", False)
         and snapshot.day >= config["endgame"]["liquidation_day"]
     )
     phase = "LIQUIDATE" if liquidation_active else "GROW"
@@ -111,10 +108,7 @@ def make_day_plan(snapshot: Snapshot, config: dict) -> DayPlan:
         if strawberry_target:
             strawberry_target += int(planner_config.get("ne_strawberry_tiles", 0))
     raw_targets = {"CARROT": carrot_target, "STRAWBERRY": strawberry_target}
-    plant_targets = (
-        _capacity_limited_targets(snapshot, config, raw_targets)
-        if config["ablation"]["capacity_gate"] else raw_targets
-    )
+    plant_targets = _capacity_limited_targets(snapshot, config, raw_targets)
 
     max_new_plants = int(planner_config["max_new_plants_per_day"])
     if ne_land_unlocked:

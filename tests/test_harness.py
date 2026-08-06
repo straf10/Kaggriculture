@@ -13,6 +13,7 @@ from harness.checkpoint import agent_fingerprint, create_checkpoint
 from harness.compare import VALID_STAGES, compare
 from harness.play import play, resolve_agent
 from harness.profile import report, timed
+from harness.seeds import HOLDOUT_SEEDS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -295,6 +296,162 @@ def test_compare_resume_rejects_mismatched_code_fingerprints(tmp_path):
 
 
 @pytestmark_small_seed_warning
+def test_compare_resume_rejects_metrics_mismatch(tmp_path):
+    """review.md C3 — resuming a metrics=False run with metrics=True (or vice versa) must
+    raise instead of silently averaging an unmeasured metric gate into a report that reads
+    as fully measured just because every seed already looks 'done'."""
+    def fake_play(a, b, seed, **kwargs):
+        rewards = (100.0, 50.0) if a == "A" else (50.0, 100.0)
+        metrics = {0: {"water_weeds_lost": 0, "plant_decay_units_lost": 0}, 1: {}}
+        return SimpleNamespace(rewards=rewards, metrics=metrics)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        compare("A", "B", [0], both_seats=False, record=False, run_dir=tmp_path)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        with pytest.raises(ValueError, match="metrics"):
+            compare("A", "B", [1], both_seats=False, record=False, run_dir=tmp_path,
+                    resume=True, metrics=True)
+
+
+@pytestmark_small_seed_warning
+def test_compare_resume_rejects_both_seats_mismatch(tmp_path):
+    """review.md C3 — resuming a single-seat run as both_seats=True must raise instead of
+    silently mixing 1-orientation and 2-orientation seeds into one mean_diff."""
+    def fake_play(a, b, seed, **kwargs):
+        rewards = (100.0, 50.0) if a == "A" else (50.0, 100.0)
+        return SimpleNamespace(rewards=rewards)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        compare("A", "B", [0], both_seats=False, record=False, run_dir=tmp_path)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        with pytest.raises(ValueError, match="both_seats"):
+            compare("A", "B", [1], both_seats=True, record=False, run_dir=tmp_path, resume=True)
+
+
+@pytestmark_small_seed_warning
+def test_compare_rejects_holdout_confirm_stage_on_non_confirm_seeds(tmp_path):
+    """review.md C2(a) — stage='holdout-confirm' must only accept seeds drawn from a
+    registered confirm set (HOLDOUT_SEEDS/CONFIRM2_SEEDS); ad-hoc or dev-screen seeds must
+    raise before a single episode is played."""
+    with pytest.raises(ValueError, match="holdout-confirm"):
+        compare("A", "B", range(12), record=False, stage="holdout-confirm",
+                confirm_ledger_path=tmp_path / "ledger.jsonl")
+
+
+@pytestmark_small_seed_warning
+def test_compare_rejects_dev_screen_stage_on_non_dev_seeds():
+    """review.md C2(a) — the dev-screen/holdout-confirm split is symmetric: dev-screen must
+    equally refuse seeds outside DEV_SEEDS (e.g. confirm-set seeds tuning shouldn't touch)."""
+    with pytest.raises(ValueError, match="dev-screen"):
+        compare("A", "B", list(HOLDOUT_SEEDS)[:12], record=False, stage="dev-screen")
+
+
+@pytestmark_small_seed_warning
+def test_compare_second_confirm_raises_without_override(tmp_path):
+    """review.md C1/C2 — the exact v1c failure mode: a second stage=holdout-confirm run
+    against the same (agent_b fingerprint, seed set) must raise unless allow_repeat_confirm
+    is explicit, and is then recorded as repeat_confirm_index instead of silently picking
+    the better of two pulls."""
+    def fake_play(a, b, seed, **kwargs):
+        rewards = (150.0, 100.0) if a == "A" else (100.0, 150.0)
+        metrics = {0: {"water_weeds_lost": 0, "plant_decay_units_lost": 0},
+                   1: {"water_weeds_lost": 0, "plant_decay_units_lost": 0}}
+        return SimpleNamespace(rewards=rewards, metrics=metrics)
+
+    ledger = tmp_path / "confirm_log.jsonl"
+    seeds = list(HOLDOUT_SEEDS)[:12]
+    with patch("harness.compare.play", side_effect=fake_play):
+        first = compare("A", "B", seeds, both_seats=False, record=False, metrics=True,
+                         min_effect=10.0, stage="holdout-confirm", confirm_ledger_path=ledger)
+        assert first.repeat_confirm_index == 0
+
+        with pytest.raises(ValueError, match="already has"):
+            compare("A", "B", seeds, both_seats=False, record=False, metrics=True,
+                    min_effect=10.0, stage="holdout-confirm", confirm_ledger_path=ledger)
+
+        second = compare("A", "B", seeds, both_seats=False, record=False, metrics=True,
+                          min_effect=10.0, stage="holdout-confirm", confirm_ledger_path=ledger,
+                          allow_repeat_confirm=True)
+    assert second.repeat_confirm_index == 1
+
+
+@pytestmark_small_seed_warning
+def test_compare_exposes_effective_margins():
+    """review.md H1 — min_effect_used/non_inferiority_margin_used must reflect what the
+    verdict was actually judged against; it drifts (2% of bank_b) unless pinned explicitly,
+    and used to not be recorded anywhere in the result."""
+    def fake_play(a, b, seed, **kwargs):
+        rewards = (150.0, 100.0) if a == "A" else (100.0, 150.0)
+        return SimpleNamespace(rewards=rewards)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=False, record=False, min_effect=42.0)
+    assert result.min_effect_used == 42.0
+    assert result.non_inferiority_margin_used == 42.0
+
+
+@pytestmark_small_seed_warning
+def test_compare_within_margin_requires_explicit_accept_for_go(tmp_path):
+    """review.md H2 — a paired-seed CI entirely negative (every seed lost, just by less than
+    the margin) is a confirmed small regression, not genuine equivalence — it must read as
+    WITHIN_MARGIN (not NON_INFERIOR) and must never produce go=True without an explicit
+    accept_within_margin=True, since the sign test here is also unanimous against agent_a."""
+    def fake_play(a, b, seed, **kwargs):
+        diff = -10.0 if seed % 2 == 0 else -11.0
+        rewards = (100.0 + diff, 100.0) if a == "A" else (100.0, 100.0 + diff)
+        metrics = {0: {"water_weeds_lost": 0, "plant_decay_units_lost": 0},
+                   1: {"water_weeds_lost": 0, "plant_decay_units_lost": 0}}
+        return SimpleNamespace(rewards=rewards, metrics=metrics)
+
+    seeds = list(HOLDOUT_SEEDS)[:12]
+    ledger = tmp_path / "confirm_log.jsonl"
+    with patch("harness.compare.play", side_effect=fake_play):
+        blocked = compare("A", "B", seeds, both_seats=False, record=False, metrics=True,
+                           non_inferiority_margin=50.0, stage="holdout-confirm",
+                           confirm_ledger_path=ledger)
+        accepted = compare("A", "B", seeds, both_seats=False, record=False, metrics=True,
+                            non_inferiority_margin=50.0, stage="holdout-confirm",
+                            confirm_ledger_path=ledger, allow_repeat_confirm=True,
+                            accept_within_margin=True)
+
+    assert blocked.verdict == "WITHIN_MARGIN"
+    assert blocked.sign_test_p is not None and blocked.sign_test_p < 0.01
+    assert blocked.go is False
+    assert accepted.verdict == "WITHIN_MARGIN"
+    assert accepted.go is True
+
+
+@pytestmark_small_seed_warning
+def test_compare_holdout_confirm_rejects_kaggri_ablation_env(monkeypatch, tmp_path):
+    """review.md H7 — an ablated environment must never produce a 'clean' confirm artefact
+    with no trace of it; this must raise before any episode is played."""
+    monkeypatch.setenv("KAGGRI_ABLATION", "some_flag=0")
+    with pytest.raises(ValueError, match="KAGGRI_ABLATION"):
+        compare("A", "B", list(HOLDOUT_SEEDS)[:12], record=False, stage="holdout-confirm",
+                confirm_ledger_path=tmp_path / "ledger.jsonl")
+
+
+@pytestmark_small_seed_warning
+def test_compare_records_provenance_fields():
+    """review.md H5 — agent specs, seed set name, harness commit, and platform info must be
+    on the result so a gate artefact is reproducible without external context."""
+    def fake_play(a, b, seed, **kwargs):
+        rewards = (150.0, 100.0) if a == "A" else (100.0, 150.0)
+        return SimpleNamespace(rewards=rewards)
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=False, record=False)
+    assert result.agent_a_spec == "A"
+    assert result.agent_b_spec == "B"
+    assert result.seed_set_name.startswith("custom[")
+    assert result.platform
+    assert result.python_version
+    assert isinstance(result.env, dict)
+
+
+@pytestmark_small_seed_warning
 def test_compare_workers_matches_sequential_per_seed_diffs():
     """plan.md §1.5.1 criterion (i): workers=1 (sequential) and workers>1 (ProcessPoolExecutor,
     one job per (seed, orientation)) must produce identical per-seed diffs for the same
@@ -365,7 +522,9 @@ def test_compare_metrics_off_by_default_leaves_gate_fields_unset():
         result = compare("A", "B", [0], both_seats=False, record=False)
     assert result.metrics_checked is False
     assert result.metric_gate_passed is None
-    assert result.water_weeds_lost_a == 0
+    # review.md C3 — None (not 0) when metrics wasn't measured: "not measured" and
+    # "measured, zero" must not be indistinguishable.
+    assert result.water_weeds_lost_a is None
     assert result.go is False
 
 
@@ -394,7 +553,7 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
 
 
 @pytestmark_small_seed_warning
-def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate():
+def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate(tmp_path):
     """plan.md §1.5.3 acceptance criterion — a GO must never be readable off a dev-screen
     report, nor off a holdout report where the metric gate didn't run, nor when the metric
     gate itself failed, regardless of how clean the $-verdict looks."""
@@ -405,13 +564,21 @@ def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate():
                    1: {"water_weeds_lost": 0, "plant_decay_units_lost": 0}}
         return SimpleNamespace(rewards=rewards, metrics=metrics)
 
+    ledger = tmp_path / "confirm_log.jsonl"
+    # review.md C2 — holdout-confirm seeds must come from a registered confirm set (here
+    # HOLDOUT_SEEDS); two disjoint slices so the two holdout-confirm calls below don't collide
+    # in the confirm ledger's (agent_b_fp, seed_set_name) dedup key.
+    holdout_slice_1 = list(HOLDOUT_SEEDS)[:12]
+    holdout_slice_2 = list(HOLDOUT_SEEDS)[12:24]
+
     with patch("harness.compare.play", side_effect=fake_play):
         dev_screen = compare("A", "B", range(12), both_seats=False, record=False,
                               metrics=True, min_effect=10.0, stage="dev-screen")
-        no_metrics = compare("A", "B", range(12), both_seats=False, record=False,
-                              min_effect=10.0, stage="holdout-confirm")
-        confirmed = compare("A", "B", range(12), both_seats=False, record=False,
-                             metrics=True, min_effect=10.0, stage="holdout-confirm")
+        no_metrics = compare("A", "B", holdout_slice_1, both_seats=False, record=False,
+                              min_effect=10.0, stage="holdout-confirm", confirm_ledger_path=ledger)
+        confirmed = compare("A", "B", holdout_slice_2, both_seats=False, record=False,
+                             metrics=True, min_effect=10.0, stage="holdout-confirm",
+                             confirm_ledger_path=ledger)
 
     assert dev_screen.verdict == "IMPROVED"
     assert dev_screen.go is False  # clean verdict, wrong stage
@@ -423,7 +590,7 @@ def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate():
 
 
 @pytestmark_small_seed_warning
-def test_compare_go_false_when_metric_gate_fails_even_at_holdout_confirm():
+def test_compare_go_false_when_metric_gate_fails_even_at_holdout_confirm(tmp_path):
     def fake_play(a, b, seed, **kwargs):
         diff = 50.0 if seed % 2 == 0 else 40.0
         rewards = (100.0 + diff, 100.0) if a == "A" else (100.0, 100.0 + diff)
@@ -432,8 +599,9 @@ def test_compare_go_false_when_metric_gate_fails_even_at_holdout_confirm():
         return SimpleNamespace(rewards=rewards, metrics=metrics)
 
     with patch("harness.compare.play", side_effect=fake_play):
-        result = compare("A", "B", range(12), both_seats=False, record=False,
-                          metrics=True, min_effect=10.0, stage="holdout-confirm")
+        result = compare("A", "B", list(HOLDOUT_SEEDS)[:12], both_seats=False, record=False,
+                          metrics=True, min_effect=10.0, stage="holdout-confirm",
+                          confirm_ledger_path=tmp_path / "confirm_log.jsonl")
 
     assert result.verdict == "IMPROVED"
     assert result.metric_gate_passed is False

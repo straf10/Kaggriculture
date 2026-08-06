@@ -41,7 +41,6 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
     if not config["scheduler"].get("enabled", False):
         return []
 
-    ablation = config["ablation"]
     tasks = []
     turns_per_day = config["runtime"]["turns_per_day"]
     day_deadline = (snapshot.day + 1) * turns_per_day - 1
@@ -72,9 +71,6 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
     # PLANT tile whose only seed was already claimed by an earlier task in this same build.
     plant_budget_remaining = max(0, max_new_plants - planted_today)
     seeds_budget = dict(snapshot.seeds)
-    # v1b behavior when plant_task_cap is off: a single build-time threshold check, not a
-    # per-task-decremented budget.
-    plant_cap_ok_v1b = planted_today < max_new_plants
 
     for crop, target_index, (x, y) in target_specs:
         plant_limit = plan.plant_targets.get(crop, 0)
@@ -87,7 +83,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             # the engine's yield window (ages 2-3) — a rare, small unit-turn waste, not
             # present in plan.md's ablation table but needed for the all-off self-test to
             # reproduce v1b exactly (criterion #1).
-            carrot_water_age_ok = (2 <= age <= 3) if ablation["carrot_water_window"] else age >= 2
+            carrot_water_age_ok = 2 <= age <= 3
             needs_water = (
                 not tile.get("watered_today")
                 and (
@@ -125,11 +121,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
         # though assign() may hand the task to a hand standing somewhere else entirely. Use
         # the closest unit's distance instead, so a hand near a far tile isn't blocked by
         # (and a hand far from a near tile doesn't wrongly greenlight) a farmer-only estimate.
-        if config["ablation"]["per_unit_plant_feasibility"]:
-            min_distance = min(abs(ux - x) + abs(uy - y) for ux, uy in unit_positions)
-        else:
-            farmer_x, farmer_y = unit_positions[0]
-            min_distance = abs(farmer_x - x) + abs(farmer_y - y)
+        min_distance = min(abs(ux - x) + abs(uy - y) for ux, uy in unit_positions)
         if isinstance(tile, dict) and tile.get("kind") == "WEED":
             if target_index < plant_limit and min_distance + 3 <= turns_left_today:
                 tasks.append(Task(
@@ -141,10 +133,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
                 ))
             continue
 
-        plant_cap_ok = (
-            (plant_budget_remaining > 0 and seeds_budget.get(crop, 0) > 0)
-            if ablation["plant_task_cap"] else plant_cap_ok_v1b
-        )
+        plant_cap_ok = plant_budget_remaining > 0 and seeds_budget.get(crop, 0) > 0
         if (
             target_index < plant_limit
             and tile is None
@@ -161,9 +150,8 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
                 required_inventory={f"{crop}_SEED": 1},
                 reservation_key=f"seed:{crop}",
             ))
-            if ablation["plant_task_cap"]:
-                plant_budget_remaining -= 1
-                seeds_budget[crop] -= 1
+            plant_budget_remaining -= 1
+            seeds_budget[crop] -= 1
 
     if plan.force_liquidation:
         # review.md M1: one DROP task per loaded unit, restricted to that unit, instead of a
@@ -180,31 +168,17 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
         def _liquidatable(inventory: dict) -> int:
             return sum(v for k, v in inventory.items() if k != "WHEAT")
 
-        if ablation["drop_task_per_unit"]:
-            for unit_index, unit_pos in enumerate(unit_positions):
-                del unit_pos
-                inventory = snapshot.inventories[unit_index] if unit_index < len(snapshot.inventories) else {}
-                if _liquidatable(inventory) > 0:
-                    tasks.append(Task(
-                        id=f"drop:liquidation:{unit_index}",
-                        kind="DROP",
-                        pos=access,
-                        priority=0,
-                        deadline_step=config["runtime"]["episode_steps"] - 2,
-                        allowed_unit=unit_index,
-                    ))
-        else:
-            any_inventory = any(
-                _liquidatable(snapshot.inventories[i] if i < len(snapshot.inventories) else {}) > 0
-                for i in range(len(unit_positions))
-            )
-            if any_inventory:
+        for unit_index, unit_pos in enumerate(unit_positions):
+            del unit_pos
+            inventory = snapshot.inventories[unit_index] if unit_index < len(snapshot.inventories) else {}
+            if _liquidatable(inventory) > 0:
                 tasks.append(Task(
-                    id="drop:liquidation",
+                    id=f"drop:liquidation:{unit_index}",
                     kind="DROP",
                     pos=access,
                     priority=0,
                     deadline_step=config["runtime"]["episode_steps"] - 2,
+                    allowed_unit=unit_index,
                 ))
 
     tasks.extend(_build_animal_tasks(snapshot, plan, config, unit_positions, day_deadline))
@@ -212,8 +186,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
     # review.md L8: truncation used to follow construction order (CARROT tiles first), not
     # priority — a footgun if the task pool ever actually reaches max_tasks (currently
     # unreachable at 400, but not something the code should rely on staying true).
-    if ablation["priority_sort_before_truncate"]:
-        tasks.sort(key=lambda task: task.priority)
+    tasks.sort(key=lambda task: task.priority)
     return tasks[:config["scheduler"]["max_tasks"]]
 
 
@@ -406,7 +379,6 @@ def assign(
     stable; a commitment only breaks when the task itself vanishes from the fresh task list.)
     """
     committed = committed or {}
-    ablation = config["ablation"]
     unit_positions = [snapshot.farmer_pos, *snapshot.hand_positions]
     actions = [["PASS"] for _ in unit_positions]
     remaining_tasks = list(tasks)
@@ -455,14 +427,10 @@ def assign(
             # by slack ahead of distance (tier 0, C1/§1.2's far-but-urgent fix); every other
             # ("comfortable") task falls back to plain nearest-first (tier 1), matching v1b's
             # efficient default the rest of the time.
-            if ablation["slack_assign"]:
-                slack = task.deadline_step - snapshot.step - (best_distance + 1)
-                urgent = slack <= config["scheduler"]["urgency_slack_margin"]
-                urgency_tier = 0 if urgent else 1
-                task_slack = slack if urgent else 0
-            else:
-                urgency_tier = 0
-                task_slack = task.deadline_step
+            slack = task.deadline_step - snapshot.step - (best_distance + 1)
+            urgent = slack <= config["scheduler"]["urgency_slack_margin"]
+            urgency_tier = 0 if urgent else 1
+            task_slack = slack if urgent else 0
             for unit_index in eligible_units:
                 unit_pos = unit_positions[unit_index]
                 if (
@@ -472,10 +440,7 @@ def assign(
                 ):
                     continue
                 distance = abs(unit_pos[0] - task.pos[0]) + abs(unit_pos[1] - task.pos[1])
-                switching = (
-                    (0 if committed.get(unit_index) == task.id else 1)
-                    if ablation["task_stickiness"] else 0
-                )
+                switching = 0 if committed.get(unit_index) == task.id else 1
                 candidates.append((
                     task.priority,
                     switching,

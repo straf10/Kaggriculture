@@ -239,6 +239,26 @@ def test_m7_market_orders_truncates_instead_of_raising():
     assert len(orders) == 1
 
 
+def test_h8_market_truncation_keeps_hire_over_sell():
+    """review.md H8 — truncation used to keep construction order (SELL orders built first),
+    so a budget-tight turn could drop HIRE/BUY_LAND — the orders with the largest measured
+    ROI — in favor of a SELL worth a few dollars. HIRE (tier 0) must survive a 1-order budget
+    ahead of a pending SELL (tier 5), regardless of which was constructed first."""
+    from agent.executor import market_orders
+
+    tight_config = copy.deepcopy(CONFIG)
+    tight_config["executor"]["max_market_orders"] = 1
+    observation = _minimal_observation(step=0)
+    observation["private"]["shed"]["CARROT"] = 50
+    observation["market"]["inventory"]["CARROT"] = 10_000
+    observation["market"]["prices"]["CARROT"] = 35
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, tight_config)
+    ledger = make_ledger(snapshot)
+    orders = market_orders(snapshot, plan, ledger, [["PASS"]], tight_config)
+    assert orders == [["HIRE"]]
+
+
 def test_g10_strawberry_planting_stops_after_opening_window():
     observation = _minimal_observation(step=6 * 24)
     observation["private"]["seeds"]["STRAWBERRY"] = 3
