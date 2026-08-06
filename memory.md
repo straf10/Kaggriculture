@@ -10,6 +10,128 @@
 
 ---
 
+## 2026-08-06 (στ) — Session: v1f (crew scale-up) ολοκληρώθηκε· `checkpoints/v1f` δημιουργήθηκε με `hands_target=6`
+
+**Context:** Συνέχεια από το 2026-08-06 (ε) — το bisect prerequisite ήταν λυμένο, ξεκίνησε η
+κυρίως δουλειά του v1f (current_phase.md ΜΕΡΟΣ Β, πρώτο increment).
+
+**Capacity gate fix ([agent/planner.py](agent/planner.py)):** το `_capacity_limited_targets()`
+gate μοίραζε unit-turn supply μόνο βάσει crop-watering demand, χωρίς να αφαιρεί πρώτα τη
+σταθερή καθημερινή ζήτηση FEED/CARE των ζώων (που re-arm-άρονται στο day rollover ακριβώς
+όπως το watering). Προστέθηκε `_animal_daily_demand(config)` — υπολογίζει
+`(distance-from-shed + 1) + 1` turns/ζώο/μέρα (commute+FEED, +1 CARE στο ίδιο tile) — και το
+crop budget είναι τώρα `safety_factor * supply - animal_demand` αντί για `safety_factor *
+supply`. Χωρίς αυτό, τα έξτρα hands του v1f θα γέμιζαν crop targets που ήδη ήταν στο
+πραγματικό τους ceiling, αφήνοντας τη ζήτηση των ζώων ανεπαρκώς καλυμμένη.
+
+**HIRE-ordering / scheduler scaling:** επιβεβαιώθηκαν **χωρίς αλλαγή κώδικα**. Simulated
+`market_orders()` στο `hands_target=12`, 0 hands hired, $100k: 10/10 orders όλα HIRE (tier 0
+στο `_ORDER_TIER` ήδη επαρκές). Εξετάστηκε και απορρίφθηκε το raise του
+`executor.max_market_orders` πάνω από 10 — το engine (`maxMarketOrdersPerTurn`, default 10,
+naive `q[:max_orders]` positional truncation, **όχι** priority-aware) θα ακύρωνε σιωπηλά το
+δικό μας tier-based ordering αν το δικό μας cap ξεπερνούσε το πραγματικό engine limit.
+`scheduler.assign()` profiled στα 13 units (1 farmer + 12 hands) × 400 synthetic tasks × 200
+trials: mean=43.75ms, p95=60.75ms, **max=63.73ms** — πολύ κάτω από το 333ms/turn budget.
+
+**Screen (DEV_SEEDS, 48 seeds, both_seats) vs `checkpoints/v1e`, 4 candidates (hands_target
+6/8/10/12, χτισμένα ως πραγματικά checkpoints μέσω `harness.checkpoint.create_checkpoint`):**
+h6 `IMPROVED` +$2240.09 (se=47.09, 96/96 wins) · h8 `IMPROVED` +$1107.48 (se=47.02, 96/96
+wins) · h10 `REGRESSED` -$1894.01 (se=53.39, 0/96 wins) · h12 `REGRESSED` -$2334.64 (se=50.11,
+0/96 wins). Ερμηνεία: το σταθερό 41-tile crop ceiling + 3 ζώα δεν έχουν άλλη δουλειά πέρα από
+~7-8 hands' worth of unit-turns — πάνω από αυτό τα έξτρα hands μένουν idle και το hiring cost
+γίνεται καθαρή ζημιά, ακριβώς το failure mode που προειδοποιούσε το spec (bounded από τα
+config tile counts, όχι από το ίδιο το capacity gate).
+
+**Απόφαση:** μόνο h6/h8 πήγαν σε holdout-confirm — **όχι** μηχανικό "top-3" — γιατί
+`REGRESSED` = STOP ανά το πρωτόκολλο (current_phase.md γραμμή 119), και ένα 3ο confirm θα
+έκαιγε ledger slot χωρίς νόημα.
+
+**Holdout-confirm (`HOLDOUT_SEEDS` 100-147, `stage="holdout-confirm"`) vs `checkpoints/v1e`:**
+h6 `IMPROVED` **+$2241.72/ep** (se=48.97, CI [2143, 2340], 96/96 wins, 0 errors) · h8
+`IMPROVED` +$1107.15/ep (se=48.45, CI [1010, 1205], 96/96 wins, 0 errors). Μη επικαλυπτόμενα
+95% CI ⇒ **h6 νικητής, όχι μόνο "και τα δύο ΟΚ"**. Το ρητό current_phase.md 3-item metric gate
+(`water_weeds_lost_a=0`, `plant_decay_units_lost_a=0`, `unexplained_noops_a=0`) καθαρό και στα
+δύο. Το harness-wide αυστηρότερο `metric_gate_passed` έβγαινε `False` και στα δύο λόγω
+`weeds_lost_a=1440` — επιβεβαιώθηκε ξεχωριστά (`baseline_weeds_check.py`) ότι αυτό είναι
+**pre-existing condition ήδη στο `checkpoints/v1e`** (parity ακόμα και σε `hands_target=3`),
+όχι v1f regression· καταγράφεται ως ανοιχτό θέμα, δεν μπλόκαρε το gate (current_phase.md's
+ρητό, στενότερο 3-item spec είναι το authoritative gate για το v1f, όχι το ευρύτερο
+`weeds_lost`-inclusive harness field, το οποίο ήταν μεταγενέστερο hardening — βλ.
+`docs/reviews/review_4452427_2026-08-06.md` finding M1).
+
+**Finalization:** `agent/config.py`'s `planner.hands_target` 3 → **6** στο live tree (με
+inline σχόλιο τεκμηρίωσης). `pytest tests/` → 133 passed μετά την αλλαγή. `checkpoints/v1f`
+δημιουργήθηκε μέσω `harness.checkpoint.create_checkpoint("v1f", source_root=".")`· fingerprint
+verified: `5d0900136e28964ca1998ae81cdc32126f47e211041a2287ea46c810796c1be8`. Sanity re-check
+του πραγματικού `checkpoints/v1f/main.py` (όχι το scratch candidate) vs `checkpoints/v1e` σε 4
+seeds: mean_diff=2227.875, `IMPROVED`, 0 errors, καθαρό gate — συνεπές με το holdout νούμερο.
+
+**Δεν έγινε ακόμα:** commit των αλλαγών (`agent/executor.py`'s (ε) fix, `agent/planner.py`'s
+(στ) capacity fix, `agent/config.py`'s hands_target=6, το νέο `checkpoints/v1f/`) — εκκρεμεί
+έγκριση χρήστη, standing git-safety protocol.
+
+**Next session should:** (1) commit αν εγκριθεί· (2) προχωρήστε στο v1g (μάζα ζώων 3→~13,
+current_phase.md ΜΕΡΟΣ Β) με baseline πλέον το `checkpoints/v1f`· (3) σκεφτείτε αν το
+`weeds_lost` pre-existing issue αξίζει ξεχωριστό increment/investigation πριν το v1i.
+
+---
+
+## 2026-08-06 (ε) — Session: bisect του c7767bb ολοκληρώθηκε· root cause βρέθηκε και διορθώθηκε στο `agent/executor.py`
+
+**Context:** Εκκίνηση του v1f (current_phase.md ΜΕΡΟΣ Β) με προαπαιτούμενο το bisect του
+`c7767bb` regression (memory.md 2026-08-06 (δ)) — "εκκρεμότητα πριν αυτό γίνει βάση για v1f".
+
+**Μεθοδολογική παγίδα (βρέθηκε πρώτα, σημαντική για μελλοντικά bisects):** ένα πρώτο
+`git worktree`-based bisect έδωσε πανομοιότυπα αποτελέσματα ανεξαρτήτως ποιο αρχείο
+patch-αριζόταν — σημάδι σφάλματος. Root cause: `main.py` κάνει `from agent.policy import
+agent`· όταν το compare τρέχει με cwd = repo root, το **live repo-root `agent/` package
+σκιάζει σιωπηλά κάθε worktree που επίσης ονομάζεται `agent`** (ίδιο module name στο
+`sys.path`), ανεξαρτήτως ποιο commit έχει checked out το worktree. **Fix/κανόνας για το
+μέλλον:** κάθε worktree/αντίγραφο πρέπει να μετονομάζεται σε μοναδικό package name (π.χ.
+`agent_wt<commit>`) και το `main.py`'s import να ενημερώνεται αντίστοιχα πριν από `compare()`.
+Μετά τη διόρθωση της μεθοδολογίας, το bisect επιβεβαίωσε την αρχική υπόθεση του
+current_phase.md: `99db4fb` καθαρό (mean_diff=0.0 vs checkpoint)· `c7767bb` αναπαράγει
+ολόκληρο το -$574.9/episode χάσμα (se=130, ταυτόσημο με το live HEAD vs checkpoint). File-by-
+file isolation μέσα στο `c7767bb` diff (8 αρχεία `agent/*.py`) έδειξε **`executor.py`
+μόνο του**: mean_diff=-670.5 (se=105.5)· τα υπόλοιπα 7 αρχεία καθαρά ή θόρυβος
+(`scheduler.py`: -2.5/se=1.1).
+
+**Root cause:** το `c7767bb`'s wheat-purchase-για-placed-animals block στο
+`market_orders()` ([agent/executor.py](agent/executor.py)) έχασε το `if snapshot.hour == 0:`
+gate του (review.md M4 ήθελε intra-day retry όταν ένα hour-0 cash shortfall λυνόταν αργότερα
+την ίδια μέρα από SELLs) — το σχόλιο του commit ισχυριζόταν ότι το κάθε-ώρα recheck είναι
+"naturally idempotent", αλλά αυτό αγνοούσε ότι το `FEED` **καταναλώνει** wheat μέσα στη
+μέρα (`engine_reference/kaggriculture.py`'s FEED op, γραμμή ~487). Αποτέλεσμα: κάθε φορά που
+ένα ζώο τρεφόταν (μειώνοντας το `wheat_have`), το επόμενο ωριαίο recheck έβλεπε
+`wheat_have < placed_animals` και αγόραζε ξανά wheat για ζώα που **ήδη** είχαν ταΐσει τη μέρα
+— πολλαπλάσια over-buy ανά ημέρα, όχι μία φορά.
+
+**Διόρθωση:** ο υπολογισμός του `wheat_needed` βασίζεται τώρα στο `unfed_animals` (πλήθος
+tiles με `not tile.get("fed_today")`, το ίδιο flag που ήδη χρησιμοποιεί το
+[agent/state.py](agent/state.py)'s `animals_needing()` για το FEED gating) αντί για το
+συνολικό `placed_animals`. Το `fed_today` μηδενίζεται από το engine ακριβώς στο day-rollover
+(kaggriculture.py γραμμή ~810), πριν δει ο agent το νέο hour-0 observation, οπότε το σήμα
+είναι ήδη σωστά ημερήσιο-scoped. Αυτό διατηρεί το M4 intra-day retry (cash shortfall →
+wheat_needed παραμένει θετικό μέχρι να αγοραστεί) αλλά μηδενίζει το over-buy από φυσική
+κατανάλωση (FEED μειώνει wheat_have ΚΑΙ unfed_animals κατά 1 μαζί, wheat_needed μένει 0).
+
+**Verification:** `pytest tests/` → 133 passed (χωρίς αλλαγές). Καθαρό (χωρίς naming
+collision) `compare(agent/ με fix, checkpoints/v1e, DEV_SEEDS 0-47, both_seats=True)`:
+**mean_diff=-9.70, se=30.89, errors=[]** — στατιστικά αδιάκριτο από το 0 (πριν το fix:
+-613.6, se=31.3 από το 2026-08-06 (δ) session). Το live `agent/` tree είναι πλέον ξανά
+συμπεριφορικά ισοδύναμο του παγωμένου `checkpoints/v1e` — το bisect prerequisite του
+current_phase.md ΜΕΡΟΥΣ Α είναι λυμένο.
+
+**Δεν έγινε ακόμα:** commit της αλλαγής στο `agent/executor.py` (εκκρεμεί έγκριση χρήστη)·
+δεν ξεκίνησε ακόμα η κυρίως δουλειά του v1f (crew scale-up 3→12 hands).
+
+**Next session should:** (1) commit τη διόρθωση αν εγκριθεί· (2) προχωρήστε στο v1f
+(planner.hands_target scale-up, capacity gate real-workload read, scheduler profiling στα 13
+units, screen 6/8/10/12 σε DEV_SEEDS, holdout-confirm, checkpoint) όπως περιγράφεται στο
+current_phase.md ΜΕΡΟΣ Β.
+
+---
+
 ## 2026-08-06 (δ) — Session: πρώτο submission ετοιμάστηκε· βρέθηκε ανεξήγητο regression στο τρέχον `agent/`
 
 **Context:** Εκτέλεση του ΜΕΡΟΥΣ Α του current_phase.md ("πρώτο submission ΤΩΡΑ"). Καμία αλλαγή

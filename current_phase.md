@@ -51,13 +51,21 @@ timings ([data/derived/top_agent_profiles.md](data/derived/top_agent_profiles.md
 Το v1e πληροί τα κριτήρια Φάσης 1 (96/96 vs starter, median ≥$40k). Κάθε μέρα χωρίς submission
 είναι χαμένη πληροφορία ladder. Διαδικασία (από το παλιό plan §6, αμετάβλητη):
 
-> **Ενημέρωση 2026-08-06 (δ) — διορθώθηκε η υπόθεση "τρέχον agent/ == v1e":** το τρέχον
-> repo-root `agent/` **δεν** είναι πλέον ισοδύναμο του `checkpoints/v1e` — δύο commits μετά το
-> checkpoint (`99db4fb`, `c7767bb`) εισήγαγαν ένα μη-απομονωμένο ~$614/episode regression έναντι
-> του παγωμένου checkpoint (DEV_SEEDS, βλ. memory.md 2026-08-06 (δ)). Το πρώτο submission
-> πακετάρεται από το **παγωμένο `checkpoints/v1e`**, όχι από `main.py agent/` του repo root
-> κατά γράμμα — βλ. [baselines/2026-08-06/validation.md](baselines/2026-08-06/validation.md).
-> Το bisect του `c7767bb` είναι εκκρεμότητα πριν αυτό γίνει βάση για v1f.
+> **Ενημέρωση 2026-08-06 (δ):** το πρώτο submission πακετάρεται από το **παγωμένο
+> `checkpoints/v1e`**, όχι από `main.py agent/` του repo root κατά γράμμα — βλ.
+> [baselines/2026-08-06/validation.md](baselines/2026-08-06/validation.md) — επειδή δύο commits
+> μετά το checkpoint (`99db4fb`, `c7767bb`) είχαν εισάγει ένα μη-απομονωμένο ~$614/episode
+> regression έναντι του παγωμένου checkpoint (DEV_SEEDS).
+>
+> **Ενημέρωση 2026-08-06 (ε) — bisect ΛΥΘΗΚΕ:** root cause εντοπίστηκε στο
+> [agent/executor.py](agent/executor.py)'s wheat-purchase block (το `c7767bb` αφαίρεσε το
+> `hour == 0` gate, κάνοντας το κάθε-ώρα recheck να παρεξηγεί τη φυσιολογική κατανάλωση wheat
+> από το FEED ως νέο shortfall και να ξανααγοράζει). Διορθώθηκε ώστε το `wheat_needed` να
+> υπολογίζεται από τα `unfed_animals` (`fed_today` flag) αντί για το σύνολο `placed_animals` —
+> βλ. memory.md 2026-08-06 (ε) για πλήρη ανάλυση. Καθαρό `compare` σε DEV_SEEDS: mean_diff=-9.70
+> (se=30.89, στατιστικά αδιάκριτο από 0), `pytest tests/` 133 passed. Το τρέχον repo-root
+> `agent/` είναι πλέον ξανά συμπεριφορικά ισοδύναμο του `checkpoints/v1e` — το v1f μπορεί να
+> ξεκινήσει από αυτό ως βάση.
 
 ### Α.1 Checklist προ-υποβολής
 
@@ -128,6 +136,23 @@ gate → `compare` σε DEV (screen) → **holdout-confirm 48 seeds** → immuta
   `assign()` πρέπει να μείνει <333ms/turn. Profile πριν το gate.
 - **Αποδοχή**: metric gate (`water_weeds_lost == 0` ∧ `plant_decay_units_lost == 0` ∧
   `unexplained_noops == 0`) → $-gate vs `checkpoints/v1e` → checkpoint `v1f`.
+
+> **(στ) v1f ΟΛΟΚΛΗΡΩΘΗΚΕ 2026-08-06 — `checkpoints/v1f` δημιουργήθηκε, `hands_target=6`.**
+> Screen 6/8/10/12 σε `DEV_SEEDS`: h6/h8 `IMPROVED`, h10/h12 `REGRESSED` (fixed 41 crop tiles +
+> 3 ζώα δεν έχουν άλλη δουλειά πέρα από ~7-8 hands' worth of unit-turns — τα έξτρα hands μένουν
+> idle, το hiring cost γίνεται καθαρή ζημιά, ακριβώς όπως προειδοποιούσε το spec). Μόνο h6/h8
+> πήγαν σε holdout-confirm (`REGRESSED` = STOP, όχι μηχανικό "top-3"). Holdout αποτέλεσμα: h6
+> +$2241.72/ep (se=48.97, 96/96 wins), h8 +$1107.15/ep (se=48.45, 96/96 wins) — μη επικαλυπτόμενα
+> 95% CI, h6 νικητής. Metric gate (το ρητό 3-item spec εδώ, όχι το αυστηρότερο harness-wide
+> `metric_gate_passed`) καθαρό και στα δύο. Σημείωση: `weeds_lost` (ευρύτερο PLANT→WEED
+> counter, διαφορετικό από `water_weeds_lost`) βρέθηκε μη-μηδενικό ήδη στο `checkpoints/v1e`
+> baseline (pre-existing, όχι v1f regression) — καταγράφεται εδώ ως ανοιχτό θέμα για μελλοντικό
+> increment, δεν μπλόκαρε το v1f. Capacity gate στο [agent/planner.py](agent/planner.py)
+> ενημερώθηκε ώστε το crop-target budget να αφαιρεί πρώτα τη σταθερή daily FEED/CARE ζήτηση
+> των ζώων (`_animal_daily_demand`) πριν μοιράσει τα υπόλοιπα unit-turns σε καλλιέργειες.
+> HIRE-ordering (tier 0) και nearest-first assignment επιβεβαιώθηκαν επαρκή as-is για 12+
+> units, χωρίς αλλαγή κώδικα· `assign()` profiled στα 13 units: max 63.73ms, πολύ κάτω από το
+> 333ms/turn όριο.
 
 ### v1g — Μάζα ζώων (3 → ~13, cow/sheep-βαρύ)
 
