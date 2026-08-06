@@ -16,7 +16,7 @@
 | **«Τι κάνουν αυτοί που κερδίζουν;»** | [meta/ladder_snapshots.md](docs/meta/ladder_snapshots.md) |
 | **«Τι νέο ανακοινώθηκε; Τι διορθώθηκε;»** | [meta/competition_updates.md](docs/meta/competition_updates.md) |
 | **«Ποια είναι η στρατηγική και γιατί;»** | [MASTERPLAN.md](docs/MASTERPLAN.md) |
-| **«Τι φτιάχνουμε τώρα;»** | [plan.md](plan.md) |
+| **«Τι φτιάχνουμε τώρα;»** | [current_phase.md](current_phase.md) |
 | **«Τι έγινε στις προηγούμενες συνεδρίες;»** | [memory.md](memory.md) |
 | **«Τι βρήκε το τελευταίο code review;»** | [reviews/](docs/reviews) |
 | **«Τι λέει *ακριβώς* η επίσημη σελίδα;»** | [source/](docs/source) |
@@ -45,7 +45,7 @@ meta/competition_updates.md          ← ΠΑΝΤΑ πρώτα εδώ, με ημ
    αλλάζει κανόνα;  → reference/engine_deltas.md  (+ test στο tests/test_engine_facts.py)
    αλλάζει αριθμό;  → reference/economics.md ή reference/market.md
    αλλάζει meta;    → meta/ladder_snapshots.md   (νέα εγγραφή, όχι edit της παλιάς)
-   αλλάζει στρατηγική; → συζήτηση για MASTERPLAN/plan.md, ΠΟΤΕ σιωπηλά
+   αλλάζει στρατηγική; → συζήτηση για MASTERPLAN/current_phase.md, ΠΟΤΕ σιωπηλά
 ```
 
 ## Πώς ανανεώνονται τα notebook snapshots
