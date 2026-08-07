@@ -31,6 +31,8 @@ def test_metrics_reconstruct_actual_sale_prices():
     assert metrics["market_sales"][0]["price"] == 250
     assert metrics["units_sold_at_or_below_5"] > 0
     assert metrics["average_sell_price"]["MELON"] > 1
+    assert metrics["units_sold_by_product"]["MELON"] == 200
+    assert metrics["market_sales"][0]["day"] == 0
 
 
 def test_metrics_detect_end_of_day_shed_overflow():

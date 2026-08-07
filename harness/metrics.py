@@ -248,6 +248,9 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             configuration,
         )
         shed_overflow_burnt += overflow[seat]
+        sale_day = int(previous_observation.get("day", 0))
+        for sale in transition_sales[seat]:
+            sale["day"] = sale_day
         sales.extend(transition_sales[seat])
         market_sim_aborted = market_sim_aborted or transition_aborted
 
@@ -381,6 +384,12 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         item: statistics.mean(prices)
         for item, prices in prices_by_item.items()
     }
+    # Β.0 (current_phase.md): per-product avg realized price alone doesn't say whether the
+    # elite-ceiling herd size actually saturates a product's cliff — need units sold alongside it.
+    units_sold_by_product = {
+        item: len(prices)
+        for item, prices in prices_by_item.items()
+    }
 
     if diagnostics is None:
         unexplained_noops = None
@@ -417,6 +426,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "shed_overflow_burnt": shed_overflow_burnt,
         "units_sold_at_or_below_5": sum(1 for sale in sales if sale["price"] <= 5),
         "average_sell_price": average_sell_price,
+        "units_sold_by_product": units_sold_by_product,
         "market_sales": sales,
         "worker_turns_moving": worker_turns_moving,
         "worker_turns_working": worker_turns_working,
