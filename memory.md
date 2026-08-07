@@ -10,6 +10,89 @@
 
 ---
 
+## 2026-08-07 — Session: Β.0 data-gathering (v1g verdict confirm + 4 αριθμοί + Kaggle losses) — καμία αλλαγή σε agent/config.py
+
+**Εντολή:** επιβεβαίωσε το v1g verdict (δεν είχε βρεθεί `runs/gate_v1g_*`) και τρέξε το §Β.0 του
+current_phase.md πριν από οποιαδήποτε αλλαγή κώδικα — αυστηρά data-gathering, χωρίς αλλαγές σε
+`agent/`/`harness/` εκτός από τη νέα μετρική του βήματος 2.
+
+**Τι έγινε:**
+- **v1g verdict re-confirm.** Κανένα `results.jsonl`/`.json` δεν επιβίωσε πουθενά στο repo· οι
+  αριθμοί υπήρχαν μόνο ως πρόζα. Το μόνο on-disk ίχνος (`gates/confirm_log.jsonl`, entry
+  `2026-08-07T11:57:48`) είχε `agent_a_fp` που **δεν** ταίριαζε με το fingerprint του
+  `checkpoints/v1g` — provenance gap, ανεξήγητο. Έλυσα με **live re-run** του holdout-confirm
+  (τρέχον `main.py`, fingerprint ταυτίζεται με το checkpoint, vs `checkpoints/v1f`, `--metrics`,
+  persisted σε `runs/gate_v1g_reconfirm_holdout/` + `gates/gate_v1g_reconfirm_holdout/` — πρώτο
+  durable artifact του v1g gate στο repo): `IMPROVED`, +$25.343,2/ep (se 594,7, σχεδόν ταυτόσημο
+  με το claimed), 96/96 wins, `animals_escaped_a=0`/96, `metric_gate_passed=False` αποκλειστικά
+  λόγω pre-existing `weeds_lost_a=768`. Ο πυρήνας του claim επιβεβαιώθηκε ανεξάρτητα.
+- **Οι 4 αριθμοί του §Β.0.1** (main.py vs `checkpoints/v1f`, seed 0 + seed 25 — δεν βρέθηκε χαμένο
+  seed): WOOL avg $234-244 (κατώφλι $80), MILK avg $267-272 (κατώφλι $70) — και τα δύο πολύ πάνω,
+  **καμία ανάγκη screen SHEEP/COW target κάτω**. FERTILIZER median sale day **18** (meta μέρα 3) —
+  ήδη καλυμμένο από το προγραμματισμένο v1g.2 fertilizer-timing work. `animals_escaped=0` και στα
+  δύο seeds.
+- **Νέα μετρική**: `units_sold_by_product` + `day` per sale στο `extract_metrics()`
+  ([harness/metrics.py](harness/metrics.py)) — δεν υπήρχε ήδη (μόνο `average_sell_price` per
+  product υπήρχε). 2 νέα assertions στο `tests/test_metrics.py`. 139/139 tests passed.
+- **3 χαμένα replays του live v1e** (`SUBMISSION 55301989`, 8 κατέβηκαν, 3 ήττες): vs Joseph
+  Garcia, Vincent Pan, Mehrdad ALMASI. Καμία δική μας τιμή δεν κατέρρευσε, `animals_escaped=0`
+  και στα 3, `weeds_lost=15` (ίδιο pre-existing). Divergence ξεκινά μέση παρτίδα (~μέρα 11-13),
+  όχι μέρα 0 — συνεπές με το compounding επιχείρημα πίσω από v1f/v1g.
+- **Β.0.3 (προαιρετικό) δεν έτρεξε πλήρως**: community dataset ανανεώθηκε σήμερα (δεν σταματά
+  πια στις 08-04), αλλά `episode_features.csv` (35 στήλες, ελέγχθηκε) **δεν** έχει
+  `unlocked_shops`-related στήλη· θα χρειαζόταν parsing `replays.parquet` (738MB) — αναβλήθηκε
+  σκόπιμα ως στοχευμένο sub-step μέσα στο v1g.2 (current_phase.md §v1g.2(α.1)), όχι τώρα.
+- **Side finding**: εντόπισα ότι ένα παράλληλο session είχε ήδη κάνει submit το v1g checkpoint
+  (`SUBMISSION_ID 55324447`) — βλ. entry ακριβώς παρακάτω. Επιβεβαιώθηκε ζωντανά μέσω
+  `kaggle competitions submissions`: status **COMPLETE** (όχι πια PENDING), `publicScore 508.3`
+  με μόλις **2 πραγματικά επεισόδια** παιγμένα (1W/1L) — το `508.3 < 549.2` του v1e **δεν** είναι
+  σήμα regression, ασύγκλιτο μικρό δείγμα, όχι λόγος ανησυχίας.
+- Downloaded replays (`baselines/2026-08-07/replays/`, `replays_v1g/`, `community_dataset/`,
+  ~155MB) προστέθηκαν στο `.gitignore` — δεν καλύπτονταν από το υπάρχον `baselines/**/live_episodes/`
+  pattern.
+- `current_phase.md` ενημερώθηκε: νέο **(η) note** στο §Β.0 με όλα τα παραπάνω, νέο **(α.1)
+  sub-step** στο §v1g.2 για το αναβεβλημένο `unlocked_shops` parsing, νέο blockquote στο (δ) με
+  το επιβεβαιωμένο fertilizer-timing εύρημα.
+
+**Επόμενο:** `v1g.1` (engine bump 1.32.4→1.32.5) — καμία εξάρτηση πια από άλλα ευρήματα, μπορεί
+να ξεκινήσει άμεσα.
+
+---
+
+## 2026-08-07 — Session: v1g δεύτερο submission στο Kaggle — `SUBMISSION_ID 55324447`, PENDING
+
+**Εντολή:** "Ετοιμάσε το submission για το v1g checkpoint και κάντο εσυ submit στο kaggle."
+
+**Τι έγινε:**
+- Πακετάρισμα από το παγωμένο `checkpoints/v1g/agent_checkpoint_v1g` (ίδια σύμβαση με το v1e·
+  `baselines/2026-08-06/validation.md`), restaged ως `agent/`, με το αμετάβλητο repo-root
+  `main.py` ως entrypoint. `diff -rq` έναντι του live `agent/` έδειξε **καμία διαφορά** (μόνο
+  `__pycache__`) — καμία unbisected απόκλιση αυτή τη φορά.
+- Πλήρες checklist Α.1 πέρασε στο staged bundle: format (13 entries, χωρίς `__pycache__`),
+  loader contract (agent callable, χωρίς `__file__`), timing (max 34.3ms και στα 2 seats, πολύ
+  κάτω από το 333ms όριο), determinism (720/720 steps ταυτόσημα μεταξύ `PYTHONHASHSEED=0` vs
+  `12345`), mirror smoke (`clean=True`), μέγεθος 27.291 bytes, `pytest tests/` 139 passed,
+  `KAGGRI_DEBUG` off by default. Πλήρης καταγραφή: `baselines/2026-08-07/validation.md`.
+- Ικανοποιεί το Α.4 upload gate (directional `IMPROVED` σε holdout-confirm): v1g holdout confirm
+  ήταν `IMPROVED`, +$25.343/ep, 96/96 νίκες vs `checkpoints/v1f`.
+- **Σημείωση:** πριν από αυτό το session υπήρχε ήδη ένα αποτυχημένο submission
+  (`55324338`, "main.py", `ERROR`, 2026-08-07 12:12 — λάθος format, χωρίς tar/agent/) που δεν
+  δημιουργήθηκε από αυτό το session/repo tooling. Δεν διερευνήθηκε περαιτέρω, απλώς καταγράφεται
+  ώστε η submissions list να εξηγείται. Κατανάλωσε ένα από τα 5 daily uploads.
+- `kaggle competitions submit` (μέσω `.venv/Scripts/kaggle.exe`, credentials από `.env`):
+  **SUBMISSION_ID 55324447**, μήνυμα "v1g animal mass scale-up (10 animals: 6 COW + 4 SHEEP)",
+  status PENDING κατά την υποβολή. 4 uploads/μέρα απομένουν.
+
+**Επόμενο:** παρακολούθηση status/score (`kaggle competitions submissions kaggriculture`,
+`kaggle competitions episodes 55324447 -v`) — μετά current_phase.md §Β.0 (συλλογή δεδομένων από
+το v1g episode report) πριν από v1g.1 (engine bump).
+
+> **[ενημ. 2026-08-07, επόμενο session]** status **COMPLETE**, `publicScore 508.3`, μόλις 2
+> πραγματικά επεισόδια παιγμένα μέχρι στιγμής (1W vs Giordano Dolenz, 1L vs ArmanVardanyan07) —
+> πολύ νωρίς για σύγκριση με το `549.2` (23 επεισόδια) του v1e, βλ. entry παραπάνω.
+
+---
+
 ## 2026-08-07 — Session: v1g υλοποιήθηκε και κλείδωσε — `checkpoints/v1g`, 6 COW + 4 SHEEP (όχι 8+5)
 
 **Εντολή:** "Διάβασε το current_phase.md και υλοποίησε v1g" (μάζα ζώων 3 → ~13).

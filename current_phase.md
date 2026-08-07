@@ -312,6 +312,64 @@ snapshot μας σταματά στις **08-04**, MASTERPLAN §3.2bis freshness
 ανάμεσα σε episodes με/χωρίς YARN_STORE. Αυτό μετατρέπει το §0bis(γ) από θεωρητικό υπολογισμό σε
 μετρημένο effect size.
 
+> **(η) Β.0 ΟΛΟΚΛΗΡΩΘΗΚΕ 2026-08-07 — data-gathering session, καμία αλλαγή σε `agent/config.py`.**
+>
+> **Β.0.1 verdict re-confirm:** το `runs/gate_v1g_*` **όντως δεν υπήρχε** (επιβεβαιώθηκε)· κανένα
+> `results.jsonl`/`.json` με τους αριθμούς δεν επιβίωσε πουθενά στο repo, μόνο πρόζα στο
+> `memory.md`/commit message. Το `gates/confirm_log.jsonl` entry που όντως έτρεξε
+> (`2026-08-07T11:57:48`, verdict `IMPROVED`, `go: false`) είχε `agent_a_fp` που **δεν** ταίριαζε
+> με το fingerprint του `checkpoints/v1g` — ο κώδικας που πέρασε το holdout gate δεν ήταν
+> bit-identical με αυτό που τελικά έγινε checkpoint (ανεξήγητο, πιθανόν trivial diff). Λύθηκε με
+> **live re-run** του holdout-confirm (τρέχον `main.py` = fingerprint του checkpoint, vs
+> `checkpoints/v1f`, `--metrics`, persisted σε `runs/gate_v1g_reconfirm_holdout/` +
+> `gates/gate_v1g_reconfirm_holdout/` — το πρώτο durable artifact του v1g gate που υπάρχει στο
+> repo): verdict **IMPROVED**, mean_diff **+$25,343.2/ep** (se 594.7, σχεδόν ταυτόσημο με το
+> claimed +$25.343/se=594.65), **96/96** episode wins, `animals_escaped_a=0` σε όλα τα 96,
+> `metric_gate_passed=False` **αποκλειστικά λόγω `weeds_lost_a=768`** (pre-existing issue, ήδη
+> στο v1e baseline — όχι v1g regression). Ο πυρήνας του claim επιβεβαιώθηκε ανεξάρτητα.
+>
+> **Β.0.1 — οι 4 αριθμοί** (main.py vs `checkpoints/v1f`, seed 0 + τυχαίο seed 25 — v1g κέρδισε
+> και τα δύο, δεν βρέθηκε χαμένο seed σε 48/48 holdout):
+> | # | Μετρική | seed 0 | seed 25 | Verdict |
+> |---|---|---|---|---|
+> | 1 | avg WOOL / units | $233.9 / 58 | $244.5 / 58 | πολύ πάνω από $80 — **δεν** χρειάζεται screen |
+> | 2 | avg MILK / units | $271.8 / 175 | $266.7 / 175 | πολύ πάνω από $70 — **δεν** χρειάζεται screen |
+> | 3 | avg FERTILIZER / units, median day | $70.3 / 205, day **18** | $70.3 / 205, day **18** | **πουλάμε αργά** — meta πουλά day 3 |
+> | 4 | animals_escaped / weeds_lost / noops / shed_overflow | 0 / 8 / None / 0 | 0 / 8 / None / 0 | καθαρό, weeds_lost=pre-existing |
+>
+> **Απόφαση:** το §v1g note (ζ) παραπάνω ("τρέξε screen `{8,5}` vs `{6,3}` vs `{8,3}` αν avg <
+> κατώφλια") **δεν ενεργοποιείται** — το SHEEP/COW target 6C+4S **μένει ως έχει**, καμία ανάγκη
+> screen προς τα κάτω. Το πραγματικό εύρημα είναι το #3 (fertilizer αργά) — ήδη καλύπτεται από το
+> προγραμματισμένο **v1g.2 fertilizer timing** work παρακάτω, όχι νέο increment.
+>
+> **Β.0.2 — 3 χαμένα replays του live v1e** (`SUBMISSION 55301989`, 8 επεισόδια κατέβηκαν, 3
+> ήττες): vs Joseph Garcia (42.216 vs 56.379), Vincent Pan (42.520 vs 57.216), Mehrdad ALMASI
+> (40.459 vs 45.886). Και στα 3: `animals_escaped=0`, `weeds_lost=15` (ίδιο pre-existing pattern),
+> οι δικές μας avg sell prices υγιέστατες (wool ~$230-236, milk ~$252-277, fertilizer ~$85-94 —
+> καμία τιμή δεν κατέρρευσε), παραγωγή ταυτόσημη και στα 3 (ακόμα μικρό v1e, 3 ζώα). Η απόκλιση
+> bank ξεκινά **μέση παρτίδα (~μέρα 11-13)**, όχι μέρα 0 — συνεπές με «οι αντίπαλοι compound-άρουν
+> πιο γρήγορα με μεγαλύτερη λειτουργία», το ίδιο επιχείρημα πίσω από v1f/v1g. Καμία λογιστική
+> βλάβη στο replay· τίποτα δεν αμφισβητεί την κατεύθυνση scale-up.
+>
+> **Β.0.3 — προαιρετικό, ΔΕΝ έτρεξε πλήρως.** Το community dataset ανανεώθηκε **σήμερα**
+> (2026-08-07 00:43, το "σταματά στις 08-04" δεν ισχύει πια). Το μικρό `episode_features.csv`
+> (1.7MB) κατέβηκε και ελέγχθηκε: **καμία στήλη `unlocked_shops`/shop-related δεν υπάρχει** στα
+> δομημένα CSV (35 στήλες, καμία). Θα χρειαζόταν πλήρες parsing του `replays.parquet`
+> (**738MB**) για το effect size. **Αναβλήθηκε σκόπιμα**: αν το v1g.2 shop-adaptive work
+> χρειαστεί τον ακριβή αριθμό αντί για τον θεωρητικό υπολογισμό (§0bis(γ)), μπαίνει ως
+> ξεχωριστό, στοχευμένο βήμα **μέσα** στο v1g.2 — όχι τώρα.
+>
+> **Side finding:** ένα δεύτερο, παράλληλο session έκανε ήδη submit το v1g checkpoint στο Kaggle
+> (`SUBMISSION_ID 55324447`, status COMPLETE, `publicScore 508.3`) πριν κλείσει αυτό το session —
+> ρητή εντολή χρήστη, όχι πρόβλημα. Προσοχή στην ερμηνεία του score: μόνο **2 πραγματικά
+> επεισόδια** έχουν παιχτεί μέχρι στιγμής (1W/1L) έναντι 23 του v1e (`publicScore 549.2`) — το
+> `508.3 < 549.2` **δεν** είναι σήμα regression, είναι ασύγκλιτο μικρό δείγμα. Νέα μετρική
+> `units_sold_by_product` + `day` per sale προστέθηκε στο `harness/metrics.py`'s
+> `extract_metrics()` (δεν υπήρχε ήδη — το `average_sell_price` υπήρχε per-product).
+>
+> **Επόμενο:** `v1g.1` (engine bump 1.32.4→1.32.5) — καμία εξάρτηση από άλλα ευρήματα αυτού του
+> session, μπορεί να ξεκινήσει άμεσα.
+
 ### v1f — Crew scale-up (3 → 12 hands) [ΠΡΩΤΟ]
 
 Το φθηνότερο κομμάτι του χάσματος: fib κόστη σημαίνουν 12 hands ≈ **$232/μέρα** — ψίχουλα
@@ -494,6 +552,17 @@ demand[p] = Σ_over_unlocked_shops( per_shop if p in SHOPS[shop] ) * ticks_per_d
 ορισμού** (§0bis 0bis.2#1): η τιμή είναι μονότονα φθίνουσα, άρα το «περίμενε καλύτερη τιμή» είναι
 πάντα λάθος. Πρακτικά: FERTILIZER SELL με **πρώιμο order index** (πριν από τα SELL των προϊόντων
 που έχουν NPC ζήτηση και θα ανακάμψουν), κάθε μέρα, χωρίς floor πέρα από ένα μικρό ελάχιστο.
+
+> **[ενημ. 2026-08-07, §Β.0]** Εμπειρικά επιβεβαιωμένο, όχι μόνο θεωρητικό: 2 seeds (main.py vs
+> `checkpoints/v1f`) έδειξαν **median FERTILIZER sale day = 18** (meta πουλά μέρα 3) — το (δ) πιο
+> πάνω λύνει ακριβώς αυτό.
+
+**(α.1) Sub-step αναβεβλημένο από το Β.0, μπαίνει εδώ αν χρειαστεί:** το effect size του
+`unlocked_shops` στο τελικό bank (episodes με/χωρίς YARN_STORE) **δεν** υπάρχει σε κανένα
+δομημένο CSV του community dataset (`episode_features.csv`, 35 στήλες, ελέγχθηκε 2026-08-07) —
+θα χρειαστεί parsing του raw `replays.parquet` (**738MB**). Αν το (α)/(γ) παραπάνω χρειαστεί τον
+ακριβή αριθμό αντί για τον θεωρητικό υπολογισμό του §0bis(γ) για να βαθμονομηθεί, αυτό το
+parsing μπαίνει **εδώ**, ως στοχευμένο βήμα μέσα στο v1g.2 — όχι νωρίτερα.
 
 **Παγίδες:**
 - ⚠️ **Μην αλλάξεις το crop mix με βάση τα shops.** Είναι δελεαστικό («άνοιξε PET_CAFE ⇒ φύτεψε
