@@ -6,3 +6,6 @@ runs/
 submission.tar.gz
 data/archive/replays.parquet
 baselines/**/live_episodes/
+baselines/2026-08-07/replays/
+baselines/2026-08-07/replays_v1g/
+baselines/2026-08-07/community_dataset/
