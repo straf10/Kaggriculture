@@ -323,14 +323,26 @@ def test_v1b_hires_target_hands_at_hour_zero():
 
 
 def test_g2_multi_unit_assignment_reserves_observed_seeds():
-    observation = _minimal_observation(
-        step=6 * 24,
-        hands=((3, 4), (3, 3), (4, 3)),
-    )
-    observation["private"]["seeds"]["CARROT"] = 1
-    snapshot = parse(observation)
-    plan = make_day_plan(snapshot, CONFIG)
-    farmer_action, hand_actions, _ = assign(build_tasks(snapshot, plan, CONFIG), snapshot)
+    # animals disabled: this is a G2 multi-unit seed-reservation test, not a v1g animal-mass
+    # test — with animals on, the 13 always-free BUILD_PASTURE/BUILD_COOP tasks (priority 2,
+    # ahead of PLANT CARROT's priority 3) would outnumber the 4 units in this synthetic
+    # from-scratch snapshot and starve the PLANT task entirely, which a real multi-day episode
+    # never sees (that many free structures finish building well within day 0-1). Same pattern
+    # already used by test_policy_returns_index_aligned_hand_actions / test_g1_scheduler_
+    # reserves_time_to_water_new_plant for the same reason.
+    previous_enabled = CONFIG["animals"]["enabled"]
+    CONFIG["animals"]["enabled"] = False
+    try:
+        observation = _minimal_observation(
+            step=6 * 24,
+            hands=((3, 4), (3, 3), (4, 3)),
+        )
+        observation["private"]["seeds"]["CARROT"] = 1
+        snapshot = parse(observation)
+        plan = make_day_plan(snapshot, CONFIG)
+        farmer_action, hand_actions, _ = assign(build_tasks(snapshot, plan, CONFIG), snapshot)
+    finally:
+        CONFIG["animals"]["enabled"] = previous_enabled
     plant_actions = [
         action
         for action in (farmer_action, *hand_actions)
@@ -459,19 +471,30 @@ def test_v1c_buy_land_triggers_replan_and_grows_targets():
     until the next day, wasting the newly-unlocked tiles for the rest of today. policy.py's
     _needs_replan already watches `last_quadrants != snapshot.my_quadrants` (review_89d99f0_2026-08-05.md M4); this
     exercises that path end-to-end through agent() and confirms the resulting plan actually
-    reflects NE's bonus target tiles, not just that *some* replan happened."""
-    _RUNTIME_BY_PLAYER.clear()
-    hands = ((4, 3), (3, 3), (2, 3))
+    reflects NE's bonus target tiles, not just that *some* replan happened.
 
-    nw_only = _minimal_observation(step=10, hands=hands)
-    agent(nw_only)
-    runtime = _RUNTIME_BY_PLAYER[0]
-    carrot_target_before = runtime.plan.plant_targets["CARROT"]
+    animals disabled: this is a CARROT-target/replan-timing test, not a v1g animal-mass test —
+    with animals on, this fixture's 3-hand crew (a v1c-era count below v1g's hands_target)
+    puts _animal_daily_demand's 13-animal upkeep above the day's unit-turn supply, capping
+    plant_targets["CARROT"] at 0 both before and after NE unlock and masking what this test
+    checks. Same pattern as test_g2_multi_unit_assignment_reserves_observed_seeds above."""
+    previous_enabled = CONFIG["animals"]["enabled"]
+    CONFIG["animals"]["enabled"] = False
+    try:
+        _RUNTIME_BY_PLAYER.clear()
+        hands = ((4, 3), (3, 3), (2, 3))
 
-    nw_and_ne = _minimal_observation(step=11, hands=hands)
-    nw_and_ne["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
-    agent(nw_and_ne)
-    plan_after = runtime.plan
+        nw_only = _minimal_observation(step=10, hands=hands)
+        agent(nw_only)
+        runtime = _RUNTIME_BY_PLAYER[0]
+        carrot_target_before = runtime.plan.plant_targets["CARROT"]
+
+        nw_and_ne = _minimal_observation(step=11, hands=hands)
+        nw_and_ne["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+        agent(nw_and_ne)
+        plan_after = runtime.plan
+    finally:
+        CONFIG["animals"]["enabled"] = previous_enabled
 
     assert runtime.planned_day == 0  # still day 0 — this was an on-event replan, not a day roll
     assert plan_after.plant_targets["CARROT"] > carrot_target_before
@@ -545,5 +568,129 @@ def test_v1e_endgame_liquidation_sells_stranded_wheat():
 
     liquidating_orders = market_orders(snapshot, DayPlan(force_liquidation=True), ledger, [], CONFIG)
     assert any(order[:2] == ["SELL", "WHEAT"] for order in liquidating_orders)
+
+
+def test_v1g_animal_slot_ranges_carves_contiguous_blocks_per_name():
+    """v1g: config["animals"]["targets"] moved from one reserved slot per unique animal name
+    to N slots per name, carved contiguously out of a shared structure kind's tile pool in
+    targets-dict order — the first COW-count tiles are COW's, the next SHEEP-count are
+    SHEEP's. Two names sharing a structure must never see overlapping ranges."""
+    from agent.animal_slots import animal_slot_ranges
+
+    tiny_config = copy.deepcopy(CONFIG)
+    tiny_config["scheduler"]["animal_structure_tiles"] = {
+        "PASTURE": ((4, 4), (4, 3), (3, 4), (3, 3), (2, 4)),
+    }
+    tiny_config["animals"]["targets"] = {"COW": 3, "SHEEP": 2}
+
+    ranges = animal_slot_ranges(tiny_config)
+
+    assert ranges["COW"] == ((4, 4), (4, 3), (3, 4))
+    assert ranges["SHEEP"] == ((3, 3), (2, 4))
+
+
+def test_v1g_animal_daily_demand_sums_every_slot_not_just_one_per_name():
+    """v1f's _animal_daily_demand charged one (distance + 1 + 1) term per unique animal name
+    (there was only ever one slot each). v1g must charge one such term per reserved slot —
+    a config with N same-named animals costs N times this, not 1x."""
+    from agent.planner import _animal_daily_demand
+
+    tiny_config = copy.deepcopy(CONFIG)
+    tiny_config["scheduler"]["animal_structure_tiles"] = {
+        "PASTURE": ((4, 4), (4, 3), (3, 4)),  # distances 0, 1, 1 from the (4, 4) shed spawn
+    }
+    tiny_config["animals"]["targets"] = {"COW": 3}
+
+    assert _animal_daily_demand(tiny_config) == ((0 + 1) + 1) + ((1 + 1) + 1) + ((1 + 1) + 1)
+
+
+def test_v1g_zero_target_count_skips_structure_and_purchase():
+    """v1g: a target count of 0 (e.g. GOOSE screened out) must produce no purchase demand and
+    no structure-build demand for that name — this is the mechanism the goose keep/drop screen
+    relies on, not a separate ablation flag."""
+    zero_goose_config = copy.deepcopy(CONFIG)
+    zero_goose_config["animals"]["targets"] = {"COW": 8, "SHEEP": 5, "GOOSE": 0}
+    observation = _minimal_observation(step=0, hands=((4, 3), (3, 3), (2, 3), (2, 4), (1, 4)))
+    snapshot = parse(observation)
+
+    plan = make_day_plan(snapshot, zero_goose_config)
+
+    assert "GOOSE" not in plan.animal_purchases
+    assert plan.structures_to_build.get("COOP", 0) == 0
+
+
+def test_v1g_placed_count_and_animal_placed_generalize_to_n_slots():
+    """v1g: animal_placed used to mean "the one reserved slot for this name is filled", which
+    for a count-of-1 name is identical to "fully placed". Now that a name can have N slots,
+    placed_count must return an exact count and animal_placed must stay true as soon as at
+    least one of them lands (it backs the BUY_LAND gate's "some investment already made in
+    this animal type" check, not a full-herd check)."""
+    from agent.scheduler import animal_placed, placed_count
+
+    observation = _minimal_observation(step=10)
+    observation["farms"][0]["tiles"][4][4] = _animal_tile("COW")
+    observation["farms"][0]["tiles"][4][3] = _animal_tile("COW")
+    snapshot = parse(observation)
+
+    assert placed_count(snapshot, "COW") == 2
+    assert animal_placed(snapshot, "COW") is True
+    assert placed_count(snapshot, "SHEEP") == 0
+    assert animal_placed(snapshot, "SHEEP") is False
+
+
+def test_v1g_build_tasks_places_multiple_same_named_animals_in_parallel():
+    """v1g: the old model queued at most one PICKUP + one PLACE per animal name per turn (fine
+    when each name had exactly one slot). With N slots per name, build_tasks must queue a
+    PLACE per still-open slot (so several units can each place a different COW in the same
+    turn, not serialize one slot per turn) and a single PICKUP sized to how many more are
+    actually needed."""
+    from agent.planner import DayPlan
+
+    tiny_config = copy.deepcopy(CONFIG)
+    tiny_config["scheduler"]["animal_structure_tiles"] = {
+        "PASTURE": ((4, 4), (3, 4), (4, 3)),
+    }
+    observation = _minimal_observation(step=10)
+    observation["farms"][0]["tiles"][4][4] = {"kind": "PASTURE"}
+    observation["farms"][0]["tiles"][4][3] = {"kind": "PASTURE"}
+    observation["farms"][0]["tiles"][3][4] = {"kind": "PASTURE"}
+    observation["private"]["shed"]["COW"] = 2
+    snapshot = parse(observation)
+    plan = DayPlan(animal_purchases={"COW": 3})
+
+    tasks = build_tasks(snapshot, plan, tiny_config)
+
+    place_tasks = [task for task in tasks if task.kind == "PLACE" and task.item == "COW"]
+    pickup_tasks = [task for task in tasks if task.kind == "PICKUP" and task.item == "COW"]
+    assert {task.pos for task in place_tasks} == {(4, 4), (3, 4), (4, 3)}
+    assert len(pickup_tasks) == 1
+    assert pickup_tasks[0].count == 2
+
+
+def test_v1g_buy_animal_caps_at_open_slot_headroom():
+    """v1g: buying more of a same-named animal than there are currently open, already-built
+    homes for it would be dead capital sitting in the shed — the same MASTERPLAN §3.2#7 lesson
+    land-without-hands teaches, generalized from "never buy a second one of the same target"
+    (the old one-slot-per-name model) to "never buy past open homes"."""
+    from agent.executor import market_orders
+    from agent.planner import DayPlan
+    from agent.scheduler import make_ledger
+
+    tiny_config = copy.deepcopy(CONFIG)
+    tiny_config["scheduler"]["animal_structure_tiles"] = {
+        "PASTURE": ((4, 4), (3, 4)),
+    }
+    observation = _minimal_observation(step=10)
+    observation["farms"][0]["money"] = 100_000
+    observation["farms"][0]["tiles"][4][4] = {"kind": "PASTURE"}
+    observation["farms"][0]["tiles"][4][3] = {"kind": "PASTURE"}
+    snapshot = parse(observation)
+    ledger = make_ledger(snapshot)
+    plan = DayPlan(animal_purchases={"COW": 8})
+
+    orders = market_orders(snapshot, plan, ledger, [], tiny_config)
+
+    buy_orders = [order for order in orders if order[0] == "BUY_ANIMAL" and order[1] == "COW"]
+    assert buy_orders == [["BUY_ANIMAL", "COW", 2]]
 
 

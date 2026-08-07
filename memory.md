@@ -10,6 +10,121 @@
 
 ---
 
+## 2026-08-07 — Session: v1g υλοποιήθηκε και κλείδωσε — `checkpoints/v1g`, 6 COW + 4 SHEEP (όχι 8+5)
+
+**Εντολή:** "Διάβασε το current_phase.md και υλοποίησε v1g" (μάζα ζώων 3 → ~13).
+
+**Τι έγινε:**
+- Data model: `animal_slots.py` (νέο) — `targets` έγινε name→count αντί για ένα slot/name·
+  `animal_slot_ranges()` μοιράζει contiguous tile ranges ανά δομή (PASTURE: COW block πρώτα,
+  μετά SHEEP block). `planner`/`scheduler`/`executor` ενημερώθηκαν να χειρίζονται N-count
+  PLACE/PICKUP/FEED αντί για ένα-ανά-όνομα.
+- Πρώτο screen στα 8 COW + 5 SHEEP + 1 GOOSE (13-14 ζώα, η ελίτ-οροφή που έθετε το
+  current_phase.md): **καταστροφική αποτυχία**, 4401-4991 `animals_escaped` σε 96 dev-screen
+  episodes. Root-caused μέσω replay tracing (όχι θεωρία) σε 5 ξεχωριστά bugs, διορθώθηκαν
+  διαδοχικά:
+  1. Ένα aggregated WHEAT PICKUP task/μέρα ⇒ ένας carrier αδύνατο να καλύψει 13 tiles
+     distance ≤8 εντός 24 turns. Fix: parallel `allowed_unit`-restricted PICKUP tasks, ένα/unit.
+  2. `market_orders()` πλήρωνε το WHEAT **μετά** το BUY_SEED/BUY_ANIMAL, αντίθετα με την
+     τεκμηριωμένη `_ORDER_TIER` προτεραιότητα. Fix: reorder ώστε το WHEAT purchase να τρέχει
+     πρώτο.
+  3. Μαζική αγορά ζώων μέρα 0 άδειαζε το starting bankroll πριν προλάβει να ταΐσει, escape
+     στο ακριβώς 2ο σερί χαμένο μεσημέρι. Fix: wheat-reserve guard (`FEED_RESERVE_DAYS=2`) στο
+     BUY_ANIMAL.
+  4. `divmod`-based rationing του wheat pickup μεταξύ units άφηνε units υψηλού index με
+     `count=0` όσο συρρικνωνόταν η ημερήσια ανάγκη — δομικά starved, όχι τυχαία τύχη. Fix:
+     πρόσφερε την πλήρη ανάγκη σε κάθε unit, όχι κλάσμα.
+  5. Ακόμα και μετά τα (1)-(4), ένα tile (`(0,4)`) έχανε χρόνια στο ίδιο deterministic pattern
+     σε όλα τα seeds — raw-position tie-break στο `assign()` sort key ευνοούσε πάντα ένα tile
+     έναντι άλλου σε δεσμευμένη χωρητικότητα. Fix: urgent deadline (`urgency_slack_margin`) για
+     ζώα ήδη σε `consecutive_unfed >= 1`, πριν φτάσουν στο tie-break παράθυρο.
+- Μετά τα 5 fixes: **0 escapes** επιβεβαιώθηκε σε 10 traced seeds, μετά screen sweep μεγέθους σε
+  DEV_SEEDS (48 seeds × 2 seats): 7 ζώα (4C+3S) IMPROVED +$24404/ep· **10 ζώα (6C+4S) IMPROVED
+  +$25384/ep — peak**· 11 ζώα (7C+4S) καθαρό αλλά χειρότερο +$18940/ep· 12 ζώα (7C+5S)
+  αποτυγχάνει ξανά το gate (`water_weeds_lost=15`)· 13-14 ζώα (8C+5S ± GOOSE) αποτυγχάνει βαριά
+  (660-885 escapes, ούτε με hands_target=8). **Συμπέρασμα: η ελίτ-οροφή 8+5 δεν είναι εφικτή με
+  6-8 hands — το feed logistics ρίσκο που προειδοποιούσε το spec ήταν πραγματικό.** Νικητής
+  10 ζώα, GOOSE αφαιρέθηκε (15% adoption, χαμηλό yield, δεν χωράει στο βέλτιστο μέγεθος).
+- HOLDOUT_SEEDS confirm (one-shot, `gates/confirm_log.jsonl`): `IMPROVED`, +$25343/ep
+  (se=594.65), 96/96 episode wins vs `checkpoints/v1f`, 0 errors, metric gate καθαρό.
+- `agent/config.py` ενημερώθηκε: `targets={"COW":6,"SHEEP":4,"GOOSE":0}`, `hands_target=6`
+  (ήδη 6). `checkpoints/v1g` δημιουργήθηκε (fingerprinted). `pytest tests/` → 139 passed.
+
+**Σημείωση διαδικασίας:** ένα screening script crash (`v1g_screen_results_mid.json`, 48/48
+errors) αποδείχτηκε multiprocessing bootstrap bug σε Windows (spawn re-import χωρίς
+`if __name__ == "__main__":` guard στο scratch script), όχι πρόβλημα του agent/harness — fixed
+με guard, rerun καθαρό.
+
+**Επόμενο:** current_phase.md §v1g.1 (engine bump 1.32.4→1.32.5) — ήδη σημειωμένο ότι φέρνει
+free win για το v1g feed logistics (shed ops από LOCKED tiles). §Β.0 episode report collection
+πριν από αυτό, per το ρητό sequencing rule στο current_phase.md.
+
+---
+
+## 2026-08-07 — Session: αξιολόγηση 4 νέων εξωτερικών πηγών· MASTERPLAN + current_phase ενημερώθηκαν (καμία αλλαγή κώδικα)
+
+**Context:** ο χρήστης έφερε 4 θέματα από το discussion ενώ **έτρεχε το v1g gate**. Ρητή εντολή:
+μην εμποδίσεις το run. **Καμία αλλαγή σε `agent/` ή `harness/`** — μόνο markdown.
+
+**Τι επαληθεύτηκε τοπικά (όχι απλή ανάγνωση των πηγών):**
+1. **Balance changes = ανακοινωμένες αλλά ΑΔΗΜΟΣΙΕΥΤΕΣ.** `pip download kaggle-environments==1.32.5
+   --no-deps --no-binary :all:` σε scratchpad (**χωρίς install**, γιατί έτρεχε το gate) + diff έναντι
+   `engine_reference/`: όλο το `.py` diff = **103 γραμμές, μία αλλαγή**· `.json` diff **κενό**·
+   `TOWN_CENTER_DEMAND_SCHEDULE` / `townCenterSellInterval: 12` / το shop φίλτρο **byte-identical**
+   με το 1.32.4.
+2. **Το 1.32.5 φέρνει shed ops από LOCKED tiles** (DROP/PICKUP/PLACE πριν τον LOCKED guard).
+   ⇒ ο [agent/scheduler.py](agent/scheduler.py):182 `access = (4, 4)  # the only initially unlocked
+   shed-access tile` γίνεται **ψευδής παραδοχή**. Free win για το v1g (13-14 pickups/μέρα).
+3. **Το «modal farm χωρίς crops» του 08-06 meta report είναι MEASUREMENT ARTIFACT.** Απόδειξη από
+   το engine: one-shot crops → `tiles[fy][fx] = None` στο HARVEST (`:411-412`)· **STRAWBERRY** →
+   `_decay_plants` `yield_units -= 1` κάθε 2 turns μετά το max_yield με **`<= 0` ⇒ WEED**
+   (`:742-744`), άρα φύτευση μέρας 0 ⇒ WEED μέρα ~17-18. Cross-check μέσα στο ίδιο report:
+   **1.366/1.366 seats** πουλάνε wheat/melon/strawberry/fertilizer. **Το v1h ΔΕΝ κάνει rebalance
+   προς το modal** — θα ήταν αντιγραφή σφάλματος μέτρησης.
+4. **Sell cliffs υπολογισμένα με `market_price(item, 10000+n)`:** wool **59** · strawberry 62 ·
+   milk **76** · melon 158 · fertilizer 493 · carrot 842 · wheat/egg >2.000. Έναντι v1g παραγωγής
+   ~160 wool (5 sheep) και ~264 milk (8 cow) — **και διπλάσια σε mirror**. Ανοιχτό ερώτημα: το
+   marginal ζώο μπορεί να πουλά κοντά στο floor.
+5. **Shops-with-replacement:** 8 κληρώσεις/8 τύπους ⇒ διακριτοί `8·(1−(7/8)⁸) = 5,25`·
+   **P(κανένα YARN_STORE) = 34,4%** ⇒ 1 στα 3 επεισόδια το wool μένει χωρίς αγοραστή.
+   Το [agent/state.py](agent/state.py):14 έχει **αφαιρέσει** το `unlocked_shops` από το snapshot.
+6. **RL thread:** καμία αλλαγή — ανεξάρτητη εμπειρική επιβεβαίωση της standing απόφασης (§4).
+7. **Yummers/v23:** fertilizer = **μηδενική NPC ζήτηση** (εκτός `TOWN_CENTER_PRODUCTS` ΚΑΙ κάθε
+   shop menu) ⇒ μονότονα φθίνουσα τιμή ⇒ «πούλα νωρίς, πάντα». Per-unit pre-sell quote ⇒ ο
+   endpoint έλεγχος του [agent/executor.py](agent/executor.py):89 είναι **συντηρητικός, όχι bug**.
+
+**Έγγραφα που ενημερώθηκαν:**
+- `docs/meta/competition_updates.md` — 4 νέες εγγραφές (balance changes με πλήρη αριθμητική,
+  1.32.5 bump, RL thread, Yummers/v23).
+- `docs/meta/ladder_snapshots.md` — νέα εγγραφή `2026-08-07` (anchor `#meta0807`) με το artifact
+  argument, hands convergence 5-6 vs το δικό μας μετρημένο 6, money median $125,9k → **$115,7k**
+  ενώ score +135 Elo, μετακινημένο sell ημερολόγιο (milk 8→10, strawberry 16→18).
+- `docs/MASTERPLAN.md` — §1 ladder benchmark (2 διορθώσεις)· §3.2#5 melon **υποβαθμίστηκε σε «μη
+  παίξιμο»**· §3.2#6 town ramp με ημερομηνία λήξης· §3.2#8 `unlocked_shops` **αναβαθμίστηκε σε
+  σχεδιαστική απαίτηση**· §3.4 αναθεώρηση άξονα (α) (δομή ναι, χαρτοφυλάκιο όχι)· §5.0 **νέος
+  άξονας (ε)** ανθεκτικότητα στη σύνθεση ζήτησης· §7 απόκλιση **#11** (shed/LOCKED) + **ρίσκο #9**
+  (ανακοινωμένη balance change) + detector χωρίς install στο #1.
+- `current_phase.md` — **🔒 ΚΑΝΟΝΑΣ ΑΚΟΛΟΥΘΙΑΣ** στην κεφαλίδα (τίποτα δεν αγγίζει το v1g run)·
+  §0 πίνακας με 4 υποσημειώσεις ⚠️α-δ· **νέο §0bis** (ποσοτική ανάλυση balance change + 2 engine
+  facts)· **νέο §Β.0** (ρητή λίστα δεδομένων που ζητούνται από το v1g report)· **νέα §v1g.1**
+  (engine bump, 5 βήματα + 4 παγίδες)· **νέα §v1g.2** (shop-adaptive + fertilizer timing, 5 παγίδες
+  + ad-hoc gate με χειροκίνητο `unlocked_shops`)· **v1h → v1h′** (χωρίς portfolio rebalance)· v1i
+  με exact per-unit sum· ΜΕΡΟΣ Γ #2 **3 νέα σενάρια ζήτησης** + #4 detector· νέο χρονοδιάγραμμα.
+
+**Παρατήρηση στο τέλος του session:** τα python worker processes του v1g **δεν τρέχουν πλέον** και
+υπάρχει `checkpoints/v1g` (fingerprint `087f4dee56f6083b...`). **ΔΕΝ υπάρχει `runs/gate_v1g_*`
+directory**, οπότε το verdict του gate **δεν επιβεβαιώθηκε από αυτό το session** — πρέπει να
+διαβαστεί από όποιον έτρεξε το gate.
+
+**Next session should:** (1) επιβεβαίωσε το v1g verdict + metric gate· (2) **τρέξε το §Β.0** πριν
+από οποιαδήποτε αλλαγή κώδικα — ειδικά τα realized avg sell prices WOOL/MILK/FERTILIZER, που
+κρίνουν αν το SHEEP/COW target χρειάζεται screen `{8,5}` vs `{6,3}` vs `{8,3}`· (3) μετά §v1g.1
+(engine bump — **πριν** από κάθε άλλο κώδικα, αλλιώς τα επόμενα gates συγκρίνουν διαφορετικά
+engines)· (4) μετά §v1g.2. **Καμία από τις αλλαγές των docs δεν έχει γίνει commit** — εκκρεμεί
+έγκριση χρήστη, standing git-safety protocol.
+
+---
+
 ## 2026-08-06 (στ) — Session: v1f (crew scale-up) ολοκληρώθηκε· `checkpoints/v1f` δημιουργήθηκε με `hands_target=6`
 
 **Context:** Συνέχεια από το 2026-08-06 (ε) — το bisect prerequisite ήταν λυμένο, ξεκίνησε η

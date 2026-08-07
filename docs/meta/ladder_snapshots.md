@@ -33,6 +33,105 @@ ladder έναντι του μέσου όρου της κορυφής.
 
 ---
 
+## 2026-08-07 — *Live Meta Report* 8.5 (δεδομένα 2026-08-06) <a id="meta0807"></a>
+
+**Πηγή:** *8.5 Daily Meta Report — 2026-08-06*, ζώνη Elo 2700–all· **683 episodes / 1.366 seats**,
+avg Elo [2941, 3081], median 2973. Leaderboard snapshot 2026-08-07 12:37: **venks 3109,1** ·
+Seb (allegedly) 3106,6 · THUNDER THUNDER 3096,5.
+
+### 🚨 Το «modal farm χωρίς crops» είναι **measurement artifact**, όχι στρατηγική <a id="meta0807-artifact"></a>
+
+Το report δίνει modal farm **8 cow + 6 sheep · 5 hands · NE+NW+SW — 44%** και σχολιάζει
+«top players are running pure-animal farms». **Αυτή η ανάγνωση είναι λάθος** και είναι σημαντικό
+να μην περάσει στο πλάνο μας, γιατί το current_phase.md v1h προβλέπει «rebalance χαρτοφυλακίου»
+προς το modal farm.
+
+Το composition fingerprint μετριέται στο **τέλος** του επεισοδίου (ό,τι tile επιβιώνει τη μέρα 30).
+Στο engine 1.32.4:
+- **WHEAT / CARROT / MELON** είναι one-shot: `HARVEST` κάνει `farm["tiles"][fy][fx] = None`
+  (kaggriculture.py:411-412) — το tile **αδειάζει** μόλις θεριστεί.
+- **STRAWBERRY** είναι ongoing αλλά **επίσης εξαφανίζεται**: μόλις φτάσει `max_yield` (ηλικίες
+  10/12/14/16), το `_daily_refresh_plants` του βάζει `max_lifespan_step`· από εκεί το
+  `_decay_plants` κάνει `yield_units -= 1` κάθε 2 turns και **`<= 0` ⇒ `{"kind": "WEED"}`**
+  (kaggriculture.py:742-744). Αν ο παίκτης έχει ήδη θερίσει (`yield_units == 0`), το **πρώτο**
+  decay tick το κάνει WEED. Strawberry φυτεμένο μέρα 0 ⇒ max_yield μέρα 16 ⇒ **WEED γύρω στη
+  μέρα 17-18**.
+
+Και η επιβεβαίωση είναι **μέσα στο ίδιο report**: το sell rhythm δείχνει **1.366/1.366 seats**
+να πουλάνε wheat (μέρα 2), melon (10), strawberry (**18**), milk (10), wool (9), fertilizer (3),
+και early seeds μέρες 0-4 **wheat 14,0 / melon 11,6 ανά παίκτη**. Δεν πουλάς ό,τι δεν καλλιεργείς.
+Η μέρα 18 του strawberry συμπίπτει ακριβώς με το παράθυρο θανάτου του φυτού.
+
+**Σωστή ανάγνωση:** το modal fingerprint μετρά **ποιες δομές επιβιώνουν** (μόνο τα ζώα, που δεν
+πεθαίνουν αν ταΐζονται), όχι το χαρτοφυλάκιο. Η ελίτ είναι **wheat+melon-βαριά νωρίς + ζώα**.
+**Συνέπεια για εμάς:** (α) καμία στροφή σε pure-animal· (β) το «6 strawberry + 1 wheat» του
+[topfarms-19](#topfarms-19) είναι **κάτω φράγμα** της πραγματικής χρήσης crops της ελίτ, όχι το
+mix της· (γ) το §0 gap table του current_phase.md («Crops: εμείς 10 carrot + 31 strawberry vs
+ελίτ 6 strawberry + 1 wheat») συγκρίνει **ζωντανά tiles** με **επιζώντα tiles** — μη συγκρίσιμα
+μεγέθη.
+
+### Hands: 5-6 — και η αιτία δίνεται ρητά
+
+Modal 5 hands (2η θέση: 6). Το report εξηγεί: **δεν είναι επιλογή αλλά fib hire-cost ceiling** —
+οι παίκτες στέλνουν **200-300 HIRE orders** και πληρώνουν μόνο τα πρώτα λίγα.
+
+**Ανεξάρτητη σύγκλιση με το δικό μας v1f:** μετρήσαμε h6 `IMPROVED` +$2.241,72/ep, h8 +$1.107,15,
+**h10/h12 `REGRESSED`** (memory.md 2026-08-06 (στ)) — ίδιο συμπέρασμα, **διαφορετικός μηχανισμός**
+(εμείς: idle hands σε σταθερό tile ceiling· αυτοί: κόστος). Ό,τι κι αν είναι η αιτία, το
+`hands_target = 6` είναι πλέον **ευθυγραμμισμένο με την κορυφή**. Ακυρώνει τη γραμμή «Hands 3 → 12»
+του current_phase.md §0 (προερχόταν από το [topfarms-19](#topfarms-19) της 08-05).
+
+### Χρήματα: **πρώτη πτώση** του median ενώ το Elo ανεβαίνει
+
+| match-day | min-Elo | score-med | money-med | modal share |
+|---|---|---|---|---|
+| 2026-08-04 | 2700 | 2773 | $129.163 | 85% |
+| 2026-08-05 | 2700 | 2839 | $125.877 | 24% |
+| 2026-08-06 | 2700 | **2973** | **$115.664** | 44% |
+
+Ending money: median **$115.664**, max $168.527. Δηλαδή **score +135 Elo ενώ money −$10.213** —
+συνεπές με κορεσμό της κοινής αγοράς καθώς περισσότεροι παίκτες φτάνουν στην ίδια κλίμακα
+παραγωγής. Το BT μετρά W/L, όχι $ — η πτώση του απόλυτου bank **δεν** είναι επιδείνωση της
+κορυφής. Ο στόχος μας παύει να είναι «φτάσε τα $125k».
+
+### Sell rhythm & build order (πρώτη μέρα πώλησης / μέσο batch)
+
+fertilizer **3** / 4,5 · wheat **2** / 5,6 · carrot 4 / 3,1 (37 seats) · wool **9** / 5,3 ·
+melon **10** / 12,8 · milk **10** / 4,8 · tomato 12 / 4,0 (1 seat) · strawberry **18** / 12,2 ·
+egg 25 / 8,0 (1 seat).
+Build order (median 1ης ORDER): **first hire 0 · first cow 0 · first sheep 0 · first land 7**.
+Cash curve (on-hand, όχι net worth): d5 $299 · d10 $2.212 · d15 $21.272 · d20 $45.689.
+
+Δύο σημεία που μετακινούν το [topfarms-22](#topfarms-22) prior του v1i: **wool 9 → 9** (σταθερό),
+**milk 8 → 10**, **strawberry 16 → 18**, **melon 10 → 10**. Δηλαδή το ημερολόγιο **όντως
+μετακινείται**, όπως προέβλεπε το MASTERPLAN §3.3 — ο v1i μηχανισμός πρέπει να διαβάζει αγορά,
+όχι hardcoded μέρες. Νέο, μη καταγεγραμμένο πριν: **fertilizer μέρα 3 από 1.366/1.366 seats** —
+όλοι ρευστοποιούν fertilizer νωρίς, συνεπές με το «μηδενική NPC ζήτηση, η τιμή δεν ανακάμπτει
+ποτέ» ([competition_updates 2026-08-07, Yummers](docs/meta/competition_updates.md)).
+
+### Νικητές vs ηττημένοι: πρακτικά ταυτόσημοι
+
+final money $117.685 (win) vs $114.053 (loss)· early seeds win wheat 13,9 / melon 11,4 vs loss
+wheat 14,1 / melon 11,8. Συνεχίζει το μοτίβο του [wins-6](#wins-6): **στην κορυφή ο όγκος δεν
+διακρίνει** — η νίκη κρίνεται σε εκτέλεση/timing, όχι σε σύνθεση.
+
+### Consensus 24% → 44%: ο ίδιος ο συγγραφέας το flag-άρει
+
+«consensus share moved 20 pts in one day — a real meta shift or a data anomaly; verify with the
+next day's snapshot». Δεδομένου ότι το modal fingerprint είναι artifact (παραπάνω), το consensus
+ποσοστό μετρά **πόσοι κατέληξαν με 8 cow + 6 sheep**, όχι πόσοι παίζουν ίδια στρατηγική — το
+νούμερο είναι λιγότερο πληροφοριακό απ' ό,τι φαίνεται. **Παραμένει ανεπιβεβαίωτο.**
+
+### Engine balance watch
+
+Το ίδιο report σημειώνει: *«Upcoming Balance Changes (votes 8) — engine may change; today's meta
+could become stale quickly.»* Πλήρης ανάλυση:
+[competition_updates.md 2026-08-07](docs/meta/competition_updates.md). **Κάθε νούμερο αυτής της εγγραφής
+έχει ημερομηνία λήξης** — μετρήθηκε στο παλιό μοντέλο ζήτησης (town center ×2/×4, shops χωρίς
+επανάθεση).
+
+---
+
 ## 2026-08-06 — *Live Meta Report* (ανανέωση) + 3 agent notebooks ως έμμεση μαρτυρία
 
 **Πηγές:** (α) *Kaggriculture Daily Replays: The Live Meta Report* (Georgy Mamarin, run 2026-08-06
