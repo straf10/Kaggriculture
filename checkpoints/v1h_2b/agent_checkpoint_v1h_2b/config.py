@@ -315,12 +315,7 @@ CONFIG = {
         # adoption and low yield made it a measured drop here, not a carry-over — see
         # memory.md v1g entry for the full screen history.
         "enabled": True,
-        # v1h.2 D2 (engine 1.32.6): the town centre now absorbs 30 rather than 140 units
-        # per product/season. In mirror, 6 COW per side collapsed MILK to $31-37 while WOOL
-        # stayed healthy at $197-243. DEV pinned-basket screen vs v1h_2b:
-        # 4C/6S +$2,644/ep with 0 water weeds and 54 escapes; 5C/4S +$2,191 but 52/122;
-        # 4C/4S -$1,055 with 66/0. Keep ten animals but diversify production toward WOOL.
-        "targets": {"COW": 4, "SHEEP": 6, "GOOSE": 0},
+        "targets": {"COW": 6, "SHEEP": 4, "GOOSE": 0},
     },
     "endgame": {
         "enabled": True,

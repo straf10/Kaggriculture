@@ -77,24 +77,18 @@ def market_orders(
         product_in_shed = int(snapshot.shed.get(product, 0))
         if product_in_shed <= 0:
             continue
-        # v1h.2 D3: liquidation used to bypass the floor and dump the whole shed. Under
-        # 1.32.6's flat town-centre demand that sent 110 units to market on day 26 in the
-        # diagnostic seed, including 74 MILK units at <=$5. The normal product floors proved
-        # too restrictive here (they increased shed overflow), so endgame uses one weak hard
-        # floor: realize every unit still worth >$5, but do not turn inventory into pennies.
-        floor = (
-            int(executor_config["liquidation_floor_price"])
-            if plan.force_liquidation
-            else int(plan.sell_floor_price.get(product, 5))
-        )
-        safety_units = int(executor_config["opponent_price_safety_units"])
-        inventory = int(snapshot.market_inventory.get(product, 0))
-        sell_units = 0
-        while (
-            sell_units < product_in_shed
-            and market_price(product, inventory + sell_units + safety_units) > floor
-        ):
-            sell_units += 1
+        if plan.force_liquidation:
+            sell_units = product_in_shed
+        else:
+            floor = int(plan.sell_floor_price.get(product, 5))
+            safety_units = int(executor_config["opponent_price_safety_units"])
+            inventory = int(snapshot.market_inventory.get(product, 0))
+            sell_units = 0
+            while (
+                sell_units < product_in_shed
+                and market_price(product, inventory + sell_units + safety_units) > floor
+            ):
+                sell_units += 1
         if sell_units:
             orders.append(["SELL", product, sell_units])
 

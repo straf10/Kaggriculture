@@ -47,15 +47,14 @@
 > **δεν** είναι το πρόβλημα (wool $197-243, υγιέστατο) — το **MILK** καταρρέει στα $31-37 σε
 > mirror. Πλήρη νούμερα και τα τρία διαγνωσμένα defects: §v1h.1· το σχέδιο διόρθωσης: §v1h.2.
 
-**Πού είμαστε σε μία παράγραφο:** Φάση 1 **κλειστή**. Τέσσερα increments έκλεισαν στη Φάση 2 —
-**v1f** (crew `hands_target=6`), **v1g** (ζώα 3 → **10**: 6 COW + 4 SHEEP, +$25,3k/ep vs v1f σε
-holdout, 96/96 wins), **v1g.1** (engine bump 1.32.4 → 1.32.5, bump-only· ο shed-access routing
-fix μετρήθηκε net-negative και έγινε revert) και **v1h′** (3ο quadrant SW φυτεμένο με **WHEAT** +
-crew 6→10 μέσα στο παράθυρο εργασίας του, +$2,8k/ep vs v1g.1 σε holdout, 96/96 wins).
-Τρία submissions έγιναν· ενεργά (η Kaggle κρατά μόνο 2): **v1g** (`55324447`, `publicScore
-643.7`) και **v1h** (`55383610`). Τρέχον baseline κάθε gate: **`checkpoints/v1h`**. Πλήρες
-ιστορικό: **memory.md 2026-08-06 → 2026-08-08**.
-Το χάσμα με την ελίτ: η **γη έκλεισε**· μένουν market intelligence (sell-ahead) και robustness.
+**Πού είμαστε σε μία παράγραφο:** Φάση 1 **κλειστή**. Τα v1f/v1g/v1h′ έκλεισαν και έγιναν τρία
+submissions· ενεργά (η Kaggle κρατά μόνο 2): **v1g** (`55324447`, `publicScore 643.7`) και
+**v1h** (`55383610`). Το v1h.1 έκανε το υποχρεωτικό bump σε **1.32.6** και πάγωσε το
+code-identical baseline **`checkpoints/v1h_1`**. Το v1h.2 έφτασε ως `v1h_2c` (`{4C,6S}`):
+συνολικό pinned DEV **IMPROVED +$2.888,5/ep**, αλλά STOP χωρίς holdout λόγω 39 escapes και 1.510
+overflow· το raw `weeds_lost=768` χρειάζεται semantic decomposition, όχι policy gaming.
+Επόμενο και μοναδικό ενεργό increment: **v1h.2d residual-loss restoration**, §v1h.2. Πλήρες
+ιστορικό εκτέλεσης: **memory.md 2026-08-09 (δ)**.
 
 ---
 
@@ -413,8 +412,9 @@ Baseline κάθε gate = το προηγούμενο αποδεκτό checkpoint
 > **[ενημ. 2026-08-09, δ′ αναθεώρηση — το 1.32.6 αναδιατάσσει τη σειρά] Σειρά:**
 > ~~`Β.0′`~~ ✅ → ~~herd screen~~ ✅ → ~~`v1h′` SW quadrant~~ ✅ (`checkpoints/v1h`, submitted) →
 > ~~**`v1h.1` engine bump 1.32.5 → 1.32.6 + re-baseline**~~ ✅ (bump καθαρός· **αλλά αποκάλυψε
-> ότι το baseline αποτυγχάνει σε hard metrics**) → **`v1h.2` επαναφορά metric gate** ⬅ **ΤΩΡΑ,
-> μπλοκάρει τα πάντα** → **`Β.2` clean-room meta-bench opponent** (φθηνό, χωρίς αλλαγή
+> ότι το baseline αποτυγχάνει σε hard metrics**) → **`v1h.2d` semantic gate repair + residual
+> escapes/overflow restoration** ⬅ **ΤΩΡΑ, μπλοκάρει τα πάντα** → **`Β.2` clean-room
+> meta-bench opponent** (φθηνό, χωρίς αλλαγή
 > `agent/`, ξεκλειδώνει σωστή μέτρηση για όλα τα επόμενα) →
 > **`v1i` sell-ahead** (market-only ⇒ δεν χρειάζεται pin) →
 > **`v1j` wheat+crew** (το μετρημένο κενό 12 → ~31 wheat tiles, μαζί με το crew — occupancy) →
@@ -819,30 +819,95 @@ floor μπορεί μόνο να **σμικρύνει** `sell_units` μέσα σ
 - **Το ordering bug του executor** (SELL θέση εξαρτάται από το αν έγινε truncation) — πλήρης
   περιγραφή στο §v1i σημείο (3).
 
-### v1h.2 — Επαναφορά του metric gate στο 1.32.6 [⬅ ΕΠΟΜΕΝΟ, ΜΠΛΟΚΑΡΕΙ ΤΑ ΠΑΝΤΑ]
+### v1h.2 — Επαναφορά του metric gate στο 1.32.6 [⏸ STOP· συνέχεια κλειδωμένη: v1h.2d]
 
-**Γιατί προηγείται των πάντων:** το `checkpoints/v1h` είναι το baseline **κάθε** επόμενου gate,
-και σήμερα αποτυγχάνει σε hard metrics σε **48/48 seeds**. Ένα gate με μολυσμένο baseline δεν
-μετράει τίποτα. Επίσης το v1h **είναι ήδη ανεβασμένο** και παίζει σε αυτό το καθεστώς τώρα.
+**Γιατί προηγείται των πάντων:** το `checkpoints/v1h` / `v1h_1` είναι το baseline **κάθε**
+επόμενου gate, και σήμερα αποτυγχάνει σε hard metrics σε **48/48 seeds**. Ένα gate με
+μολυσμένο baseline δεν μετράει τίποτα. Επίσης το v1h **είναι ήδη ανεβασμένο** και παίζει σε
+αυτό το καθεστώς τώρα.
 
-**Σειρά, από το βεβαιότερο στο πιο ανοιχτό** — κάθε σκέλος δικό του screen, όχι ένα μεγάλο patch:
+**Τα τρία σκέλη εκτελέστηκαν με ρητή απόφαση χρήστη να προχωρήσει μετά το STOP του α.**
+Immutable καταστάσεις: `checkpoints/v1h_2a` (D1), `v1h_2b` (D3), `v1h_2c` (D2).
+Πλήρη gates και fingerprints: memory.md 2026-08-09 (δ).
 
-| # | Defect | Κατηγορία knob | Πρώτη κίνηση |
+| # | Defect | Αποτέλεσμα |
+|---|---|---|
+| **α / D1** | day-2 watering hole | hour-0 HIRE πιστώνει queued SELL μόνο στο cashless hole· absolute pinned seeds 0-7 `water_weeds 16→0` |
+| **β / D3** | liquidation dump | κοινό endgame hard floor `$5`· DEV vs `v1h_2a`: `NON_INFERIOR −$5,5/ep`, ≤$5 sales `2035→18`· τα normal product floors απορρίφθηκαν επειδή αύξησαν περισσότερο το overflow |
+| **γ / D2** | MILK collapse | pinned-basket screen `{4C,4S}/{4C,6S}/{5C,4S}`· νικητής **`{4C,6S}`**, `IMPROVED +$2.644/ep` vs `v1h_2b` |
+
+**Συνολικό DEV** (`v1h_2c` vs `v1h_1`, 48 seeds, both seats, `--town-pin basket --metrics`):
+**`IMPROVED +$2.888,5/ep`**, CI `[+$254,3, +$5.522,7]`, wins 32-16· water weeds 0,
+decay 0, ≤$5 sales 0. Όμως `animals_escaped=39`, `shed_overflow_burnt=1510` και
+`weeds_lost=768` ⇒ **`metric_gate_passed=False`**.
+
+**Δεν έτρεξε holdout** — σωστά, αφού το DEV metric gate απέτυχε. Το ιστορικό των τριών σκελών
+και των rejected variants μένει στο memory.md 2026-08-09 (δ).
+
+#### Απόφαση μετά το STOP
+
+**Μία συνέχεια: `v1h.2d` = semantic decomposition του weed metric + root-cause residual-loss
+restoration πάνω στο `v1h_2c`.** Το accepted baseline παραμένει `v1h_1` ώσπου να περάσει όλο το
+increment.
+
+Ο σημερινός `compare.py` απαιτεί raw `weeds_lost == 0`. Όμως το `extract_metrics()` αυξάνει το
+raw counter σε **κάθε** `PLANT → WEED` πριν εξετάσει το `harvested_here`, ενώ το engine αφήνει
+ένα harvested ongoing crop ως zero-yield `PLANT` και κατόπιν το αποσύρει σε `WEED`. Άρα το
+σταθερό 8/episode, μαζί με `water_weeds_lost=0` και `plant_decay_units_lost=0`, περιλαμβάνει
+κανονικά επιτυχημένα harvest retirements· η εξάλειψή του με extra DIG/routing θα ήταν metric
+gaming και occupancy κόστος, όχι αποκατάσταση απώλειας.
+
+**Gate decision:** το raw `weeds_lost` μένει αναλλοίωτο diagnostic. Νέο
+`unexpected_weeds_lost` εξαιρεί **μόνο** transition με επιτυχημένο same-transition HARVEST και
+μένει hard-zero. Δεν θεσπίζεται allowance «8/episode», delta-vs-baseline ή seed exception.
+`animals_escaped` και `shed_overflow_burnt` παραμένουν απόλυτα hard-zero.
+
+| Επιλογή | Root cause / πιθανότητα | Κόστος, overfit, gate | Απόφαση |
 |---|---|---|---|
-| **α** | **D1** day-2 watering hole, `(2,2)`+`(3,4)`, κάθε seed | **occupancy** | Είναι ντετερμινιστικό ⇒ διαγιγνώσκεται με **ένα** episode και receipts (`KAGGRI_DEBUG`), όχι με sweep. Ερώτημα: λείπει hire, λείπει χρήμα, ή λείπει slack στο routing; |
-| **β** | **D3** liquidation dump στο floor + `shed_overflow_burnt` | **market-only** | Το `force_liquidation` να **σέβεται ένα floor** (ή να ξεκινά νωρίτερα με trickle). Σταθερό seed αρκεί ⇒ φθηνό. ⚠️ Το αντίθετο ρίσκο είναι υπαρκτό: απούλητο inventory **δεν μετράει** στο bank |
-| **γ** | **D2** MILK collapse σε mirror | **occupancy** (σύνθεση κοπαδιού) | Το ακριβότερο και το πιο σημαντικό. Απαιτεί `--town-pin basket` και **επανεξέταση** του «κλειστού» `{6C,4S}` — η προηγούμενη επικύρωση έγινε σε αγορά που απορροφούσε 4,7× |
+| Literal policy fix και για τα τρία raw counters | Σωστή κατεύθυνση για escapes/overflow, λάθος για harvest retirements· χαμηλή πιθανότητα καθαρού DEV/holdout χωρίς metric gaming | occupancy· extra work απειλεί το +$2.888/ep | Απορρίπτεται |
+| Απλή εξαίρεση raw `weeds_lost<=8/ep` | Κρύβει metric και μόνη της δεν περνά ποτέ: μένουν 39/1.510 πραγματικές απώλειες | μηδενικό άμεσο $, αλλά seed/baseline-bound exception | Απορρίπτεται |
+| Άλλη herd/liquidation παραλλαγή | Τα δεδομένα ήδη δείχνουν `{4C,4S}`: 0 escapes αλλά 1.994 overflow, 66 water weeds και −$1.055/ep· `{5C,4S}` χειρότερα metrics· normal floors αύξησαν overflow | νέο herd screen = occupancy και υψηλότερο DEV overfit· ανατρέπει μετρημένες αποφάσεις χωρίς νέο mechanism | Απορρίπτεται |
+| **Semantic decomposition + στοχευμένο logistics fix** | Διορθώνει το false-positive definition και τις δύο πραγματικές απώλειες· υψηλότερη DEV πιθανότητα, μέτρια holdout πιθανότητα | engine-semantic, όχι seed threshold· οικονομικό κόστος bounded με gate vs `v1h_2c` | **Επιλέγεται** |
 
-⚠️ **Το (γ) ΔΕΝ είναι επανάληψη του herd screen της 08-08.** Εκείνο ρωτούσε «περισσότερες
-αγελάδες;» και απάντησε όχι, σε engine με 140 μονάδες/σεζόν TC. Το ερώτημα τώρα είναι το
-**αντίστροφο** — «**λιγότερες**;» — και σε engine με 30. Η απάντηση «όχι» στο πρώτο δεν λέει
-τίποτα για το δεύτερο. Το ίδιο μετρημένο συμπέρασμα της 08-08 («η **διαφοροποίηση** WOOL/MILK
-αξίζει περισσότερο από το στατιστικά καλύτερο ζώο») δείχνει τώρα προς **λιγότερες αγελάδες**,
-όχι περισσότερες: το WOOL κρατά $197-243, το MILK πέφτει στα $31.
+#### v1h.2d — σαφές checklist
 
-**Αποδοχή:** `metric_gate_passed = True` σε DEV **και** holdout, `IMPROVED` έναντι
-`checkpoints/v1h_1` — και **μόνο τότε** 4ο submission (§Α.3: ως **διαφοροποιημένος** challenger,
-όχι ως «η επόμενη έκδοση»).
+**Pre-gate classification: OCCUPANCY (συντηρητικά, από την αρχή).** Η semantic αλλαγή είναι
+harness-only και συμπεριφορικά ουδέτερη, αλλά πιθανό FEED deadline/routing fix μπορεί να αλλάξει
+ποια tiles εξυπηρετούνται κάθε βράδυ. Άρα όλα τα DEV screens: seeds 0-47, both seats,
+`--town-pin basket --metrics`. Το μοναδικό τελικό holdout: 100-147, both seats, **χωρίς pin**.
+
+- [ ] Κράτησε frozen candidate το `v1h_2c` και accepted baseline το `v1h_1`· κανένα engine bump.
+- [ ] Πρόσθεσε `unexpected_weeds_lost` χωρίς να αλλάξει το raw diagnostic. Guards: successful
+      ongoing-crop harvest retirement **δεν** μετρά· starvation και unharvested decay συνεχίζουν
+      να αποτυγχάνουν μέσω των υφιστάμενων hard counters.
+- [ ] Από το υπάρχον DEV artifact, κάνε product/day/task trace σε αντιπροσωπευτικά failing seeds,
+      όχι tuning ανά seed. Το εύρημα ότι και τα 36 escape episodes ανήκουν στα 62 overflow
+      episodes κάνει πρώτο hypothesis το κοινό shed/feed congestion.
+- [ ] Πρώτα απομόνωσε το ελάχιστο product-aware EOD headroom fix: πώληση μόνο πραγματικού surplus,
+      με ρητό WHEAT feed reserve· όχι blanket floor, όχι ενεργοποίηση `dynamic_sell_floor`.
+- [ ] Isolated DEV vs `v1h_2c`. Αν μηδενίσει και overflow και escapes, **μην** αγγίξεις scheduler.
+      Αν μείνουν escapes, πρόσθεσε μόνο mechanism-based FEED deadline/slack fix και νέο isolated
+      DEV· καμία νέα herd σύνθεση.
+- [ ] Μετά από κάθε αποδεκτό isolated step: tests/guards, hard metrics καθαρά και verdict
+      `NON_INFERIOR` ή `IMPROVED` vs `v1h_2c`. Μέγιστο επιτρεπτό οικονομικό spend = το ήδη
+      καταγεγραμμένο DEV non-inferiority margin `$829,3/ep`, όχι όλο το +$2.888,5.
+- [ ] Συνολικό DEV `candidate vs v1h_1`: **IMPROVED** και πλήρες corrected hard gate καθαρό.
+      Μόνο τότε τρέχει μία φορά unpinned holdout-confirm με τα ίδια criteria.
+- [ ] Μόνο μετά από καθαρό holdout: immutable `v1h_2d` + fingerprint. Submission μόνο με νέα
+      ρητή εντολή.
+
+**Acceptance:** corrected weed semantics καλυμμένα από guards·
+`water_weeds_lost=plant_decay_units_lost=animals_escaped=clipped_production_ticks=
+shed_overflow_burnt=unexpected_weeds_lost=0`, low-price budget ≤2%, no unexplained no-ops/market
+abort· isolated DEV non-inferior ή καλύτερο vs `v1h_2c`· συνολικό DEV **και** one-shot holdout
+`IMPROVED` vs `v1h_1`.
+
+**Revert / STOP:** οποιοδήποτε isolated candidate `REGRESSED` ⇒ άμεσο revert του candidate και
+STOP, όχι αντιστάθμιση με δεύτερη αλλαγή. Μη μηδενικό πραγματικό hard metric ή συνολικό DEV
+`INCONCLUSIVE` ⇒ STOP χωρίς holdout. Holdout όχι `IMPROVED` ή όχι καθαρό ⇒ STOP, καμία tuning
+απόφαση πάνω στα 100-147 και καμία submission. Έτσι δεν παραβιάζονται οι standing αποφάσεις:
+1.32.6 μένει pinned, `{4C,6S}`/floor `$5` δεν ξανανοίγουν χωρίς νέο mechanism, basket pin μόνο
+στο occupancy DEV και τελικό holdout πάντα unpinned.
 
 ### Β.2 — Clean-room **meta-bench opponent** [ΝΕΟ 2026-08-09 — προαπαιτούμενο του v1i]
 
@@ -1051,14 +1116,20 @@ max».
 
 ---
 
-## Πρωτόκολλο (αμετάβλητο — ισχύει για κάθε gate αυτής της φάσης)
+## Πρωτόκολλο (ισχύει για κάθε gate αυτής της φάσης· weed semantics διευκρινίστηκαν στο v1h.2d)
 
 - **Seeds**: `DEV_SEEDS` 0-47 (screening) · `HOLDOUT_SEEDS` 100-147 (μόνο confirm, καμία
   tuning απόφαση) · `SMOKE_SEEDS` 0-11 (ποτέ GO) · `CONFIRM2_SEEDS` 200-247 **καμένο** για το
   v1c ερώτημα ([harness/seeds.py](harness/seeds.py)). GO **μόνο** από `stage=holdout-confirm`
   με `metrics_checked` και καθαρό metric gate.
-- **Metric gates πριν το $-verdict**: `water_weeds_lost == 0` ∧ `plant_decay_units_lost == 0`
-  (+ ανά increment: `animals_escaped`, clipped ticks, `unexplained_noops`).
+- **Metric gates πριν το $-verdict**: `water_weeds_lost == 0` ∧
+  `plant_decay_units_lost == 0` ∧ `animals_escaped == 0` ∧
+  `clipped_production_ticks == 0` ∧ `shed_overflow_burnt == 0` ∧
+  `unexpected_weeds_lost == 0`, low-price units ≤2% των sales, κανένα unexplained no-op και
+  κανένα market-simulation abort. Το raw `weeds_lost` μένει diagnostic: από το v1h.2d δεν είναι
+  hard gate επειδή περιλαμβάνει επιτυχημένα ongoing-crop harvest retirements (§v1h.2). Η
+  εξαίρεση είναι semantic/event-based, όχι αριθμητικό allowance· escapes/overflow δεν
+  χαλαρώνουν.
 - **Immutable checkpoint** σε **κάθε** αποδεκτή κατάσταση, με fingerprint verification (G15).
 - **Both seats πάντα** — το weed RNG είναι seat- και opponent-tile-fill-εξαρτώμενο
   (MASTERPLAN §2 #6/#7).
@@ -1121,7 +1192,8 @@ per-day RNG stream (§0ter, MASTERPLAN §2 #7).
 | v1h′ SW quadrant + WHEAT + crew 6→10 (+$2.835/ep holdout) | 08-08 | ✅ **ΚΛΕΙΣΤΟ** (`checkpoints/v1h`) — memory.md 2026-08-08 |
 | Submission v1h | 08-09 | ✅ **ΕΓΙΝΕ** (`SUBMISSION_ID 55383610`· έριξε το v1e εκτός) |
 | v1h.1 engine bump 1.32.6 + 2 breakage fixes + re-baseline | 08-09 | ✅ **ΚΛΕΙΣΤΟ** — bump ουδέτερο (48/48 ties)· `checkpoints/v1h_1` |
-| 🔴 **v1h.2 επαναφορά metric gate** (D1 watering · D3 liquidation floor · D2 milk glut) | **08-09 → 08-13** | ⬅ **ΕΠΟΜΕΝΟ — μπλοκάρει κάθε άλλο gate** |
+| v1h.2 a-c (D1 watering · D3 floor · D2 `{4C,6S}`) | 08-09 | ⏸ **STOP μετά το συνολικό DEV** — `IMPROVED +$2.888/ep`, 39 escapes + 1.510 overflow· κανένα holdout |
+| 🔴 **v1h.2d semantic weed gate + residual-loss logistics** (occupancy) | **08-10 → 08-13** | ⏭ **ΕΠΟΜΕΝΟ** — base candidate `v1h_2c`, accepted baseline `v1h_1`· DEV pinned basket, holdout μόνο αν corrected gate καθαρό |
 | **Β.2 clean-room meta-bench opponent** (εκτός `agent/`) | 08-13 → 08-15 | ⏸ προαπαιτούμενο του v1i |
 | v1i sell-ahead (+ exact per-unit sum, + online horizon inference) | 08-13 → 08-22 | ⏸ |
 | **v1j wheat+crew** (12 → ~31 wheat tiles μαζί με crew· occupancy ⇒ `--town-pin basket`) | 08-22 → 08-31 | ⏸ νέο, από MASTERPLAN §1 ενημ. 08-09 (β)/(γ) |

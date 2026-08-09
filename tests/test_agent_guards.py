@@ -362,6 +362,29 @@ def test_v1b_hires_target_hands_at_hour_zero():
     assert sum(1 for order in action["market"] if order == ["HIRE"]) == CONFIG["planner"]["hands_target"]
 
 
+def test_v1h2_d1_hour0_hire_credits_same_turn_sell():
+    """v1h.2 D1 — hour-0 HIRE must count queued SELL proceeds on a cashless morning.
+    Engine processes market by index (SELL at i funds HIRE at i+1); keep that order."""
+    from agent.executor import market_orders
+
+    observation = _minimal_observation(step=2 * 24)  # day 2 hour 0
+    observation["farms"][0]["money"] = 0
+    observation["farms"][0]["hands"] = []
+    observation["farms"][0]["hires_today"] = 0
+    observation["private"]["shed"]["FERTILIZER"] = 3
+    observation["market"]["inventory"]["FERTILIZER"] = 10_000
+    observation["market"]["prices"]["FERTILIZER"] = 100
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, CONFIG)
+    orders = market_orders(snapshot, plan, make_ledger(snapshot), [], CONFIG)
+
+    assert ["SELL", "FERTILIZER", 3] in orders
+    assert orders.count(["HIRE"]) == CONFIG["planner"]["hands_target"]
+    sell_i = next(i for i, order in enumerate(orders) if order[0] == "SELL")
+    first_hire_i = next(i for i, order in enumerate(orders) if order == ["HIRE"])
+    assert sell_i < first_hire_i
+
+
 def test_g2_multi_unit_assignment_reserves_observed_seeds():
     # animals disabled: this is a G2 multi-unit seed-reservation test, not a v1g animal-mass
     # test — with animals on, the 13 always-free BUILD_PASTURE/BUILD_COOP tasks (priority 2,
@@ -610,6 +633,40 @@ def test_v1e_endgame_liquidation_sells_stranded_wheat():
     assert any(order[:2] == ["SELL", "WHEAT"] for order in liquidating_orders)
 
 
+def test_v1h2_d3_liquidation_respects_hard_floor():
+    """v1h.2 D3 — the 1.32.6 flat town-centre demand made the day-26 full-shed dump sell
+    dozens of MILK units at <=$5. Liquidation may broaden the product set (WHEAT above) and
+    relax normal product floors, but it must retain the hard endgame floor."""
+    from agent.executor import market_orders
+    from agent.planner import DayPlan
+    from agent.scheduler import make_ledger
+
+    observation = _minimal_observation(step=CONFIG["endgame"]["liquidation_day"] * 24)
+    observation["private"]["shed"]["MILK"] = 100
+    observation["market"]["inventory"]["MILK"] = engine.MARKET_PARAMS["MILK"]["I0"]
+    snapshot = parse(observation)
+    floor = CONFIG["executor"]["liquidation_floor_price"]
+    safety = CONFIG["executor"]["opponent_price_safety_units"]
+
+    orders = market_orders(
+        snapshot,
+        DayPlan(sell_floor_price={"MILK": floor}, force_liquidation=True),
+        make_ledger(snapshot),
+        [],
+        CONFIG,
+    )
+    milk_order = next(order for order in orders if order[:2] == ["SELL", "MILK"])
+    sell_units = milk_order[2]
+
+    assert 0 < sell_units < 100
+    assert engine.market_price(
+        "MILK", engine.MARKET_PARAMS["MILK"]["I0"] + sell_units - 1 + safety
+    ) > floor
+    assert engine.market_price(
+        "MILK", engine.MARKET_PARAMS["MILK"]["I0"] + sell_units + safety
+    ) <= floor
+
+
 def test_v1g_animal_slot_ranges_carves_contiguous_blocks_per_name():
     """v1g: config["animals"]["targets"] moved from one reserved slot per unique animal name
     to N slots per name, carved contiguously out of a shared structure kind's tile pool in
@@ -642,6 +699,12 @@ def test_v1g_animal_daily_demand_sums_every_slot_not_just_one_per_name():
     tiny_config["animals"]["targets"] = {"COW": 3}
 
     assert _animal_daily_demand(tiny_config) == ((0 + 1) + 1) + ((1 + 1) + 1) + ((1 + 1) + 1)
+
+
+def test_v1h2_d2_herd_diversifies_away_from_milk():
+    """v1h.2 D2 — under 1.32.6, 6 COW per mirror side collapse MILK while WOOL remains
+    healthy. The DEV pinned-basket screen selected 4C/6S over 4C/4S and 5C/4S."""
+    assert CONFIG["animals"]["targets"] == {"COW": 4, "SHEEP": 6, "GOOSE": 0}
 
 
 def test_v1g_zero_target_count_skips_structure_and_purchase():

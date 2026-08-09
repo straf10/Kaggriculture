@@ -10,6 +10,147 @@
 
 ---
 
+## 2026-08-09 (δ) — Session: **v1h.2 α→β→γ εκτελέστηκε — DEV IMPROVED, metric gate STOP**
+
+**Εντολή:** επιλογή (1) από το STOP του (γ): checkpoint του absolute D1, μετά D3 και D2,
+με συνολική αποδοχή μόνο αν `metric_gate_passed=True` και `IMPROVED` σε DEV+holdout.
+
+**Αποτέλεσμα σε μία γραμμή:** δημιουργήθηκαν τα immutable `v1h_2a`/`v1h_2b`/`v1h_2c` και
+το τελικό `{4C,6S}` είναι **IMPROVED +$2.888/ep** vs `v1h_1` στο pinned DEV, αλλά το hard
+metric gate αποτυγχάνει (`39 escapes`, `1510 shed overflow`, pre-existing `768 weeds_lost`)
+⇒ **κανένα holdout, STOP για επόμενη απόφαση**.
+
+### 1. Σκέλος α — D1 αποδεκτό από absolute
+
+- `pytest tests/`: **180 passed** πριν το checkpoint.
+- `checkpoints/v1h_2a`, fingerprint
+  `254e148e8a872ba82100f1c87db38d5b33ceb1ad03166cb5d9d841bda40642fb`,
+  επαληθεύτηκε byte-for-behaviour έναντι του live agent.
+- Η βάση αποδοχής παραμένει η κλειστή μέτρηση του (γ): absolute pinned self-play seeds 0-7,
+  `water_weeds 16→0`. Δεν ξαναδιαγνώστηκε το D1.
+
+### 2. Σκέλος β — D3 liquidation hard floor
+
+**Κατηγορία:** MARKET-ONLY, χωρίς town pin, DEV 0-47 both seats vs `v1h_2a`.
+
+1. **Normal product floors στη liquidation — απορρίφθηκε:** πωλήσεις ≤$5 `2035→14`, αλλά
+   overflow `1809→2036` και `$ −72,6/ep`, CI `[−143,0, −2,2]`, `WITHIN_MARGIN`, wins 8-30.
+2. **Κοινό liquidation floor `$5` — κρατήθηκε:** πωλήσεις ≤$5 `2035→18`
+   (`3,360%→0,031%`), overflow `1809→2020`, `$ −5,5/ep`, CI `[−40,5, +29,5]`,
+   **`NON_INFERIOR`**, wins 11-23, 14 ties. Το residual overflow είναι παραγωγικό· η
+   συγκράτηση 18 μονάδων εξηγεί μόνο +211 burnt, όχι τον κύριο όγκο.
+
+`agent/config.py`: νέο `executor.liquidation_floor_price=5`.
+`agent/executor.py`: και η force-liquidation χρησιμοποιεί marginal loop με αυτό το floor.
+Guard: `test_v1h2_d3_liquidation_respects_hard_floor`.
+`checkpoints/v1h_2b`, fingerprint
+`0c0bf8500948c4953fa81b0266575d317479ff62c29b8c5c1fe67754d7d6c1c5`.
+
+### 3. Σκέλος γ — D2 pinned-basket herd screen
+
+**Κατηγορία:** OCCUPANCY ⇒ όλα DEV 0-47, both seats, `--town-pin basket`, vs `v1h_2b`.
+
+| Σύνθεση | mean diff / verdict | water weeds | escapes | shed overflow | ≤$5 |
+|---|---:|---:|---:|---:|---:|
+| `{4C,4S}` | −$1.055 · INCONCLUSIVE | 66 | **0** | 1994 | 0 |
+| **`{4C,6S}`** | **+$2.644 · IMPROVED** | **0** | **54** | **1388** | 16 |
+| `{5C,4S}` | +$2.191 · IMPROVED | 52 | 122 | 1610 | 5 |
+
+Επιλέχθηκε `{4C,6S}`: κρατά συνολικά 10 ζώα αλλά μεταφέρει παραγωγή από το καταρρέον MILK
+στο υγιές WOOL. Guard: `test_v1h2_d2_herd_diversifies_away_from_milk`.
+`pytest tests/`: **182 passed**. `checkpoints/v1h_2c`, fingerprint
+`29f0d4cfa0e4b836bf6d9162f3b10e77e075a33bf5cc5f2196532b5c67c25260`.
+
+### 4. Συνολικό DEV acceptance gate — STOP
+
+`checkpoints/v1h_2c/main.py` vs `checkpoints/v1h_1/main.py`, DEV 48, both seats,
+`--town-pin basket --metrics` (`gates/gate_v1h2_dev`):
+
+```
+wins_a=32 wins_b=16  mean_diff=+$2888.5  se=1308.9
+ci95=(+$254.3, +$5522.7)  verdict=IMPROVED  median_bank_a=$44166
+water_weeds=0  decay=0  <=$5=0
+animals_escaped=39  shed_overflow_burnt=1510  weeds_lost=768
+metric_gate_passed=False
+```
+
+Το `weeds_lost=768` είναι ακριβώς το γνωστό pre-existing 8/episode από v1f/v1g/v1h
+(καταγεγραμμένο ήδη στις παλιότερες entries), αλλά ο σημερινός `compare.py` το περιλαμβάνει
+ρητά στο hard gate και η εντολή ζήτησε `metric_gate_passed=True`. Δεν παρακάμφθηκε.
+
+**Δεν έτρεξε holdout** (σωστά: το DEV metric gate απέτυχε). Καμία Kaggle submission.
+**Επόμενο:** απόφαση για νέο metric-restoration increment που θα αντιμετωπίσει escapes +
+overflow και θα ξεκαθαρίσει το pre-existing `weeds_lost`, ή ρητή αναθεώρηση του gate/spec.
+
+---
+
+## 2026-08-09 (γ) — Session: **v1h.2 σκέλος α (D1) — STOP για απόφαση**
+
+**Εντολή:** «Υλοποίησε v1h.2» (α→β→γ, με gate ανά σκέλος).
+
+**Αποτέλεσμα σε μία γραμμή:** το D1 **διαγνώστηκε και διορθώθηκε** (cashless hour-0 HIRE
+δεν έβλεπε same-turn SELL proceeds), τα day-2 weeds σχεδόν μηδενίζονται σε absolute
+self-play, αλλά το DEV head-to-head vs `checkpoints/v1h_1` βγήκε **INCONCLUSIVE**
+(`mean_diff=−$474`, `metric_gate_passed=False` λόγω escapes) — **STOP πριν β/γ**.
+
+### 1. Διάγνωση D1 (1 episode, seed 0, `KAGGRI_DEBUG`)
+
+- Τiles `(2,2)` STRAWBERRY + `(3,4)` CARROT → WEED στο EOD μέρας 2, **κάθε** seed.
+- Μέρα 1 τελειώνει στα `$0`· μέρα 2 hour 0: `$0`, shed έχει 3 FERTILIZER (EOD auto-drop),
+  market εκπέμπει SELL αλλά **όχι HIRE** (`hour == 0` gate + `available_money` pre-SELL).
+- Engine fact: `_process_market` τρέχει ανά **index** — SELL στο i χρηματοδοτεί HIRE στο
+  i+1 στο ίδιο turn. Το κενό ήταν στον δικό μας budget λογαριασμό, όχι στο engine.
+- Pre-gate: **OCCUPANCY** (περισσότερα hands ⇒ διαφορετικό tile fill) ⇒ `--town-pin basket`.
+
+### 2. Απορριφθείσες παραλλαγές
+
+| Απόπειρα | water_weeds (DEV ht-h) | animals_escaped | Σημείωση |
+|---|---|---|---|
+| All-hours HIRE retry (σαν M4 wheat) | 1 | **369** | late-fib mid-day αρπάζει wheat budget |
+| Blanket same-turn SELL credit | 4 | **230** | πάνω από cap ⇒ tier-sort βάζει HIRE πριν το SELL |
+| At-risk WATER priority −1 (χωρίς hire) | 0 στο seed 0 | 7 στο seed 0 | farmer ποτίζει αντί να ταΐζει |
+
+### 3. Κρατημένο fix (στο working tree, **όχι** checkpoint)
+
+`agent/executor.py`: hour-0 HIRE πιστώνει queued SELL proceeds **μόνο** όταν το cash δεν
+αγοράζει ούτε την 1η hire· `slots_left` κάτω από `max_market_orders` ώστε να μη γίνει
+truncate-reorder. Test: `test_v1h2_d1_hour0_hire_credits_same_turn_sell`.
+
+### 4. Gates / absolute
+
+**DEV head-to-head** (`main.py` vs `checkpoints/v1h_1/main.py`, DEV 48, both seats,
+`--town-pin basket`, `gates/gate_v1h2a_dev`):
+
+```
+wins_a=32 wins_b=16  mean_diff=-474.1  se=767.7  ci95=(-2019, +1071)
+verdict=INCONCLUSIVE  metric_gate_passed=False
+water_weeds_lost_a=4  animals_escaped_a=230  median_bank_a=36601
+```
+
+**Absolute self-play** (pinned basket, seeds 0-7, seat 0 only) — εδώ φαίνεται το D1:
+
+| | water_weeds | animals_escaped | παράδειγμα bank seed 0 |
+|---|---|---|---|
+| `v1h_1` | **16** (2/seed) | 8 (1/seed) | $59.320 |
+| fix | **0** | 15 (~2/seed) | $59.674 |
+
+Τα 230 escapes στο head-to-head **δεν** εμφανίζονται στο self-play του fix (max 5/seed)·
+σε αρκετά ht-h seeds είναι **10** (= ολόκληρο κοπάδι) — αλληλεπίδραση με broken baseline
+(weed-RNG coupling §0ter και/ή market), όχι αποτυχία του ποτίσματος.
+
+### 5. Ανοιχτό — χρειάζεται απόφαση πριν β/γ
+
+Το πρωτόκολλο ζητά IMPROVED/clean πριν προχωρήσουμε. Έχουμε: weeds καθαρά σε absolute,
+όχι IMPROVED $, όχι `metric_gate_passed` στο ht-h (και το full gate anyway απαιτεί
+escapes=0 που μάλλον ανήκει στο D2). Το fix **μένει** στο tree· δεν έγινε revert
+(όχι REGRESSED verdict).
+
+**Επόμενο:** απόφαση χρήστη — (1) checkpoint `v1h_2a` με βάση absolute D1 + προχώρα σε
+D3/D2, (2) revert D1 και άλλη προσέγγιση, (3) τρέξε α+γ μαζί (hire + λιγότερες αγελάδες)
+πριν ξανα-gate.
+
+---
+
 ## 2026-08-09 (β) — Session: **v1h.1 εκτελέστηκε** — bump σε 1.32.6 καθαρός, αλλά το baseline έπεσε από το metric gate
 
 **Εντολή:** «Υλοποίησε v1h.1.»
