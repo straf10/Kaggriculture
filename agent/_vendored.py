@@ -1,4 +1,9 @@
-"""Engine constants fallback for the pinned kaggle-environments 1.32.4."""
+"""Engine constants fallback for the pinned kaggle-environments **1.32.6**.
+
+Parity with the installed engine is asserted by `tests/test_agent_guards.py`. Every value in
+this file was re-verified equal under 1.32.6 during the v1h.1 bump: the balance change touched
+only the town-demand *rule*, never a constant this file carries.
+"""
 import math
 
 CROPS = {
@@ -53,7 +58,13 @@ SHOPS = {
 PRODUCTS = list(MARKET_PARAMS)
 TOWN_CENTER_PRODUCTS = [p for p in PRODUCTS if p != "FERTILIZER"]
 
-TOWN_CENTER_DEMAND_SCHEDULE = [(20, 4), (10, 2), (0, 1)]
+# v1h.1 (1.32.6): `TOWN_CENTER_DEMAND_SCHEDULE = [(20, 4), (10, 2), (0, 1)]` used to live here.
+# The engine deleted it — the town centre now consumes a flat 1 of each non-fertilizer product
+# per tick, with no day-stepped ramp anywhere in the engine. It is NOT re-vendored as `[(0, 1)]`:
+# a constant with no reader is the dead code review L9 flagged, and keeping the name alive would
+# invite a future reader to assume a ramp still exists somewhere. `MAX_SHOP_INSTANCES` is
+# likewise absent by design — no `agent/` code reads it; the harness reads it straight off the
+# engine, and `tests/test_engine_facts.py` pins both facts against the engine directly.
 
 
 def _shape(func, x):

@@ -10,6 +10,167 @@
 
 ---
 
+## 2026-08-09 (β) — Session: **v1h.1 εκτελέστηκε** — bump σε 1.32.6 καθαρός, αλλά το baseline έπεσε από το metric gate
+
+**Εντολή:** «Υλοποίησε v1h.1.»
+
+**Αποτέλεσμα σε μία γραμμή:** το bump είναι **συμπεριφορικά ουδέτερο** (48/48 ties), αλλά το ίδιο
+gate έδειξε ότι το `checkpoints/v1h` **αποτυγχάνει στο hard metric gate στο 1.32.6 σε 48/48
+seeds**. Το increment έκλεισε ως bump· γεννήθηκε νέο **v1h.2** που μπλοκάρει τα πάντα.
+
+### 1. Τι έγινε
+
+- `pip install -U kaggle-environments==1.32.6`· `engine_reference/` ανανεώθηκε — `.py`, `.json`
+  **και** `README.md`/`AGENTS.md` (τα άλλαξε κι αυτά το sdist· το επίσημο README γράφει πλέον
+  ρητά «*a season might end up with three bakeries and no yarn store*» και «*flat for the whole
+  season — it does not ramp*», δηλαδή επιβεβαιώνει λέξη προς λέξη το §0bis).
+- **Breakage #1**: `agent/constants.py` ξαναγράφηκε με **per-symbol** resolution (`_const()`)
+  αντί για ένα ενιαίο `try: from ... import (...)`. Επαληθεύτηκε ότι το πρόβλημα ήταν αληθινό.
+- **Breakage #2**: `agent/demand.py` default `12 → 24`, και ο όρος του town centre έγινε flat ×1
+  (η αναζήτηση στο `TOWN_CENTER_DEMAND_SCHEDULE` αφαιρέθηκε). `_vendored.py`: το schedule
+  αφαιρέθηκε με σχόλιο· **δεν** αντικαταστάθηκε από `[(0,1)]`.
+- **Απόκλιση από το spec:** το `MAX_SHOP_INSTANCES` **δεν** μπήκε στο `_vendored`/`constants` —
+  κανένα `agent/` module δεν το διαβάζει, θα ήταν dead code (review L9) και το parity test θα
+  ήταν κυκλικό. Καρφώθηκε στα tests απευθείας στο engine· το `harness/town_pin.py`, που **όντως**
+  το διαβάζει, το παίρνει από το engine αντί hardcoded 8.
+- **Το `town_pin.py` δεν χρειάστηκε αλλαγή λογικής**: τρέχει το αυθεντικό `_end_of_day` και
+  ξαναγράφει μόνο το `unlocked_shops[-1]` ⇒ αδιάφορο αν κληρώνει με/χωρίς επανάθεση. Το
+  `schedule_for` σημάνθηκε deprecated (δειγματίζει πόλη που συμβαίνει στο 0,24%).
+- `pytest tests/` → **179 passed**. Δημιουργήθηκε `checkpoints/v1h_1` (το `compare()` αρνείται
+  A==B, οπότε το bump μετριέται με δύο διακριτά fingerprints — ίδιο κόλπο με το v1g.1).
+
+### 2. Το gate
+
+`checkpoints/v1h` vs `checkpoints/v1h_1`, DEV 48 seeds, both seats, `--metrics`
+(`gates/gate_v1h1_devscreen`):
+
+```
+ties=48/48  mean_diff=0.0  se_diff=0.0  errors=0        -> bump ΟΥΔΕΤΕΡΟ ✅
+water_weeds_lost_a=198  animals_escaped_a=85            -> metric_gate_passed=False ⛔
+units_sold_at_or_below_5=2370   median_bank_a=35461
+```
+
+Στο 1.32.5 (`gate_v1h_f`) ο **ίδιος κώδικας** έδινε `water_weeds_lost=0`, `animals_escaped=0`,
+per-seed bank ~$42-71k. **0/48 καθαρά seeds** τώρα.
+
+### 3. Τα τρία defects, διαγνωσμένα (seeds 0/2/5/23, single episodes)
+
+- **D1 — ντετερμινιστική τρύπα ποτίσματος μέρα 2.** Σε **κάθε** seed πεθαίνουν τα **ίδια δύο
+  tiles**, `(2,2)` και `(3,4)`, την **ίδια μέρα 2**. Seed-independent ⇒ όχι RNG· είναι το
+  άνοιγμα (TC 2→1 ticks/μέρα από τη μέρα 0 ⇒ λιγότερο ταμείο μέρα 1-2).
+- **D2 — MILK collapse σε mirror, το σοβαρότερο.** Μέση τιμή milk **διμοδική**: $189,7/$170
+  (seeds 0/23) έναντι **$37,2/$31,3** (seeds 2/5), base $160. Δεν είναι «λείπει ο αγοραστής»
+  (P=2,3%): **6 COW ανά πλευρά = 12 αγελάδες** σε αγορά με TC στις 30 μονάδες/σεζόν. WOOL
+  ($197-243) και STRAWBERRY ($165-261) υγιή.
+- **D3 — liquidation dump μέσα στο floor.** Seed 2, **μέρα 26**: 110 μονάδες σε μία μέρα,
+  **74 στα ≤$5, όλες MILK**. Το `force_liquidation` αγνοεί τα floors εκ σχεδιασμού.
+  `shed_overflow_burnt` έως **230/seed**.
+
+**Διαψεύστηκε «κλειστή» υπόθεση:** το §v1g.2(γ) στηριζόταν στο «production-constrained, ποτέ
+glut-constrained» — μετρημένο στο 1.32.5. Στο 1.32.6 **είμαστε glut-constrained στο MILK**. Το
+`dynamic_sell_floor` μένει off (δεν ανακτά τίποτα), αλλά ο μοχλός για το MILK είναι **παραγωγικός**
+και το «κλειστό» `{6C,4S}` ξανανοίγει με **αντίστροφο** ερώτημα: όχι «περισσότερες αγελάδες;»
+αλλά «**λιγότερες;**».
+
+### 4. Δύο ευρήματα εκτός scope, καταγεγραμμένα αντί να διορθωθούν
+
+- **Guard test που ισχυριζόταν κάτι μη αληθές πλέον.**
+  `test_v1g2_throttle_cannot_add_a_market_order` κατοχύρωνε ότι ο (απενεργοποιημένος) throttle
+  είναι *δομικά* ανίκανος για crowd-out. Στο 1.32.6 μηδενίζει το WOOL, το order του φεύγει, και
+  το **FERTILIZER** που έκοβε το 10-order cap παίρνει τη θέση του — σύνολο μονάδων **160 → 160**.
+  Το test διορθώθηκε ώστε να κατοχυρώνει τις ιδιότητες που ισχύουν, με το displacement ρητά
+  καρφωμένο.
+- **Ordering bug στον executor** (`executor.py:266-281`): το `sorted(orders, key=_order_tier)`
+  εφαρμόζεται **μόνο** μέσα στο `if len(orders) > max_orders`. Άρα ≤10 orders ⇒ τα SELL βγαίνουν
+  **πρώτα**· >10 ⇒ ταξινομούνται στο tier 5 και πέφτουν στα indices 6-9 — **τις πιο πολυάσχολες
+  μέρες, στις χειρότερες θέσεις του lockstep** (~56 turns/ep στο cap). Ένα `sorted` απαντά σε δύο
+  διαφορετικά ερωτήματα. Γράφτηκε ως v1i item (3), όχι drive-by fix.
+
+**Καμία υποβολή.** Το ανεβασμένο v1h παίζει τώρα σε αυτό ακριβώς το καθεστώς.
+
+**Επόμενο session:** `§v1h.2` με τη σειρά α (D1, φθηνότερο/βεβαιότερο) → β (D3, market-only) →
+γ (D2, occupancy, `--town-pin basket`).
+
+---
+
+## 2026-08-09 (α) — Session: **το 1.32.6 κυκλοφόρησε** + ανάλυση top-5 meta· ενημέρωση MASTERPLAN & current_phase (docs-only)
+
+**Εντολή:** ανάλυσε ένα νέο kaggle discussion («profit per action») και δύο notebooks με τις
+στρατηγικές των top-5 παικτών· ενημέρωσε `docs/MASTERPLAN.md` και `current_phase.md`.
+
+**Καμία αλλαγή κώδικα, κανένα engine bump, κανένα gate.** Μόνο `.md` + επαλήθευση με diff.
+
+### 1. Το κύριο εύρημα δεν ήταν στα notebooks — ήταν στη γραμμή «upgrade to >= 1.32.6»
+
+Ο χρήστης παρέθεσε discussion που ξεκινά με «*these changes are rolling out and hitting the
+leaderboard*». Έτρεξα το πρωτόκολλο §ΜΕΡΟΣ Γ.4 (sdist download + diff, **χωρίς install**):
+**το 1.32.6 περιέχει ολόκληρη τη balance change**, ακριβώς όπως την είχε μοντελοποιήσει το
+§0bis δύο μέρες νωρίτερα:
+`townCenterSellInterval` 12→24 (json default) · `TOWN_CENTER_DEMAND_SCHEDULE` **διαγραμμένο**
+(flat `-= 1`) · shop unlock **με επανάθεση** + νέα `MAX_SHOP_INSTANCES = 8`. Τίποτα άλλο —
+`MARKET_PARAMS`/cliffs/`_spawn_weeds`/RNG coupling/`TOWN_CENTER_PRODUCTS` byte-identical.
+
+**Δύο σιωπηλά breakages στον δικό μας κώδικα, εντοπισμένα με ανάγνωση (ΔΕΝ διορθώθηκαν):**
+1. `agent/constants.py`:10 εισάγει `TOWN_CENTER_DEMAND_SCHEDULE`, που δεν υπάρχει πια ⇒
+   `ImportError` ⇒ **όλο** το try block πέφτει στο `_vendored` με το παλιό ×2/×4 schedule ⇒
+   `npc_daily_demand` υπερεκτιμά το TC έως ×8 τις μέρες 20-29. Συμπεριφορικά αδρανές σήμερα
+   (μόνος αναγνώστης = `_dynamic_sell_floors`, `False`), **αλλά** το v1i το χρειάζεται σωστό.
+2. `agent/demand.py`:24 `_DEFAULT_INTERVALS["townCenterSellInterval"] = 12` — stale.
+Επίσης: `tests/test_agent_guards.py`:113 θα σκάσει (σωστά), και το `harness/town_pin.py`
+υποθέτει `remaining`-based unlock. Το `--town-pin schedule` δειγματίζει πλέον κατανομή που
+συμβαίνει στο **0,24%** των επεισοδίων ⇒ ενεργά παραπλανητικό· μόνο `basket` είναι έγκυρο.
+
+**Ό,τι είχαμε προβλέψει σωστά:** το `npc_daily_demand` **ήδη** μετρά duplicates στο
+`unlocked_shops` και το `_ticks_in_day` γράφτηκε ρητά για interval 24 ⇒ μηδενική αλλαγή εκεί.
+Και το herd screen της 08-08 είχε ήδη τρέξει σε `basket_for` — δηλαδή σε αυτή ακριβώς την
+κατανομή. Το §v1h.1 είναι **bump, όχι redesign**, γι' αυτόν τον λόγο.
+
+### 2. Τα notebooks: η ladder έγινε μονοκαλλιέργεια
+
+`two-private-bots-beating-kaggriculture-meta.ipynb` + `kaggriculture-findings-from-zero-to-top-meta.ipynb`
+(και τα δύο **EVIDENCE**· το δεύτερο ενσωματώνει base64+zlib agent blob — **δεν εκτελέστηκε,
+δεν αποσυμπιέστηκε**, διαβάστηκαν μόνο τα markdown):
+- **Ένα field hash σε 144 επεισόδια από 40 ομάδες· ranks 3-20 ταυτόσημα 99-100% σε field
+  actions· 3 από τις top-5 με byte-identical opening** (fork του δημόσιου `kaitofukami v23`).
+  ELO ταβάνι του cluster 3.117-3.131· από πάνω μόνο HealthStone (#2, sheep-first) και Seb
+  (#1, counter-meta: 14 hires day-0, 4 quadrants, 20 ζώα, αλλά **χαμηλότερα** per-game coins).
+- Κοινή ώριμη διαδρομή, **μετρημένη από field actions** (άρα παρακάμπτει το ⚠️γ artifact):
+  **8c/6s · 23 strawberry · 31 wheat · 3 quadrants · 12 hands**.
+- Τρίτο ανεξάρτητο set μετρήσεων ότι το edge είναι **sell timing**: Hamburger 6-0/+1.865,7 από
+  σκέτο one-turn front-run· c15 14-2 εναντίον της ίδιας του της base tape· c18 35-5 αλλάζοντας
+  20 field turns αλλά 112 market turns.
+- Ο c68 controller = `Δinventory − δικές μας πωλήσεις − ντετερμινιστικό town drain` → fit
+  horizon → race. **Τον δύσκολο όρο τον έχουμε ήδη**: `agent/demand.py`, γραμμένο για το
+  v1g.2(γ) που διαψεύστηκε. Το εργαλείο επέζησε της υπόθεσης που το γέννησε.
+
+### 3. Το «profit per action» discussion — τι κρατάμε
+
+Επιβεβαιώνει ανεξάρτητα το §3.1 (actions ως σπάνιος πόρος) και το CARE (sheep 32 → 100 $/action).
+Το #1 του πίνακά του (**melon, 142 $/action**) είναι **από σήμερα το χειρότερο crop** (0/8 shops,
+TC −79%, cliff 158) — και το `v23_fork` opening φυτεύει 12 melon seeds day-0 ενώ εμείς 0.
+Το μόνο πραγματικά νέο: η **action-cost λογιστική κοπαδιού** (~71-74 unit-actions/σεζόν ανά
+cared ζώο ⇒ ~730 για 10 ζώα) δίνει τον **μηχανισμό** πίσω από το ήδη μετρημένο ⚠️ε.
+
+### 4. Τι άλλαξε στα docs
+
+`docs/MASTERPLAN.md`: header 1.32.6 block· §1 town bullet + ladder benchmark (τρίτη ανάγνωση από
+field actions)· §3.2#5/#6 από «ανακοινωμένο» σε «ζωντανό»· **νέες §3.2ter (μονοκαλλιέργεια) και
+§3.2quater (profit-per-action)**.
+`current_phase.md`: κόκκινο block κορυφής· §0 gap table ξαναγραμμένο· §0bis με το πλήρες diff·
+**νέα §v1h.1** (bump + 2 breakages + checklist) και **νέα §Β.2** (clean-room meta-bench, εκτός
+`agent/`)· v1i σε #1 προτεραιότητα με 3 νέους λόγους· §Α.3 κανόνας διαφοροποίησης slots· μήτρα
+robustness αναθεωρημένη (το «flat TC» σενάριο **ακυρώθηκε — είναι το default**)· §Πρωτόκολλο
+`basket` only· χρονοδιάγραμμα με `v1h.1`/`Β.2`/`v1j`.
+
+**Επαληθευμένο engine fact που προστέθηκε:** το step **718** είναι το τελευταίο εκτελέσιμο turn
+(`interpreter` θέτει DONE στο `step >= episodeSteps - 2`, `:946-949`)· το index 719 δεν εκτελείται
+ποτέ. Ένα SELL **στο** 718 εκτελείται. Δεν είναι bug για εμάς (`liquidation_day = 26`).
+
+**Επόμενο session:** `§v1h.1` — bump σε 1.32.6, οι δύο διορθώσεις, tests, town_pin re-validation,
+re-baseline του `checkpoints/v1h`. **Καμία υποβολή** από αυτό το increment.
+
+---
+
 ## 2026-08-08 — Session: Β.0′ ενσωμάτωση town-pin + herd-composition screen + **v1h′ SW quadrant με WHEAT** — `checkpoints/v1h`
 
 **Εντολή:** υλοποίησε το επόμενο task του `current_phase.md`: Β.0′ town-pin harness και το v1h′

@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from kaggle_environments.envs.kaggriculture import kaggriculture as engine
 
 from agent import _vendored
@@ -109,8 +110,6 @@ def test_vendored_constants_and_prices_match_pinned_engine():
     assert _vendored.LAND_ORDER == engine.LAND_ORDER
     assert _vendored.LAND_PRICES == engine.LAND_PRICES
     assert _vendored.SHOPS == engine.SHOPS
-    # review_89d99f0_2026-08-05.md L9 — TOWN_CENTER_DEMAND_SCHEDULE was vendored but never pinned by a test.
-    assert _vendored.TOWN_CENTER_DEMAND_SCHEDULE == engine.TOWN_CENTER_DEMAND_SCHEDULE
     # v1g.2 — the demand model reads TOWN_CENTER_PRODUCTS, so the fallback's derivation of it
     # (from MARKET_PARAMS, minus FERTILIZER) has to stay identical to the engine's own.
     assert _vendored.PRODUCTS == engine.PRODUCTS
@@ -119,6 +118,36 @@ def test_vendored_constants_and_prices_match_pinned_engine():
         equilibrium, capacity = params["I0"], params["T"]
         for inventory in (equilibrium - capacity, equilibrium, equilibrium + capacity):
             assert _vendored.market_price(item, inventory) == engine.market_price(item, inventory)
+
+
+def test_v1h1_constants_resolve_per_symbol_not_all_or_nothing():
+    """v1h.1 — the 1.32.6 bump deleted `TOWN_CENTER_DEMAND_SCHEDULE` from the engine, and the
+    old blanket `try: from ... import (A, B, C)` turned that single deletion into a silent
+    fallback of *every* constant to the vendored copy. Nothing raised; the agent just stopped
+    tracking the installed engine. Pin the two properties that prevent a recurrence."""
+    from agent import constants
+
+    # 1. Live engine values, not vendored ones. Identity, not equality: the vendored copy is
+    #    value-equal by construction (asserted above), so `==` could not tell the two apart.
+    assert constants.MARKET_PARAMS is engine.MARKET_PARAMS
+    assert constants.market_price is engine.market_price
+    assert constants.SHOPS is engine.SHOPS
+
+    # 2. A symbol the engine does not export must degrade alone. Simulate the exact 1.32.6
+    #    situation for a name that exists in neither place and confirm the others survive.
+    assert constants._const("MARKET_PARAMS") is engine.MARKET_PARAMS
+    with pytest.raises(AttributeError):
+        constants._const("A_CONSTANT_NO_ENGINE_OR_VENDORED_COPY_HAS")
+
+
+def test_v1h1_town_center_ramp_is_gone_from_the_engine():
+    """v1h.1 — the flat town centre is the single most consequential balance change of the
+    season (140 -> 30 units/product/season, MASTERPLAN §3.2#6). If a future engine version
+    reinstates a day-stepped ramp, `agent/demand.py` silently under-counts late-season demand
+    and every sell-timing decision built on it is wrong. Fail here, loudly, instead."""
+    assert not hasattr(engine, "TOWN_CENTER_DEMAND_SCHEDULE")
+    assert not hasattr(_vendored, "TOWN_CENTER_DEMAND_SCHEDULE")
+    assert engine.MAX_SHOP_INSTANCES == 8
 
 
 def test_l3_hire_cost_matches_engine():
@@ -768,10 +797,12 @@ def test_v1g2_snapshot_keeps_shop_order_and_duplicates():
 def test_v1g2_npc_daily_demand_matches_engine_town_consume():
     """v1g.2 (β): the demand model is a reimplementation of `_town_consume`, so pin it against
     the engine by actually running a full day of the engine's own consumption and comparing the
-    inventory it removed. Swept across shop sets (including duplicates and the empty town), days
-    that straddle both TOWN_CENTER_DEMAND_SCHEDULE steps, and the announced balance change's
-    townCenterSellInterval — the last one is the whole point of reading the intervals out of
-    `configuration` instead of hardcoding 1.32.5's defaults."""
+    inventory it removed. Swept across shop sets (including duplicates and the empty town), the
+    days that used to straddle the (now removed) town-centre ramp steps, and both the pre- and
+    post-1.32.6 `townCenterSellInterval` — which is the whole point of reading the intervals out
+    of `configuration` instead of hardcoding any one version's defaults. v1h.1: this test needed
+    **no change** at the bump; it kept passing against the new `_town_consume` because it
+    compares against the engine rather than against a transcribed rule."""
     import types
 
     from agent.demand import npc_daily_demand
@@ -868,7 +899,22 @@ def test_v1g2_throttle_cannot_add_a_market_order():
     the engine's positional `q[:10]` cut. A floor can only shrink `sell_units` inside orders the
     executor was already emitting (and drop the ones it shrinks to zero), so this increment is
     structurally incapable of repeating that failure — pinned here so a later refactor into a
-    real per-day rate budget can't quietly reintroduce the risk."""
+    real per-day rate budget can't quietly reintroduce the risk.
+
+    ⚠️ **v1h.1 correction — the original claim was too strong, and 1.32.6 exposed it.** This test
+    used to assert `set(throttled_sells) <= set(baseline_sells)`. That held only while the
+    throttle never dropped an order at the 10-order cap. Under 1.32.6 the town centre buys 1/day
+    instead of 4/day late season, so the throttle binds harder, WOOL is throttled to **zero
+    units**, its order disappears — and FERTILIZER, which the cap had been cutting, moves into
+    the freed slot. So the throttle *can* change **which** products are sold, indirectly, by
+    changing how many orders compete for the cap. It still cannot **add** an order, and still
+    cannot increase any product's units; those are the properties actually worth pinning, and
+    they are what this test now asserts. The displacement itself is pinned explicitly below
+    rather than left to be rediscovered.
+
+    This does not change shipped behaviour (`dynamic_sell_floor` is `False` — §v1g.2 γ). It does
+    weaken the "structurally incapable" argument for keeping the mechanism in the tree, so the
+    flag stays off for one more measured reason, not fewer."""
     from agent.executor import market_orders
     from agent.scheduler import make_ledger
 
@@ -896,12 +942,32 @@ def test_v1g2_throttle_cannot_add_a_market_order():
     assert len(throttled) <= len(baseline)
     baseline_sells = {order[1]: order[2] for order in baseline if order[0] == "SELL"}
     throttled_sells = {order[1]: order[2] for order in throttled if order[0] == "SELL"}
-    assert set(throttled_sells) <= set(baseline_sells)
+
+    # The two properties that actually protect against the (δ) failure: no product is sold in
+    # larger size than it would have been, and the throttle never emits more orders in total
+    # (`len(throttled) <= len(baseline)`, asserted above).
     for product, units in throttled_sells.items():
-        assert units <= baseline_sells[product]
-    # ...and the throttle is actually doing something in this town, so the assertions above are
-    # not vacuously true.
-    assert throttled_sells["WOOL"] < baseline_sells["WOOL"]
+        assert units <= baseline_sells.get(product, units)
+
+    # ...and the throttle is actually doing something in this town, so the above is not
+    # vacuously true. Under 1.32.6 WOOL is throttled all the way out of the order list.
+    assert throttled_sells.get("WOOL", 0) < baseline_sells["WOOL"]
+
+    # v1h.1: the cap displacement, pinned deliberately. `baseline` is truncated at exactly
+    # `max_market_orders`, so anything the throttle removes is immediately backfilled by the
+    # order the cut had been dropping. A product appearing only in `throttled` is therefore
+    # expected — but only ever one the executor already wanted to sell.
+    displaced_in = set(throttled_sells) - set(baseline_sells)
+    assert len(baseline) == int(CONFIG["executor"]["max_market_orders"])
+    assert displaced_in <= {"FERTILIZER"}, (
+        "throttle backfilled an unexpected product at the order cap; the (δ) crowd-out risk "
+        "is order-position-sensitive, so any change here needs its own measurement"
+    )
+    # The sharpest way to state what the throttle bought here: **nothing**. Total units sold is
+    # identical (40 WOOL swapped for 40 FERTILIZER); all the throttle did was choose a different
+    # product to spend the same capped slot on. That is the §v1g.2 (γ) result — "no price to
+    # win, only volume to lose" — reproduced at the order-cap level.
+    assert sum(throttled_sells.values()) == sum(baseline_sells.values())
 
 
 # --------------------------------------------------------------------------- v1h' (SW quadrant)

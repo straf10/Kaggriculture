@@ -532,7 +532,9 @@ def test_configuration_defaults_frozen():
     assert (cfg.actTimeout, cfg.runTimeout) == (1, 1200)
     assert cfg.weedSpawnChance == 0.005
     assert cfg.farmHandCostMult == 1
-    assert (cfg.townShopUnlockInterval, cfg.townShopSellInterval, cfg.townCenterSellInterval) == (3, 4, 12)
+    # v1h.1: townCenterSellInterval 12 -> 24 in 1.32.6. This assertion is exactly the "fail
+    # loudly" the docstring above asks for — it is how the bump announced itself locally.
+    assert (cfg.townShopUnlockInterval, cfg.townShopSellInterval, cfg.townCenterSellInterval) == (3, 4, 24)
 
 
 def test_configuration_default_remaining_overage_time():

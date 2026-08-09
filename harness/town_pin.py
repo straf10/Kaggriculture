@@ -56,8 +56,8 @@ import random
 import kaggle_environments.envs.kaggriculture.kaggriculture as _K
 
 __all__ = [
-    "SHOP_TYPES", "PIN_MODES", "pinned_shops", "no_shops", "schedule_for", "basket_for",
-    "schedule_for_mode", "pinned_town",
+    "SHOP_TYPES", "MAX_SHOP_INSTANCES", "PIN_MODES", "pinned_shops", "no_shops",
+    "schedule_for", "basket_for", "schedule_for_mode", "pinned_town",
 ]
 
 #: Τα modes που δέχεται το `compare(town_pin=...)` / `--town-pin`. Ονόματα, όχι callables:
@@ -67,6 +67,11 @@ PIN_MODES = ("schedule", "basket", "no_shops")
 
 # Ταξινομημένα, ώστε η σειρά να μην εξαρτάται από dict iteration order (G13 determinism).
 SHOP_TYPES = tuple(sorted(_K.SHOPS))
+
+#: Πόσα shop instances ξεκλειδώνει συνολικά ένα episode. Διαβάζεται από το engine (νέα σταθερά
+#: του 1.32.6)· το `getattr` fallback κρατά το module εισαγώγιμο σε παλιότερο engine, όπου το
+#: πλήθος ήταν έμμεσα 8 επειδή εξαντλούνταν οι 8 διακριτοί τύποι.
+MAX_SHOP_INSTANCES = getattr(_K, "MAX_SHOP_INSTANCES", len(SHOP_TYPES))
 
 
 @contextlib.contextmanager
@@ -91,10 +96,17 @@ def pinned_shops(schedule):
     όπως τα έβγαλε το engine.
 
     Args:
-        schedule: ακολουθία ονομάτων shop (βλ. `SHOP_TYPES`). Επιτρέπονται επαναλήψεις
-            μόνο αν το engine υποστηρίζει draw με επανάθεση (post-balance-change)· στο
-            1.32.5 το engine κληρώνει χωρίς επανάθεση, οπότε ένα schedule με διπλότυπα
-            παράγει πόλη που το σημερινό engine δεν θα έβγαζε ποτέ μόνο του.
+        schedule: ακολουθία ονομάτων shop (βλ. `SHOP_TYPES`). **Από το 1.32.6 (v1h.1) οι
+            επαναλήψεις είναι η κανονική περίπτωση** — το engine κληρώνει με επανάθεση, οπότε
+            ένα schedule με διπλότυπα παράγει πόλη απολύτως φυσιολογική. (Πριν το 1.32.6 ίσχυε
+            το αντίθετο και τα διπλότυπα παρήγαγαν αδύνατη πόλη· κρατείται εδώ μόνο ως
+            εξήγηση παλιών runs.)
+
+    **Γιατί δεν χρειάστηκε αλλαγή στο 1.32.6:** το patch δεν αναπαράγει τη λογική unlock του
+    engine — τρέχει το **αυθεντικό** `_end_of_day` και μετά ξαναγράφει *μόνο* την ταυτότητα του
+    στοιχείου που μόλις προστέθηκε (`[-1]`). Άρα είναι αδιάφορο αν το engine κληρώνει με ή χωρίς
+    επανάθεση, από `remaining` ή από ολόκληρο το `SHOPS`, και πόσα draws καταναλώνει: το pin
+    πιάνει το αποτέλεσμα, όχι τον μηχανισμό. Επαληθεύτηκε στο 1.32.6 από τα tests του §Β.0′.
     """
     schedule = list(schedule)
 
@@ -131,7 +143,14 @@ def no_shops():
 
 
 def schedule_for(seed):
-    """Ντετερμινιστική **μετάθεση** των 8 τύπων shop για ένα seed (σημερινό engine).
+    """Ντετερμινιστική **μετάθεση** των 8 τύπων shop για ένα seed.
+
+    ⚠️ **DEPRECATED από το v1h.1 (engine 1.32.6).** Δειγματίζει «και οι 8 τύποι παρόντες,
+    μόνο η σειρά αλλάζει» — κατανομή που το σημερινό engine παράγει στο **0,24%** των
+    επεισοδίων (`8!/8⁸`). Ένα screen εδώ δεν είναι απλώς λιγότερο αντιπροσωπευτικό, είναι
+    ενεργά παραπλανητικό: εξαφανίζει ακριβώς το ρίσκο (απών αγοραστής) που το pinning
+    υποτίθεται ότι μας βοηθά να μετρήσουμε. Χρησιμοποίησε `basket_for`. Μένει για
+    αναπαραγωγή runs πριν από τις 2026-08-09.
 
     Ξεχωριστό RNG από αυτό του engine — το seed εδώ επιλέγει *ποια πόλη πινάρεις*, δεν
     έχει καμία σχέση με το `configuration["seed"]` του episode.
@@ -142,15 +161,22 @@ def schedule_for(seed):
     return order
 
 
-def basket_for(seed, n_instances=8):
-    """Ντετερμινιστικό **basket με επανάθεση** (μοντέλο μετά τη balance change).
+def basket_for(seed, n_instances=None):
+    """Ντετερμινιστικό **basket με επανάθεση** — η κατανομή του **σημερινού** engine.
 
-    Μετά την ανακοινωμένη αλλαγή τα shops κληρώνονται με επανάθεση με cap
-    `MAX_SHOP_INSTANCES = 8`, οπότε η σύνθεση —όχι μόνο η σειρά— μεταβάλλεται. Ένα gate
-    που σχεδιάζεται για εκείνο το καθεστώς πρέπει να πινάρει baskets από **αυτήν** την
-    κατανομή, όχι permutations.
+    Από το 1.32.6 τα shops κληρώνονται με επανάθεση με cap `MAX_SHOP_INSTANCES`, οπότε η
+    **σύνθεση** —όχι μόνο η σειρά— μεταβάλλεται ανά episode: `E[διακριτοί τύποι] = 5,25` και
+    `P(κάποιος συγκεκριμένος τύπος απών) = (7/8)⁸ = 34,4%`. Αυτό είναι το **μόνο** έγκυρο
+    pinned mode μετά το v1h.1 — το `schedule_for` δειγματίζει «όλοι οι 8 τύποι παρόντες», που
+    πλέον συμβαίνει στο 0,24% των επεισοδίων.
+
+    `n_instances` διαβάζεται από το engine αντί να είναι hardcoded 8: αν οι οργανωτές
+    μεταβάλουν το cap, το pinned basket πρέπει να το ακολουθήσει, αλλιώς το screening σιωπηλά
+    δειγματίζει πόλη λάθος μεγέθους.
     """
     rng = random.Random(seed)
+    if n_instances is None:
+        n_instances = MAX_SHOP_INSTANCES
     return [rng.choice(SHOP_TYPES) for _ in range(n_instances)]
 
 
