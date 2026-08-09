@@ -68,11 +68,7 @@ def agent(obs, configuration=None):
     runtime.pending_receipts = []
 
     if _needs_replan(runtime, snapshot):
-        # v1g.2: `configuration` also carries the town's sell intervals, which is what lets
-        # agent.demand compute NPC demand exactly instead of assuming the 1.32.5 defaults —
-        # and, in particular, what makes the sell floors follow the announced
-        # townCenterSellInterval 12 -> 24 change on their own (current_phase.md §0bis).
-        runtime.plan = make_day_plan(snapshot, CONFIG, configuration)
+        runtime.plan = make_day_plan(snapshot, CONFIG)
         runtime.planned_day = snapshot.day
     runtime.last_quadrants = snapshot.my_quadrants
     runtime.last_hand_count = len(snapshot.hand_positions)

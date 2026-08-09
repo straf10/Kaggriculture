@@ -15,12 +15,6 @@ class Snapshot:
     # opponent_tiles is kept despite also having no current reader — it's reserved for a
     # Phase 2 opponent-aware selling policy (undercutting/matching the opponent's own sell
     # behavior), not dead in the same sense.
-    # v1g.2 (current_phase.md §v1g.2 α): `unlocked_shops` is back, and now has a real reader —
-    # agent.demand.npc_daily_demand, which turns it into the exact per-day NPC absorption rate
-    # the sell floors are sized against. Kept as a tuple (not a list) so the frozen dataclass
-    # stays hashable-by-value and, more importantly, so no downstream reader can mutate the
-    # observation's own list in place. Order is the engine's unlock order and is preserved —
-    # never iterate a set of it (G13 determinism).
     opponent_tiles: list
     farmer_pos: tuple[int, int]
     hand_positions: tuple[tuple[int, int], ...]
@@ -31,7 +25,6 @@ class Snapshot:
     market_prices: dict
     my_quadrants: tuple[str, ...]
     hires_today: int
-    unlocked_shops: tuple[str, ...] = ()
 
 
 def parse(obs: Any) -> Snapshot:
@@ -43,7 +36,6 @@ def parse(obs: Any) -> Snapshot:
     opponent = farms[opponent_index] if opponent_index < len(farms) else {}
     private = obs.get("private", {}) or {}
     market = obs.get("market", {}) or {}
-    town = obs.get("town", {}) or {}
 
     return Snapshot(
         step=int(obs.get("step", 0)),
@@ -62,9 +54,6 @@ def parse(obs: Any) -> Snapshot:
         market_prices=dict(market.get("prices", {})),
         my_quadrants=tuple(mine.get("unlocked_quadrants", [])),
         hires_today=int(mine.get("hires_today", 0)),
-        # v1g.2: the engine appends duplicates here once shops are drawn WITH replacement
-        # (§0bis balance change) — do NOT de-duplicate, every instance is its own buyer.
-        unlocked_shops=tuple(town.get("unlocked_shops", ()) or ()),
     )
 
 

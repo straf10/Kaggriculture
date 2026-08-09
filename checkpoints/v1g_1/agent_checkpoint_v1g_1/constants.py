@@ -8,7 +8,6 @@ try:
         MARKET_PARAMS,
         SHOPS,
         TOWN_CENTER_DEMAND_SCHEDULE,
-        TOWN_CENTER_PRODUCTS,
         market_price,
     )
 except ImportError:
@@ -20,7 +19,6 @@ except ImportError:
         MARKET_PARAMS,
         SHOPS,
         TOWN_CENTER_DEMAND_SCHEDULE,
-        TOWN_CENTER_PRODUCTS,
         market_price,
     )
 

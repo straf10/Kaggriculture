@@ -44,15 +44,6 @@ SHOPS = {
     "FARMERS_MARKET": ["WHEAT", "CARROT", "TOMATO", "STRAWBERRY"],
 }
 
-# v1g.2: mirrors the engine's own derivation (`PRODUCTS = list(MARKET_PARAMS)`, then
-# `TOWN_CENTER_PRODUCTS = [p for p in PRODUCTS if p != "FERTILIZER"]`) rather than restating
-# the list, so a future engine bump that adds a product can only ever go out of sync here via
-# MARKET_PARAMS — which is already pinned by a parity test. FERTILIZER's exclusion is the one
-# fact this file has to carry: it is the only product with literally zero NPC demand (no shop
-# buys it either), which is what makes its price monotonically decreasing in cumulative sales.
-PRODUCTS = list(MARKET_PARAMS)
-TOWN_CENTER_PRODUCTS = [p for p in PRODUCTS if p != "FERTILIZER"]
-
 TOWN_CENTER_DEMAND_SCHEDULE = [(20, 4), (10, 2), (0, 1)]
 
 

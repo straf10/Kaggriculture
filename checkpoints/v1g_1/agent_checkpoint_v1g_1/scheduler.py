@@ -36,16 +36,8 @@ def _water_window(crop: str) -> tuple[int, int]:
     return (max_yield_day + 1) // 2, max_yield_day
 
 
-# v1h': WHEAT joins as SW's crop (config.scheduler.target_tiles["WHEAT"]). Order matters —
-# it is the order build_tasks spends the shared daily planting budget in, so WHEAT (which has
-# no planting deadline) comes after STRAWBERRY (which does).
-_GROWN_CROPS = ("CARROT", "STRAWBERRY", "WHEAT")
-_HARVEST_READY_AGE = {crop: _harvest_ready_age(crop) for crop in _GROWN_CROPS}
-# v1h': non-ongoing crops only gain yield_units from a WATER inside their own engine window,
-# so watering them purely on the every-other-day survival rule (consecutive_unwatered >= 1)
-# would land outside it and grow almost nothing. This was CARROT-only until WHEAT arrived;
-# derived per crop from CROPS, so CARROT's behaviour is byte-identical to before.
-_WATER_WINDOWS = {crop: _water_window(crop) for crop in _GROWN_CROPS if not CROPS[crop]["ongoing"]}
+_HARVEST_READY_AGE = {crop: _harvest_ready_age(crop) for crop in ("CARROT", "STRAWBERRY")}
+_CARROT_WATER_WINDOW = _water_window("CARROT")
 
 
 @dataclass(frozen=True)
@@ -80,7 +72,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
     target_tiles_by_crop = config["scheduler"]["target_tiles"]
     target_specs = [
         (crop, target_index, pos)
-        for crop in _GROWN_CROPS
+        for crop in ("CARROT", "STRAWBERRY")
         for target_index, pos in enumerate(target_tiles_by_crop.get(crop, ()))
     ]
     unit_positions = (snapshot.farmer_pos, *snapshot.hand_positions)
@@ -116,11 +108,13 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             # the engine's yield window (ages 2-3) — a rare, small unit-turn waste, not
             # present in plan.md's ablation table but needed for the all-off self-test to
             # reproduce v1b exactly (criterion #1).
-            water_window = _WATER_WINDOWS.get(crop)
-            in_yield_window = water_window is not None and water_window[0] <= age <= water_window[1]
+            carrot_water_age_ok = _CARROT_WATER_WINDOW[0] <= age <= _CARROT_WATER_WINDOW[1]
             needs_water = (
                 not tile.get("watered_today")
-                and (tile.get("consecutive_unwatered", 0) >= 1 or in_yield_window)
+                and (
+                    tile.get("consecutive_unwatered", 0) >= 1
+                    or (crop == "CARROT" and carrot_water_age_ok)
+                )
             )
             if needs_water:
                 tasks.append(Task(
@@ -385,20 +379,7 @@ def _build_animal_tasks(
             )
             tasks.append(Task(
                 id=f"feed:{x}:{y}", kind="FEED", pos=(x, y),
-                # v1h': an animal that has already missed a day outranks *everything*, not just
-                # everything at its own priority. v1g pulled its deadline in, which wins ties
-                # inside priority 0 — but FEED shares priority 0 with WATER, and once SW's
-                # WHEAT and NE's 24 STRAWBERRY tiles are both live there are more urgent-looking
-                # WATER tasks in a day than units to serve them, so the pulled-in deadline was
-                # competing rather than deciding. Measured: 2 animals per episode in all four
-                # smoke seeds, always the farthest PASTURE tiles, always on consecutive misses
-                # around days 25-27, with 30+ WHEAT sitting in the shed — never a supply
-                # problem, always a contention one. The asymmetry justifies the jump: a missed
-                # WATER costs a replantable tile, a second missed FEED costs $400-500 of placed
-                # capital and its remaining production. Only the at-risk tier is promoted; a
-                # normally-fed animal stays at 0 and keeps competing on the merits.
-                priority=-1 if at_risk else 0,
-                deadline_step=min(day_deadline, feed_deadline),
+                priority=0, deadline_step=min(day_deadline, feed_deadline),
             ))
 
     for (x, y), needed in animal_needs.items():

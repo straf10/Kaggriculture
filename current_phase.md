@@ -3,63 +3,58 @@
 > **Working plan της τρέχουσας φάσης** — εκτελεί τη στρατηγική του
 > [docs/MASTERPLAN.md](docs/MASTERPLAN.md)· **δεν την επαναδιαπραγματεύεται**. Αντικαθιστά το
 > παλιό `plan.md` (Φάσεις 0-1, ολοκληρωμένες — διαγράφηκε 2026-08-06, το πλήρες ιστορικό του ζει
-> στο git). Engine ground truth: το εγκατεστημένο `kaggle-environments==1.32.4`·
+> στο git). Engine ground truth: το εγκατεστημένο `kaggle-environments==1.32.5`
+> (bumped 2026-08-07 στο v1g.1 — πλήρες ιστορικό: memory.md 2026-08-07)·
 > το [engine_reference/kaggriculture.py](engine_reference/kaggriculture.py) είναι read-only
 > αντίγραφο για line refs. Όπου docs και engine διαφωνούν, υπερισχύει το engine.
 >
 > Δημιουργία: **2026-08-06**. Deadline: **30 Σεπ 2026** (~8 εβδομάδες). Τελική κατάταξη:
 > Bradley-Terry σε ~2 εβδομάδες episodes **μετά** το deadline (MASTERPLAN §1, Φάση 3 άξονας δ).
 >
-> ---
+> **Σύμβαση αυτού του εγγράφου (από 2026-08-07):** το current_phase.md περιγράφει **τι μένει να
+> γίνει** και **γιατί**. Το τι έγινε — αριθμοί gate, root causes, reverts — ζει **αποκλειστικά**
+> στο [memory.md](memory.md), μία εγγραφή ανά session. Καμία ενότητα εδώ δεν επαναλαμβάνει
+> ιστορικό reasoning· όπου χρειάζεται συνέχεια νοήματος μπαίνει **μία πρόταση** + παραπομπή.
 >
-> ## 🔒 ΚΑΝΟΝΑΣ ΑΚΟΛΟΥΘΙΑΣ (2026-08-07) — τίποτα από τα παρακάτω δεν αγγίζει το τρέχον v1g run
->
-> Στις **2026-08-07** μπήκαν 4 νέα εξωτερικά δεδομένα (πλήρης ανάλυση:
-> [docs/meta/competition_updates.md](docs/meta/competition_updates.md) 4 εγγραφές +
-> [docs/meta/ladder_snapshots.md 2026-08-07](docs/meta/ladder_snapshots.md#meta0807)). Το v1g gate
-> **έτρεχε ήδη** όταν καταγράφηκαν. Όλες οι αλλαγές που περιγράφονται σε αυτό το έγγραφο ως
-> **v1g.1 / v1g.2 / v1h′** εκτελούνται **ΜΕΤΑ** το κλείσιμο του v1g, με αυτή τη σειρά και για
-> συγκεκριμένο λόγο ανά περίπτωση:
->
-> | Βήμα | Γιατί ΔΕΝ γίνεται τώρα |
-> |---|---|
-> | Engine bump 1.32.4 → 1.32.5 | Αλλαγή engine στη μέση ενός gate **ακυρώνει τη σύγκριση**: το `compare()` μετρά A vs B στο ίδιο seed· αν το B έτρεξε σε άλλο engine, το mean_diff δεν σημαίνει τίποτα. Επίσης θα κοκκινίσει το `test_engine_reference_matches_installed` και θα μπερδέψει κάθε παράλληλο pytest. |
-> | Αλλαγή `agent/config.py` (SHEEP target) | Ο agent φορτώνεται **σε κάθε worker process ξεχωριστά** και το v1g τρέχει 10 workers· επεξεργασία του `agent/` κατά τη διάρκεια του run δίνει **ανάμεικτα** αποτελέσματα μεταξύ seeds — ακριβώς το είδος σιωπηλής μόλυνσης που έκρυψε το `c7767bb` regression. |
-> | Shop-adaptive layer (`agent/state.py`, `executor.py`) | Ίδιος λόγος + θα άλλαζε το ίδιο το baseline έναντι του οποίου κρίνεται το v1g. |
->
-> **Επιτρέπεται τώρα:** μόνο εγγραφή σε `.md` (αυτό το αρχείο, `docs/`, `memory.md`) — τα docs δεν
-> διαβάζονται από κανέναν worker.
->
-> **Πρώτο πράγμα όταν κλείσει το v1g:** το §Β.0 «Τι χρειάζομαι από το v1g episode report»
-> παρακάτω — **πριν** από οποιαδήποτε αλλαγή κώδικα, γιατί δύο από τις αποφάσεις (SHEEP target,
-> fertilizer timing) εξαρτώνται από αριθμούς που **μόνο** εκείνο το run μπορεί να δώσει.
+> ~~ΚΑΝΟΝΑΣ ΑΚΟΛΟΥΘΙΑΣ (2026-08-07): τίποτα δεν αγγίζει το τρέχον v1g run~~ — **έληξε**, το v1g
+> έκλεισε 08-07. Ο γενικός κανόνας πίσω από αυτό (**ποτέ engine bump ή επεξεργασία `agent/` όσο
+> τρέχει gate**) μεταφέρθηκε μόνιμα στο §Πρωτόκολλο παρακάτω.
 
-**Πού είμαστε σε μία παράγραφο:** Φάση 1 **κλειστή** — v1e αποδεκτό (median **$42.555** vs
-`starter`, 96/96 wins σε HOLDOUT, [checkpoints/v1e](checkpoints/v1e), memory.md 2026-08-06).
-Όλη η υποδομή μέτρησης δουλεύει (parallel compare, dev/holdout split, metric gates, episode
-report, G11 receipts). Το χάσμα με την ελίτ είναι **δομικό, όχι παραμετρικό**: ~$42,6k έναντι
-$125,3k median της ζώνης Elo ≥2800. Δύο δουλειές, με αυτή τη σειρά: **(Α) πρώτο submission
-ΤΩΡΑ** (δωρεάν πληροφορία από την πραγματική ladder — MASTERPLAN §5 «όσο νωρίτερα γίνεται»),
-**(Β) κλιμάκωση προς το engine optimum** (crew → ζώα → 3ο quadrant → sell-ahead), κάθε βήμα
-με το ίδιο gate πρωτόκολλο.
+**Πού είμαστε σε μία παράγραφο:** Φάση 1 **κλειστή**. Τέσσερα increments έκλεισαν στη Φάση 2 —
+**v1f** (crew `hands_target=6`), **v1g** (ζώα 3 → **10**: 6 COW + 4 SHEEP, +$25,3k/ep vs v1f σε
+holdout, 96/96 wins), **v1g.1** (engine bump 1.32.4 → 1.32.5, bump-only· ο shed-access routing
+fix μετρήθηκε net-negative και έγινε revert) και **v1h′** (3ο quadrant SW φυτεμένο με **WHEAT** +
+crew 6→10 μέσα στο παράθυρο εργασίας του, +$2,8k/ep vs v1g.1 σε holdout, 96/96 wins).
+Τρία submissions έγιναν· ενεργά (η Kaggle κρατά μόνο 2): **v1g** (`55324447`, `publicScore
+643.7`) και **v1h** (`55383610`). Τρέχον baseline κάθε gate: **`checkpoints/v1h`**. Πλήρες
+ιστορικό: **memory.md 2026-08-06 → 2026-08-08**.
+Το χάσμα με την ελίτ: η **γη έκλεισε**· μένουν market intelligence (sell-ahead) και robustness.
 
 ---
 
 ## 0. Το χάσμα, αριθμητικά (τι πρέπει να αλλάξει)
 
-Σύγκριση του v1e (τρέχον [agent/config.py](agent/config.py)) με το modal top farm της ελίτ
+Σύγκριση του τρέχοντος agent (`checkpoints/v1g_1` = v1g κώδικας) με το modal top farm της ελίτ
 ([topfarms-19](docs/meta/ladder_snapshots.md#topfarms-19), Elo ≥2800, 08-05) και τα top-decile
 timings ([data/derived/top_agent_profiles.md](data/derived/top_agent_profiles.md)):
 
-| Διάσταση | v1e σήμερα | Ελίτ | Δράση |
+| Διάσταση | Εμείς σήμερα | Ελίτ | Δράση |
 |---|---|---|---|
-| Median bank | ~$42,6k (vs starter) | ~~$125,3k~~ → **$115,7k** ⚠️α | — (αποτέλεσμα των παρακάτω) |
-| Hands | ~~`hands_target: 3`~~ → **6** | ~~12~~ → **5-6** ⚠️β | ✅ **v1f κλειστό** |
-| Ζώα | 3 (1 COW + 1 SHEEP + 1 GOOSE) | **13-14** (8 cow + 5-6 sheep· goose μόλις 15% adoption) | **v1g** (τρέχει) |
-| Quadrants | 2 (NW+NE) | **3 (NE+NW+SW)· SE ποτέ** (#3 → median μέρα 11) | **v1h′** |
-| Crops | 10 carrot + 31 strawberry | ~~6 strawberry + 1 wheat~~ **μη συγκρίσιμο** ⚠️γ | **κανένα rebalance** — βλ. ⚠️γ |
+| Median bank | ~$50,1k ⚠️σημ. | ~~$125,3k~~ → **$115,7k** ⚠️α | — (αποτέλεσμα των παρακάτω) |
+| Hands | **6**, → **10** όσο δουλεύεται το SW | ~~12~~ → **5-6** ⚠️β | ✅ **v1f + v1h′ κλειστά** |
+| Ζώα | **10** (6 COW + 4 SHEEP) | 13-14 (8 cow + 5-6 sheep) — **δεν είναι στόχος** ⚠️ε | ✅ **v1g κλειστό** |
+| Quadrants | **3 (NW+NE+SW)** | **3 (NE+NW+SW)· SE ποτέ** (#3 → median μέρα 11) | ✅ **v1h′ κλειστό** |
+| Crops | **6 carrot + 24 strawberry + 12 wheat (SW)** | ~~6 strawberry + 1 wheat~~ **μη συγκρίσιμο** ⚠️γ | **κανένα rebalance** — βλ. ⚠️γ· το wheat είναι **νέα γη**, όχι ανακατανομή |
 | Sell timing | στατικά sell floors ανά προϊόν | πωλήσεις σε ημερολόγιο πάνω σε γνωστά cliffs | **v1i** (άξονας β) |
-| **Προσαρμογή σε ζήτηση** | **καμία** — το `unlocked_shops` έχει αφαιρεθεί από το snapshot | το ίδιο (κανείς δεν το κάνει ακόμα) | **v1g.2** ⚠️δ — *νέα γραμμή* |
+| **Προσαρμογή σε ζήτηση** | **καμία στη συμπεριφορά** — το `unlocked_shops`/`npc_daily_demand` υπάρχουν πλέον, αλλά ως **μοντέλο**, όχι ως πολιτική | το ίδιο (κανείς δεν το κάνει ακόμα) | **κενό κλειστό**: μετρήθηκε, δεν αποδίδει — §v1g.2 (γ) |
+
+**⚠️σημ. — οι δύο στήλες bank ΔΕΝ είναι απευθείας συγκρίσιμες.** Το «~$50,1k» είναι το median
+bank του v1g σε **self-compare** (`checkpoints/v1g` vs εαυτό του, DEV_SEEDS, 1.32.5,
+both_seats — memory.md 2026-08-07): παίζει εναντίον **αντιγράφου του εαυτού του**, όχι εναντίον
+`starter` ούτε εναντίον ladder αντιπάλου, και οι δύο πλευρές πουλάνε στην ίδια αγορά. Το
+«$115,7k» της ελίτ είναι median **νικητήριο** bank σε πραγματικά ladder games. Χρησιμοποιείται
+εδώ ως **τάξη μεγέθους**, όχι ως έγκυρη διαφορά — και γι' αυτό ακριβώς ο απόλυτος στόχος
+αποσύρεται (⚠️α).
 
 **⚠️α — ο απόλυτος στόχος «$125k» αποσύρεται.** Το money median της ζώνης Elo ≥2700 έπεσε
 $125.877 → **$115.664** στις 08-06, **ενώ** το score-median ανέβηκε +135 Elo
@@ -90,12 +85,19 @@ $125.877 → **$115.664** στις 08-06, **ενώ** το score-median ανέβ�
 ανά παίκτη**. Δεν πουλάς ό,τι δεν καλλιεργείς. **Συνέπεια:** η ελίτ είναι wheat+melon-βαριά νωρίς
 **και** ζώα· το «6 strawberry + 1 wheat» είναι **κάτω φράγμα**, όχι mix. Η γραμμή «Crops» του
 πίνακα συνέκρινε **ζωντανά** tiles (δικά μας, μετρημένα από config) με **επιζώντα** tiles (δικά
-τους) — μη συγκρίσιμα μεγέθη. Το v1h **δεν** κάνει πλέον portfolio rebalance προς το modal.
+τους) — μη συγκρίσιμα μεγέθη. Το v1h′ **δεν** κάνει portfolio rebalance προς το modal.
 
-**⚠️δ — νέα, πραγματική τρύπα.** Το [agent/state.py](agent/state.py):14 αφαίρεσε το
+**⚠️δ — πραγματική τρύπα, ακόμα ανοιχτή.** Το [agent/state.py](agent/state.py):14 αφαίρεσε το
 `unlocked_shops` από το snapshot ως «zero real readers» (review L9). Ήταν σωστό τότε. Γίνεται
 liability μόλις κυκλοφορήσει το shops-with-replacement (§0bis) — και έχει αξία **ακόμα και πριν**
-από αυτό, γιατή ήδη σήμερα η σειρά ξεκλειδώματος είναι τυχαία ανά episode.
+από αυτό, γιατί ήδη σήμερα η σειρά ξεκλειδώματος είναι τυχαία ανά episode.
+
+**⚠️ε — το «13-14 ζώα» έπαψε να είναι στόχος: το μετρήσαμε και η κορυφή είναι στα 10.** Ο ίδιος ο
+όγκος feed-logistics αντιστρέφει την επιπλέον ζωική απόδοση πριν φτάσουμε στην ελίτ-οροφή (13-14
+ζώα ⇒ 660-885 `animals_escaped` σε dev-screen· 12 ζώα ⇒ αποτυχία metric gate). Νικητής **10 ζώα
+(6 COW + 4 SHEEP)**, GOOSE αφαιρέθηκε ως μετρημένη απόφαση. Πλήρες screen sweep: memory.md
+2026-08-07. **Το MASTERPLAN §3.4 άξονας (α) σημείο 3 («~13 ζώα = ερώτημα, όχι στόχος») θεωρείται
+απαντημένο από αυτό.**
 
 Δύο προειδοποιήσεις πριν αντιγράψουμε αριθμούς:
 1. Το modal farm είναι η **καλύτερη εκτίμηση του engine optimum υπό ανταγωνισμό**, όχι συνταγή
@@ -112,9 +114,9 @@ liability μόλις κυκλοφορήσει το shops-with-replacement (§0bi
 Οι οργανωτές **ανακοίνωσαν** balance changes. Επαληθεύσαμε τοπικά (κατέβασμα sdist
 `kaggle-environments==1.32.5`, diff έναντι `engine_reference/`, **χωρίς install**) ότι:
 
-- Το **1.32.5 ΔΕΝ τις περιέχει.** Ολόκληρο το `.py` diff = **103 γραμμές, μία αλλαγή** (shed ops
-  πριν το LOCKED guard, §v1g.1)· `kaggriculture.json` diff **κενό**·
-  `TOWN_CENTER_DEMAND_SCHEDULE`, `townCenterSellInterval: 12` και το φίλτρο
+- Το **1.32.5 ΔΕΝ τις περιέχει.** Ολόκληρο το `.py` diff = **μία αλλαγή** (shed ops πριν το
+  LOCKED guard)· `kaggriculture.json` diff **κενό**· `TOWN_CENTER_DEMAND_SCHEDULE`,
+  `townCenterSellInterval: 12` και το φίλτρο
   `remaining = [s for s in SHOPS if s not in unlocked]` **byte-identical** με το 1.32.4.
 - Άρα: **ανακοινωμένες, αδημοσίευτες**. Η ladder σήμερα τρέχει ακόμα το παλιό μοντέλο ζήτησης.
   Δεν σχεδιάζουμε για κάτι που δεν υπάρχει — σχεδιάζουμε **ώστε να μη μας κοστίσει όταν έρθει**.
@@ -133,28 +135,44 @@ liability μόλις κυκλοφορήσει το shops-with-replacement (§0bi
   φυτεύει 11,6 seeds/παίκτη. **Η αλλαγή χτυπά το meta πολύ πιο δυνατά από εμάς: είναι ευκαιρία,
   όχι απειλή.**
 - **FERTILIZER**: εκτός `TOWN_CENTER_PRODUCTS` **και** εκτός κάθε shop menu — μηδενική NPC ζήτηση
-  πριν και μετά. Αμετάβλητο, αλλά βλ. §v1g.2 (β).
+  πριν και μετά. Αμετάβλητο, αλλά βλ. §v1g.2 (δ).
 
 **(γ) Shops με επανάθεση — εδώ είναι η δική μας έκθεση.** 8 κληρώσεις από 8 τύπους (cap
 `MAX_SHOP_INSTANCES = 8`). Αναμενόμενοι **διακριτοί** τύποι `8·(1−(7/8)⁸) = 5,25` αντί για 8:
 
-| Προϊόν | Shops που το αγοράζουν | P(κανένα) | Παραγωγή μας (v1g) | Cliff (μον. ως $1) |
+| Προϊόν | Shops που το αγοράζουν | P(κανένα) | Παραγωγή μας (v1g, 6C+4S) | Cliff (μον. ως $1) |
 |---|---|---|---|---|
-| **WOOL** | YARN_STORE μόνο (1/8, single ⇒ 12/μέρα) | **34,4%** | **~160** (5 sheep) | **59** |
+| **WOOL** | YARN_STORE μόνο (1/8, single ⇒ 12/μέρα) | **34,4%** | θεωρητικό ~128· **μετρημένο 58** ⚠️ζ | **59** |
 | CARROT | PET_CAFE, FARMERS_MARKET (2/8) | 10,0% | 6 tiles | 842 |
-| EGG | BAKERY, BRUNCH_SPOT (2/8) | 10,0% | 1 GOOSE | >2.000 |
-| MILK | PIZZA/ICE_CREAM/SMOOTHIE (3/8) | 2,3% | **~264** (8 cow) | **76** |
+| EGG | BAKERY, BRUNCH_SPOT (2/8) | 10,0% | **0** (GOOSE αφαιρέθηκε στο v1g) | >2.000 |
+| MILK | PIZZA/ICE_CREAM/SMOOTHIE (3/8) | 2,3% | θεωρητικό ~198· **μετρημένο 175** | **76** |
 | STRAWBERRY | BRUNCH/ICE_CREAM/SMOOTHIE/FARMERS_MKT (4/8) | 0,39% | 24 tiles | 62 |
 | WHEAT | BAKERY/PIZZA/BRUNCH/ICE_CREAM/FARMERS_MKT (5/8) | **0,04%** | feed + πώληση | **>2.000** |
 | MELON | **κανένα** | 100% | 0 ✅ | 158 |
 
-*(cliffs υπολογισμένα με `market_price(item, 10000+n)` του 1.32.4· παραγωγή = pickups × cared
-yield: sheep 8 pickups × (1+3), cow 11 × (1+2))*
+*(cliffs: `market_price(item, 10000+n)` του 1.32.4/1.32.5· θεωρητική παραγωγή = pickups × cared
+yield — sheep 8 pickups × (1+3) × 4 ζώα, cow 11 × (1+2) × 6 ζώα· **μετρημένη = μονάδες που
+πουλήθηκαν** (`units_sold_by_product`), seeds 0 και 25, memory.md 2026-08-07)*
 
-**Το κρίσιμο σενάριο:** 160 μονάδες wool έναντι cliff **59**. Απορροφώνται μόνο από YARN_STORE
-(12/μέρα ≈ 288/σεζόν). Στο **34,4%** των επεισοδίων χωρίς YARN_STORE η μόνη ζήτηση wool είναι
-**1 μονάδα/μέρα** από το TC ⇒ το wool πάει στο $1 και τα 5 sheep γίνονται **καθαρό κόστος**
-($500 αγορά + 5 wheat/μέρα feed + 10 unit-turns/μέρα). Δεν είναι ακραίο tail — είναι 1 στα 3.
+**⚠️ζ — γνωστή απόκλιση θεωρίας/μέτρησης, ανοιχτή.** Το milk πουλήθηκε στο **88%** του θεωρητικού
+μέγιστου (175/198), το wool μόλις στο **45%** (58/128). ⚠️ Η μετρική είναι **πουλημένες**, όχι
+**παραγόμενες** μονάδες — άρα το κενό μπορεί να είναι χαμένη παραγωγή (καθυστερημένη
+αγορά/τοποθέτηση, χαμένα CARE ticks, `max_held` clipping μεταξύ pickups) **ή** απούλητο inventory
+στο τέλος της σεζόν, που δεν μετράει στο bank. **Δεν έχει διαγνωστεί ποιο.** Δεν μπλοκάρει κανένα
+increment, αλλά είναι το **πρώτο** πράγμα που πρέπει να μετρηθεί αν εξεταστεί ποτέ αύξηση SHEEP:
+αύξηση κοπαδιού πάνω σε 45% ρεαλιζμένη απόδοση ανά ζώο είναι λάθος μοχλός.
+
+**Το κρίσιμο σενάριο — και γιατί ΔΕΝ φαίνεται στα σημερινά νούμερα.** Οι μετρημένες μέσες τιμές
+πώλησης είναι **υγιέστατες** (WOOL $234-244, MILK $267-272, δηλαδή **πάνω** από base $200/$160),
+άρα σήμερα **δεν** είμαστε κοντά σε κανένα cliff. Ο λόγος είναι ότι το cliff μετρά **καθαρή
+συσσώρευση** πάνω από το `I0`, και η ημερήσια NPC ζήτηση την καθαρίζει: το YARN_STORE μόνο του
+απορροφά **12 wool/μέρα ≈ 288/σεζόν** έναντι των ~58 που πουλάμε εμείς. **Το ρίσκο δεν είναι ο
+όγκος μας — είναι η εξαφάνιση του αγοραστή.** Στο **34,4%** των μελλοντικών επεισοδίων χωρίς
+YARN_STORE η ζήτηση wool πέφτει από 20 μον./μέρα (σημερινό late-season) σε **1** (−95%) ⇒ ακόμα
+και ο δικός μας μέτριος όγκος περνά το cliff των 59 μέσα σε λίγες μέρες, το wool πάει στο $1, και
+τα 4 sheep γίνονται **καθαρό κόστος** ($500/ζώο αγορά + 1 wheat/ζώο/μέρα feed + unit-turns). Σε
+mirror ο συνολικός όγκος **διπλασιάζεται** (~116, σχεδόν 2× cliff), οπότε το σενάριο επιδεινώνεται
+ακριβώς στα matchups που κρίνουν το BT. Δεν είναι ακραίο tail — είναι 1 στα 3.
 
 **(δ) Νέα ιεράρχηση μετά την αλλαγή:** WHEAT ↑↑ (5/8 κάλυψη, καμία cliff, ήδη υποχρεωτικό ως
 feed) · STRAWBERRY ↑ (4/8, σταθερό) · MILK ↑ · **WOOL ↓ (variance)** · CARROT ↓ (variance) ·
@@ -169,57 +187,109 @@ MELON ↓↓↓ · FERTILIZER αμετάβλητα μηδενικής NPC ζήτ
 1. **Το fertilizer inventory είναι μονότονα αύξον** ⇒ η τιμή του **δεν ανακάμπτει ποτέ**, ούτε μία
    μονάδα. Άρα το «κρατάω και πουλάω αργότερα» είναι **καθαρή απώλεια**, και η σειρά πώλησης
    έναντι του αντιπάλου είναι παιχνίδι μηδενικού αθροίσματος. Μεγέθη: curve **493 μονάδες** ως το
-   floor, base $100, `p(+60) = $88` — **ρηχή καμπύλη ⇒ μεγάλη γραμμή εσόδων** για 13-14 ζώα
-   (~325 μονάδες/σεζόν· **~650 σε mirror**, δηλαδή πάνω από το cliff). Το meta το ξέρει ήδη:
-   fertilizer πρώτη πώληση **μέρα 3, από 1.366/1.366 seats**.
+   floor, base $100, `p(+60) = $88` — **ρηχή καμπύλη ⇒ μεγάλη γραμμή εσόδων**. Το meta το ξέρει
+   ήδη: fertilizer πρώτη πώληση **μέρα 3, από 1.366/1.366 seats**.
 2. **Sell execution είναι per-unit με pre-sell quote** ⇒ το έσοδο q μονάδων είναι
    `Σ_{i=0..q-1} p(s+i)`, **όχι** `q·p(s+q)`. Ο [agent/executor.py](agent/executor.py):89
    ελέγχει `market_price(product, inventory + sell_units + safety_units) > floor` — **endpoint,
    άρα συντηρητικό**: υποεκτιμά το έσοδο, δεν το υπερεκτιμά. **Δεν είναι bug** — αλλά αφήνει
    έσοδο στο τραπέζι σε ρηχές καμπύλες (fertilizer, carrot, wheat). Φυσικό v1i item.
 
+### 0bis.3 Ανεξάρτητη επιβεβαίωση των αριθμών του §0bis.1(γ)
+
+Το community notebook [notebooks/your-seed-does-not-fix-the-town.ipynb](notebooks/your-seed-does-not-fix-the-town.ipynb)
+(τρίτου χρήστη, **evidence όχι πηγή κώδικα** — Ανοιχτό #11) υπολογίζει τα ίδια μεγέθη πάνω στο
+ίδιο PR diff και στο **ίδιο εγκατεστημένο 1.32.5**. Τα νούμερα **συμφωνούν ακριβώς** — καμία
+απόκλιση από τον δικό μας §0bis.1(γ):
+
+| Μέγεθος | Δικός μας υπολογισμός | Notebook | Συμφωνία |
+|---|---|---|---|
+| P(συγκεκριμένος τύπος shop απών) = (7/8)⁸ | 34,4% | 34,4% | ✅ |
+| E[διακριτοί τύποι] = 8·(1−(7/8)⁸) | 5,25 | 5,25 | ✅ |
+| Shops ανά προϊόν (wool 1, milk 3, strawberry 4, wheat 5) | ✅ | ίδιο | ✅ |
+| Wool cliff πάνω από `I0` | 59 | 59 | ✅ |
+
+Και **τρία μεγέθη που δεν είχαμε υπολογίσει**, όλα προστίθενται εδώ ως νέα:
+- **P(και οι 8 τύποι παρόντες) = 8!/8⁸ = 0,24%, δηλαδή ~1 παιχνίδι στα 416.** Η σημερινή πόλη
+  «όλα τα shops ανοιχτά», πάνω στην οποία είναι tunαρισμένο **κάθε** σημερινό config μας, γίνεται
+  σχεδόν αδύνατο γεγονός μετά την αλλαγή.
+- **Late-season wool demand: 20 → 13 μον./μέρα με yarn store, → 1 χωρίς (−95%).**
+- **Τιμολόγηση κοπαδιού των 6 ζώων** μέσω μοντέλου αγοράς που ο συγγραφέας επαλήθευσε έναντι του
+  engine (both-players-pass ⇒ το inventory κινείται μόνο από town consumption· ταιριάζει και στα
+  9 προϊόντα, σε 3 seeds): 6-sheep season median **$39,1k με yarn store έναντι $11,1k χωρίς**
+  (−72%)· 6-cow **$42,4k median** με p10 $16,0k. Σε 500 κληρωμένα (με επανάθεση) towns, το
+  **cow** κοπάδι είναι το κερδοφόρο στο **70,2%**, το sheep στο **28,2%**, το goose στο 1,6%.
+  **Ρητή επιφύλαξη του ίδιου του συγγραφέα:** το μοντέλο αγνοεί τον αντίπαλο που πουλά στην ίδια
+  αγορά ⇒ τα απόλυτα $ είναι **άνω φράγμα**· χρησιμοποιούμε τους **λόγους μεταξύ towns**, όχι τα
+  ποσά. Καμία αντίφαση με δικό μας υπάρχοντα υπολογισμό — δεν είχαμε τιμολογήσει ποτέ κοπάδι
+  per-town.
+
+**Στρατηγική συνέπεια που δεν είχε διατυπωθεί πουθενά:** τα shops ξεκλειδώνουν από τη **μέρα 3**
+και μετά, ενώ pastures/ζώα αγοράζονται στο **άνοιγμα** ⇒ **δεσμεύεσαι στο κοπάδι πριν ξέρεις την
+πόλη**. Η σύνθεση 6 COW + 4 SHEEP είναι απόφαση **υπό αβεβαιότητα**, όχι βελτιστοποίηση: δεν
+υπάρχει τρόπος να την «διορθώσεις» εκ των υστέρων.
+
+> **⚠️ [διόρθ. 2026-08-07 — μετρήθηκε]** Αυτή η παράγραφος κατέληγε ότι ο μοχλός προσαρμογής
+> είναι «τι/πότε/πόσο πουλάς», δηλαδή το §v1g.2, και το ανέβαζε σε «τον μοναδικό μηχανισμό
+> αντιστάθμισης». **Λάθος.** Το §v1g.2 (γ) υλοποιήθηκε και μετρήθηκε: μια πόλη χωρίς YARN_STORE
+> κοστίζει **$12.077/ep** από μόνη της, και το sell-side layer δεν ανακτά **τίποτα** από αυτά —
+> χάνει επιπλέον $1.909/ep όταν ενεργοποιείται εκεί, και **+$0** όταν ρυθμιστεί ώστε να μη
+> βλάπτει. Το κόστος είναι **παραγωγικό** (δεν υπάρχει αγοραστής), όχι θέμα χρονισμού πώλησης.
+> Άρα το ρίσκο της αρχικής σύνθεσης **παραμένει ακάλυπτο**, και ο μόνος μοχλός που απομένει
+> είναι η **ίδια η σύνθεση** — βλ. το ⚠️ ερώτημα στο scope του §v1h′.
+
 ---
 
-## ΜΕΡΟΣ Α — Πρώτο submission (εκτελείται ΤΩΡΑ, πριν από κάθε νέο feature)
+## 0ter. Σύζευξη RNG: shop unlock και weed spawning μοιράζονται το ίδιο stream
 
-Το v1e πληροί τα κριτήρια Φάσης 1 (96/96 vs starter, median ≥$40k). Κάθε μέρα χωρίς submission
-είναι χαμένη πληροφορία ladder. Διαδικασία (από το παλιό plan §6, αμετάβλητη):
+**Νέο engine fact, 2026-08-07.** Πλήρης τεκμηρίωση: **MASTERPLAN §2 Αμφισημία #7** (και #6 για το
+weed σκέλος) — εδώ μόνο η επιχειρησιακή συνέπεια, χωρίς επανάληψη της στρατηγικής τεκμηρίωσης.
 
-> **Ενημέρωση 2026-08-06 (δ):** το πρώτο submission πακετάρεται από το **παγωμένο
-> `checkpoints/v1e`**, όχι από `main.py agent/` του repo root κατά γράμμα — βλ.
-> [baselines/2026-08-06/validation.md](baselines/2026-08-06/validation.md) — επειδή δύο commits
-> μετά το checkpoint (`99db4fb`, `c7767bb`) είχαν εισάγει ένα μη-απομονωμένο ~$614/episode
-> regression έναντι του παγωμένου checkpoint (DEV_SEEDS).
->
-> **Ενημέρωση 2026-08-06 (ε) — bisect ΛΥΘΗΚΕ:** root cause εντοπίστηκε στο
-> [agent/executor.py](agent/executor.py)'s wheat-purchase block (το `c7767bb` αφαίρεσε το
-> `hour == 0` gate, κάνοντας το κάθε-ώρα recheck να παρεξηγεί τη φυσιολογική κατανάλωση wheat
-> από το FEED ως νέο shortfall και να ξανααγοράζει). Διορθώθηκε ώστε το `wheat_needed` να
-> υπολογίζεται από τα `unfed_animals` (`fed_today` flag) αντί για το σύνολο `placed_animals` —
-> βλ. memory.md 2026-08-06 (ε) για πλήρη ανάλυση. Καθαρό `compare` σε DEV_SEEDS: mean_diff=-9.70
-> (se=30.89, στατιστικά αδιάκριτο από 0), `pytest tests/` 133 passed. Το τρέχον repo-root
-> `agent/` είναι πλέον ξανά συμπεριφορικά ισοδύναμο του `checkpoints/v1e` — το v1f μπορεί να
-> ξεκινήσει από αυτό ως βάση.
+Το `_end_of_day` φτιάχνει **ένα** per-day RNG και το μοιράζεται: το `_spawn_weeds` καλεί
+`rng.random()` **μία φορά ανά άδειο (`None`) unlocked tile** — πρώτα player 0, μετά player 1 — και
+**μόνο μετά** κληρώνεται το shop unlock. Άρα η θέση της κλήρωσης στο stream ισούται με
+`(άδεια tiles player 0) + (άδεια tiles player 1)` εκείνο το βράδυ.
 
-### Α.1 Checklist προ-υποβολής
+**Τι σημαίνει πρακτικά:**
+1. **Ένα σταθερό `configuration["seed"]` ΔΕΝ σταθεροποιεί την πόλη.** Ένα μόνο tile διαφορά —
+   σε **οποιαδήποτε** από τις δύο φάρμες — ξαναρίχνει όλη την επόμενη ακολουθία shop unlocks.
+   Επιβεβαιωμένο στο notebook σε πραγματικό episode και στα 12/12 seeds που δοκιμάστηκαν, με
+   ταυτόσημα και τα 720 actions του player 0.
+2. **Η πόλη αξίζει χρήματα και η έκθεση κλιμακώνεται με τον όγκο εμπορίου.** Με σταθερό seed,
+   σταθερό αντίπαλο, και μόνο τη σειρά των 8 shops να μεταβάλλεται: ο ελάχιστα-εμπορικός
+   `starter` κινείται **<1%**, ένας crop-farm agent **~14%** χειρότερο-καλύτερο draw. Μετά την
+   balance change (§0bis) το ίδιο μέγεθος πάει σε **36%**. **Ο δικός μας agent πουλά πολλαπλάσια
+   και των δύο**, άρα η δική μας έκθεση είναι εύλογα **μεγαλύτερη από 14%**, όχι μικρότερη — δεν
+   έχει μετρηθεί ακόμα.
+3. **Ο μεθοδολογικός κανόνας** (§Πρωτόκολλο παρακάτω) — ποια knobs μπορούν να συγκριθούν σε
+   σταθερό seed και ποια όχι.
 
-- [ ] **Format**: `tar -czf submission.tar.gz main.py agent/` — `main.py` στο **root** του
-  αρχείου (competition_info.md:421-429)· υποβολή από **CLI**, όχι notebook.
-- [ ] **Loader contract (G12)**: exported `agent` = τελευταίο callable· imports top-level·
-  κανένα `__file__` shim· vendored constants fallback ([agent/_vendored.py](agent/_vendored.py))
-  parity-tested.
-- [ ] **Timing**: cold-process profile και στα 2 seats· gate `max_turn × 3 < 1s` (<333ms
-  τοπικά — ο server έχει 1.6 vCPU, πιθανώς αργότερος)· cold import/turn-1 χωριστά.
-- [ ] **Determinism (G13)**: ίδιο seed σε 2 fresh processes + διαφορετικό `PYTHONHASHSEED` →
-  ταυτόσημο trajectory.
-- [ ] **Mirror smoke**: `python -m harness.cli play main.py main.py --steps 720` — `clean=True`,
-  καμία αυτοκαταστροφή αγοράς, κανένα cache cross-talk.
-- [ ] **Μέγεθος** < 100 MiB · `pytest tests/` πλήρως πράσινο · `KAGGRI_DEBUG` **off** by default.
+**Δεν είναι exploit και δεν το χειριζόμαστε ως τέτοιο.** Το episode seed αφαιρείται από το
+configuration πριν το δει οποιοσδήποτε agent, οπότε το «αφήνω ένα tile άδειο» μετακινεί την
+κλήρωση **χωρίς να ξέρεις προς τα πού**. Το κόστος είναι **εγκυρότητα μέτρησης**, όχι δικαιοσύνη
+— πρόβλημα του δικού μας tuning loop, όχι της ladder.
 
-### Α.2 Εντολές
+**Εργαλείο:** [harness/town_pin.py](harness/town_pin.py) (νέο 2026-08-07, **ανενεργό** — δεν το
+εισάγει κανείς ακόμα): `pinned_shops(schedule)`, `no_shops()`, `schedule_for(seed)`,
+`basket_for(seed)`. Βλ. §Β.0′.
+
+---
+
+## ΜΕΡΟΣ Α — Submissions (λειτουργικό reference· τα τρία πρώτα έχουν γίνει)
+
+**Ενεργό ζεύγος (η Kaggle κρατά μόνο τα 2 τελευταία):** **v1g** (`SUBMISSION_ID 55324447`,
+`publicScore 643.7`) και **v1h** (`55383610`, 2026-08-09, PENDING στην υποβολή —
+[baselines/2026-08-09/validation.md](baselines/2026-08-09/validation.md)). Το **v1e**
+(`55301989`, `557.0`) **έπεσε εκτός** με το 3ο upload.
+
+⚠️ Λύθηκε το ερώτημα του 08-07: το `508.3` του v1g ήταν όντως ασύγκλιτο 2-επεισοδίων δείγμα —
+συνέκλινε στο **643.7**, καθαρά πάνω από το 557.0 του v1e. Πλήρες ιστορικό: memory.md
+2026-08-07 / 2026-08-08.
+
+### Α.1 Εντολές (αμετάβλητες)
 
 ```powershell
-kaggle competitions submit kaggriculture -f submission.tar.gz -m "v1e rule-based baseline"
+kaggle competitions submit kaggriculture -f submission.tar.gz -m "<version> <περιγραφή>"
 kaggle competitions submissions kaggriculture          # status + SUBMISSION_ID
 kaggle competitions episodes <SUBMISSION_ID>           # -v για CSV
 kaggle competitions replay <EPISODE_ID> -p ./baselines/<date>/replays
@@ -227,363 +297,224 @@ kaggle competitions logs <EPISODE_ID> 0 -p ./baselines/<date>/logs   # index = s
 ```
 
 Το CLI auth είναι λυμένο (`KAGGLE_API_TOKEN` στο `.env`, `userHasEntered: True`).
+Format: `tar -czf submission.tar.gz main.py agent/` με `main.py` στο **root**, υποβολή από **CLI**.
 
-### Α.3 Baseline καταγραφή — `baselines/2026-08-XX/`
+### Α.2 Πριν από κάθε επόμενο upload
 
-- [ ] `local_bench.json`: `compare(v1e, "starter", HOLDOUT_SEEDS)` raw rows + fingerprints +
-  mirror bank (+ vs `"pass"`/`"random"`).
-- [ ] `validation.md` (pass/fail + χρόνος) · `rating_trajectory.csv` (πρώτα ~20 episodes) ·
-  `leaderboard_snapshot.md` (ημέρα 1 και 3) · 2-3 **ηττημένα** replays + logs για post-mortem.
-- [ ] Από τα logs πραγματικού episode: επιβεβαίωση `actTimeout`/χρόνων στο server (Ανοιχτό #7).
+- [ ] **Loader contract (G12)**: exported `agent` = τελευταίο callable· imports top-level·
+  κανένα `__file__` shim· vendored constants fallback ([agent/_vendored.py](agent/_vendored.py))
+  parity-tested **έναντι της τρέχουσας engine έκδοσης**.
+- [ ] **Timing**: cold-process profile και στα 2 seats· gate `max_turn × 3 < 1s`.
+- [ ] **Determinism (G13)**: ίδιο seed σε 2 fresh processes + διαφορετικό `PYTHONHASHSEED` →
+  ταυτόσημο trajectory.
+- [ ] **Mirror smoke**: `python -m harness.cli play main.py main.py --steps 720` — `clean=True`.
+- [ ] **Μέγεθος** < 100 MiB · `pytest tests/` πλήρως πράσινο · `KAGGRI_DEBUG` **off** by default.
 
-### Α.4 Slots
+### Α.3 Slots
 
-5 uploads/μέρα, **μόνο τα 2 τελευταία active** και αυτά μπαίνουν στο final. 1ο upload = v1e
-baseline. Κάθε επόμενο upload **μόνο** με directional `IMPROVED` σε holdout-confirm — όχι
-«δοκιμαστικά». Τελευταία εβδομάδα πριν τις 30/09: κατεψυγμένο champion/challenger.
+5 uploads/μέρα, **μόνο τα 2 τελευταία active** και αυτά μπαίνουν στο final. Κάθε επόμενο upload
+**μόνο** με directional `IMPROVED` σε holdout-confirm — όχι «δοκιμαστικά». Τελευταία εβδομάδα πριν
+τις 30/09: κατεψυγμένο champion/challenger.
 
 ---
 
-## ΜΕΡΟΣ Β — Increments σύγκλισης v1f → v1i
+## ΜΕΡΟΣ Β — Εναπομείναντα increments
 
-**Σειρά και σκεπτικό (MASTERPLAN §5.0):** capacity πρώτα (crew), μετά το ακριβό κεφάλαιο (ζώα),
-μετά γη, μετά market intelligence. Κάθε increment: υλοποίηση → contract/guard tests → metric
-gate → `compare` σε DEV (screen) → **holdout-confirm 48 seeds** → immutable checkpoint. Baseline
-κάθε gate = το προηγούμενο αποδεκτό checkpoint (τώρα: `checkpoints/v1e`). `REGRESSED` = STOP
-και revert· `INCONCLUSIVE` σε holdout = STOP για απόφαση.
+**Σειρά και σκεπτικό (MASTERPLAN §5.0):** capacity πρώτα (crew ✅), μετά το ακριβό κεφάλαιο
+(ζώα ✅), μετά γη, μετά market intelligence. Κάθε increment: υλοποίηση → contract/guard tests →
+metric gate → `compare` σε DEV (screen) → **holdout-confirm 48 seeds** → immutable checkpoint.
+Baseline κάθε gate = το προηγούμενο αποδεκτό checkpoint (**τώρα: `checkpoints/v1h`**).
+`REGRESSED` = STOP και revert· `INCONCLUSIVE` σε holdout = STOP για απόφαση.
 
-> **[ενημ. 2026-08-07] Αναθεωρημένη σειρά μετά το v1g:**
-> `v1g` (τρέχει) → **`Β.0` συλλογή δεδομένων** → **`v1g.1` engine bump** → **`v1g.2` shop-adaptive
-> + fertilizer timing** → **`v1h′` SW quadrant** → `v1i` sell-ahead. Το v1g.1 μπαίνει πριν από
-> κάθε άλλο κώδικα γιατί αλλάζει το ίδιο το engine — κάθε gate που τρέχει μετά πρέπει να έχει
-> baseline **στο ίδιο engine**, αλλιώς συγκρίνουμε μήλα με πορτοκάλια.
+> **[ενημ. 2026-08-09, γ′ αναθεώρηση] Σειρά:** ~~`Β.0′`~~ ✅ → ~~herd screen~~ ✅ (αρνητικό,
+> καμία αλλαγή) → ~~`v1h′` SW quadrant~~ ✅ (`checkpoints/v1h`, submitted) →
+> **`v1i` sell-ahead** (market-only ⇒ **δεν** χρειάζεται pin, σταθερό seed αρκεί· baseline
+> `checkpoints/v1h`) → **BBO sweeps** (μεικτό — απαιτεί pin για κάθε occupancy παράμετρο· το
+> εργαλείο υπάρχει πλέον) → **Φάση 3 robustness** (3 από τα 4 σενάρια ζήτησης στήνονται τώρα
+> χωρίς νέο κώδικα).
+> Το `v1g.2` παραμένει εκτός σειράς: (α)/(β) έγιναν, (γ) διαψεύστηκε και απενεργοποιήθηκε,
+> (δ) παραμένει παγωμένο.
 
-### Β.0 — ⚠️ ΤΙ ΧΡΕΙΑΖΟΜΑΙ ΑΠΟ ΤΟ v1g EPISODE REPORT (πριν από κάθε αλλαγή κώδικα)
+### Β.0′ — Town-pin harness [✅ ΚΛΕΙΣΤΟ 2026-08-08]
 
-Δύο αποφάσεις παρακάτω (**SHEEP target**, **fertilizer sell timing**) **δεν** μπορούν να ληφθούν
-από θεωρία — εξαρτώνται από το τι πραγματικά συνέβη στην αγορά με 13-14 ζώα. Ζητώ **ρητά** τα
-παρακάτω, ώστε να ξέρεις τι να κατεβάσεις/παράξεις:
+Ενσωματώθηκε στο `compare()` ως **opt-in** `town_pin` argument (CLI: `--town-pin
+schedule|basket|no_shops`) — και τα τρία σημεία που έλειπαν έγιναν: pin ανά **seed** κοινό και
+στα δύο arms (ένα `with` γύρω και από τις δύο orientations· στο parallel path ταξιδεύει το
+ζεύγος `(mode, schedule)`, όχι context manager)· καταγραφή mode **και** των per-seed schedules
+στο `_meta` row, στο `CompareResult`, στο `results.json` και στο confirm ledger· `--resume`
+αρνείται να αναμείξει pinned με unpinned run. 20 νέα tests
+([tests/test_town_pin.py](tests/test_town_pin.py)). Πλήρες ιστορικό: memory.md 2026-08-08.
 
-**Β.0.1 — Από το τοπικό v1g run (δεν χρειάζεται δίκτυο, υπάρχει ήδη):**
+**Τι ΔΕΝ αγοράζει (μην το πουλήσεις σε κανένα gate ως πλήρη λύση):** μειώνει, δεν εξαλείφει.
+Στη μέτρηση του notebook έκοψε **~19%** του noise sd σε labour test — ισοδύναμο με ~1,5× τα
+episodes, χρήσιμο και όχι μαγικό. Δεν διορθώνει τα weeds (player 0 τραβά πριν τον player 1), δεν
+εξαφανίζει γνήσια seed-dependent αλληλεπιδράσεις (αυτό είναι **σήμα ανθεκτικότητας**, όχι
+θόρυβος), και **αλλάζει την κατανομή που δειγματίζεις**: πίναρε σετ που καλύπτει το εύρος, και
+μετά τη balance change πίναρε **baskets με επανάθεση** (`basket_for`), όχι permutations
+(`schedule_for`) — αλλιώς βαθμονομείς για πόλη που εμφανίζεται 1 στα 416 παιχνίδια (§0bis.3).
 
-```powershell
-# 1) Το report ενός αντιπροσωπευτικού seed, με receipts ενεργά
-$env:KAGGRI_DEBUG = "1"
-python -m harness.cli play main.py checkpoints/v1f/main.py --seed 0 --seat 0 --render-html
-python -m harness.cli report <το replay path που τύπωσε το play>
-# 2) Το ίδιο για ένα seed που το v1g ΕΧΑΣΕ (βρες το από το results.jsonl του gate)
-```
+### Β.1 — Αναδρομική αξιολόγηση των δύο πρόσφατων negative αποτελεσμάτων υπό το §0ter
 
-Από αυτά χρειάζομαι **τέσσερα νούμερα**, όλα ήδη παραγόμενα από το `harness/metrics.py` /
-`harness/report.py` (πίνακας μετρικών MASTERPLAN §6, σημείο 3 «μέση τιμή πώλησης ανά προϊόν vs
-base»):
+Ερώτημα: το νέο εύρημα ακυρώνει ή εξηγεί τα δύο πρόσφατα STOP; **Όχι — και τα δύο verdicts
+στέκουν**, αλλά για διαφορετικό λόγο το καθένα. Καμία επανεκτέλεση δεν απαιτείται.
 
-| # | Μετρική | Γιατί τη χρειάζομαι | Κατώφλι απόφασης |
-|---|---|---|---|
-| 1 | **Μέση realized τιμή πώλησης WOOL** (και σύνολο μονάδων) | base $200, cliff 59 μονάδες. Παράγουμε ~160. | Αν `avg < $80` ⇒ το wool είναι ήδη κορεσμένο **πριν** τη balance change ⇒ SHEEP target κάτω |
-| 2 | **Μέση realized τιμή πώλησης MILK** (και σύνολο μονάδων) | base $160, cliff 76. Παράγουμε ~264. | Αν `avg < $70` ⇒ το ίδιο για COW |
-| 3 | **Μέση realized τιμή + σύνολο μονάδων FERTILIZER**, **και η κατανομή ανά μέρα** | base $100, cliff 493, μηδενική NPC ζήτηση | Αν πουλάμε αργά (median μέρα > 10) ⇒ αφήνουμε λεφτά στο τραπέζι· το meta πουλά μέρα 3 |
-| 4 | **`animals_escaped`, `weeds_lost`, `unexplained_noops`, `shed_overflow_burnt`** | metric gate v1g + το γνωστό pre-existing `weeds_lost` | `animals_escaped > 0` ⇒ το FEED logistics έσπασε στα 14 ζώα ⇒ STOP |
+**(i) v1g.1 shed-access routing fix — occupancy knob, το root cause παραμένει επαρκές.**
+Το fix άλλαζε ποιο tile επισκέπτεται ένα unit για PICKUP/DROP ⇒ μετακινούσε τον ανταγωνισμό
+FEED/WATER/PICKUP μέσα στη μέρα ⇒ **μπορεί** να αλλάξει πόσα tiles μένουν άδεια το βράδυ. Άρα
+κατατάσσεται **labour/occupancy knob** και το dev-screen του συνέκρινε, κατά τον κανόνα,
+διαφορετικές πόλεις. Τρία σημεία που κρατούν το συμπέρασμα όρθιο παρ' όλα αυτά:
+- **Το root cause επαληθεύτηκε με bisection, όχι με το aggregate.** Το revert **μόνο** του
+  per-unit WHEAT PICKUP πήγε το mean_diff από −$455,5 σε **−$7,1/ep με se 0,8** — se αυτού του
+  μεγέθους σημαίνει σχεδόν ταυτόσημα trajectories, δηλαδή **η πόλη δεν ξαναρίχτηκε** σε εκείνη
+  τη σύγκριση. Η αιτιακή αλυσίδα (`best_distance` → `slack` → `urgency_tier` → χαμένος
+  ανταγωνισμός έναντι FEED/WATER) είναι μηχανιστική και ανεξάρτητη του town draw.
+- **Η κατεύθυνση, όχι μόνο το μέγεθος, ήταν συνεπής**: 43/48 seeds αρνητικά (sign test p≈4e-9).
+  Ο town-draw θόρυβος είναι **συμμετρικός** — δεν παράγει συστηματική φορά.
+- **Τι όντως προσθέτει το §0ter:** άγνωστη διακύμανση στο **σημειακό μέγεθος** (−$455,5), όχι στο
+  πρόσημο. Πρακτικά: μην αναφέρεις ποτέ ξανά το «−$455,5» ως ακριβές κόστος του fix.
+- **Το τελικό v1g.1 gate είναι πλήρως ανεπηρέαστο.** Ήταν `mean_diff=0.0, ties=48/48` πάνω σε
+  **code-identical** agents: ταυτόσημος κώδικας ⇒ ταυτόσημη occupancy ⇒ ταυτόσημη πόλη. Το
+  `INCONCLUSIVE` verdict εκεί είναι όσο έγκυρο μπορεί να γίνει.
 
-**Αν το report δεν σερβίρει το «avg sell price ανά προϊόν»** ως έτοιμο πεδίο: υπάρχει ήδη στο
-`extract_metrics` (`units_sold_at_or_below_5`, `sales_count`) αλλά **όχι** ανά προϊόν — τότε η
-πρώτη δουλειά του Β.0 είναι να προστεθεί `avg_sell_price_by_product` εκεί. **Προσοχή:**
-[harness/cli.py](harness/cli.py)'s `_results_json_dict` **δεν σερβίρει** αρκετά από τα νεότερα
-gate πεδία στο `results.json` (γνωστό από memory.md 2026-08-06 (δ)) — μη συμπεράνεις ότι μια
-μετρική λείπει επειδή δεν φαίνεται στο JSON· διάβασε το `CompareResult` object απευθείας σε Python.
+**(ii) v1g.2 fertilizer-timing fix — καθαρά market-only knob, το συμπέρασμα ισχύει ως έχει.**
+Και οι δύο προσπάθειες (reorder μέσα στο SELL tier· dedicated `SELL_FERTILIZER` tier) άλλαζαν
+**μόνο τη σειρά των market orders** — καμία επίδραση σε ποια tiles είναι κατειλημμένα. Κατά τον
+κανόνα του §0ter αυτή η κατηγορία **δεν** πάσχει από town re-roll (επαληθεύτηκε side-by-side στο
+notebook: το market-only knob τράβηξε την ίδια πόλη σε **16/16** seeds και έλυσε effect **10
+coins** από 16 episodes· το labour knob 0/16 και θόρυβος >$1.000). **Άρα το ήδη καταγεγραμμένο
+συμπέρασμα παραμένει η πιο πιθανή εξήγηση χωρίς καμία ανάγκη rerun**: η ζημιά ήταν πραγματικός
+WOOL crowd-out στο 10-order cap, και η διάμεσος «μέρα 18» είναι **production-timing artifact**
+(περισσότερο fertilizer παράγεται αργότερα καθώς μεγαλώνει το κοπάδι), όχι sell-side συμπεριφορά.
+Ενισχυτικό: το ημερήσιο ιστόγραμμα πωλήσεων FERTILIZER ήταν **byte-identical** και στις δύο
+παραλλαγές — ακριβώς ό,τι περιμένεις όταν η πόλη είναι σταθερή και το knob δεν αγγίζει το
+πραγματικό bottleneck. Πλήρη στοιχεία: memory.md 2026-08-07.
 
-**Β.0.2 — Από το Kaggle (χρειάζεται δίκτυο· εσύ ή ο agent):**
+**(iii) Δύο παλαιότερα αποτελέσματα που κληρονομούν άγνωστο θόρυβο — καταγράφονται, δεν
+ξαναγίνονται.** Και τα δύο ήταν occupancy knobs:
+- **v1f h6 vs h8** (`hands_target`): η *κατεύθυνση* και των δύο (`IMPROVED` vs v1e, 96/96 wins)
+  είναι ασφαλής — τα μεγέθη (+$2.242 / +$1.107) είναι πολλαπλάσια οποιουδήποτε εύλογου town
+  θορύβου. Η *κατάταξη* h6 > h8 στηρίχθηκε σε «μη επικαλυπτόμενα 95% CI» — αυτό είναι το μόνο
+  σημείο που ο νέος θόρυβος θα μπορούσε να ανατρέψει.
+- **v1g animal-count sweep** (7/10/11/12/13-14 ζώα, pasture tiles ⇒ occupancy): η απόρριψη των
+  12-14 δεν εξαρτάται από $ (απέτυχαν **hard metric gates**: escapes/weeds — ανεπηρέαστο από την
+  πόλη). Η κορυφή **10 έναντι 11** στηρίζεται σε διαφορά ~$6,4k, πολύ πάνω από τον αναμενόμενο
+  town θόρυβο.
+- **Απόφαση: κανένα rerun.** Και τα δύο έκλεισαν, το κόστος επανεκτέλεσης είναι πραγματικό και το
+  όφελος υποθετικό. Αν το v1h′ ή κάποιο BBO sweep ξαναγγίξει `hands_target` ή τα animal targets,
+  **τότε** τρέχει με `pinned_shops()` και η νέα μέτρηση υπερισχύει.
 
-```powershell
-kaggle competitions submissions kaggriculture              # τρέχον status/score του v1e
-kaggle competitions episodes <SUBMISSION_ID> -v            # CSV με τα episodes
-kaggle competitions replay <EPISODE_ID> -p ./baselines/2026-08-XX/replays
-```
+### v1g.2 — Shop-adaptive market layer [ΚΛΕΙΣΤΟ: (α)/(β) ✅ · (γ) ΔΙΑΨΕΥΣΤΗΚΕ · (δ) ΠΑΓΩΜΕΝΟ]
 
-Χρειάζομαι **2-3 replays από ΗΤΤΕΣ** του live v1e. Λόγος: όλα τα σημερινά μας δεδομένα για την
-ελίτ είναι **aggregates τρίτων** (meta reports). Ένα δικό μας χαμένο episode δείχνει *ποιο
-προϊόν* μας κατέρρευσε και *ποια μέρα* — η μόνη άμεση μέτρηση της δικής μας έκθεσης στον κορεσμό.
+**Κατάσταση: κλειστό, χωρίς προαγωγή checkpoint.** Το `main.py` παραμένει **συμπεριφορικά
+ταυτόσημο** με το `checkpoints/v1g_1` (self-compare, DEV_SEEDS, 0 διαφορά). Πλήρες ιστορικό:
+memory.md 2026-08-07.
 
-**Β.0.3 — Προαιρετικό, μόνο αν θέλουμε να προλάβουμε το shops-with-replacement:** re-download του
-community dataset (`kagglehub.dataset_download("georgymamarin/kaggriculture-episodes")` — το
-snapshot μας σταματά στις **08-04**, MASTERPLAN §3.2bis freshness note το χαρακτηρίζει
-**υποχρεωτικό** πριν τη Φάση 3). Χρειάζομαι από εκεί μία στήλη που **δεν** έχουμε ποτέ κοιτάξει:
-τα `unlocked_shops` ανά episode, ώστε να μετρηθεί εμπειρικά **πόσο** διαφέρει το τελικό bank
-ανάμεσα σε episodes με/χωρίς YARN_STORE. Αυτό μετατρέπει το §0bis(γ) από θεωρητικό υπολογισμό σε
-μετρημένο effect size.
+**(α)/(β) — ΕΓΙΝΑΝ και μένουν.** Το `unlocked_shops` επέστρεψε στο `Snapshot` και το
+[agent/demand.py](agent/demand.py) υπολογίζει `npc_daily_demand[product]` **ακριβώς** — όχι κατ'
+εκτίμηση: είναι αναδιατύπωση του ίδιου του `_town_consume`, καρφωμένη σε test που τρέχει το
+engine για ολόκληρες μέρες και συγκρίνει το inventory που αφαιρέθηκε (3 configurations × 4 σετ
+shops × 6 μέρες). Διαβάζει τα intervals από το `configuration`, άρα **ακολουθεί μόνο του** τη
+balance change (`townCenterSellInterval` 12 → 24) χωρίς αλλαγή κώδικα. Επιβεβαιώνει ανεξάρτητα
+τους αριθμούς του §0bis.3: wool 20/μέρα σήμερα (d≥20), **13/μέρα** μετά την αλλαγή, **1/μέρα**
+μετά την αλλαγή χωρίς YARN_STORE.
 
-> **(η) Β.0 ΟΛΟΚΛΗΡΩΘΗΚΕ 2026-08-07 — data-gathering session, καμία αλλαγή σε `agent/config.py`.**
+**(γ) — ⛔ Η ΥΠΟΘΕΣΗ ΔΙΑΨΕΥΣΤΗΚΕ. `dynamic_sell_floor: False`.** Η προκείμενη που έγραφε αυτό το
+έγγραφο — «όταν η ημερήσια ζήτηση ενός προϊόντος είναι ~0, το να το πουλάς επιθετικά είναι
+αυτοκαταστροφή» — **δεν ισχύει σε αυτό το engine**.
+
+> **Ο μηχανισμός.** Είμαστε **production-constrained, ποτέ glut-constrained**. Ο ρυθμός πώλησής
+> μας (~2 wool/μέρα) είναι κάτω από την απορρόφηση των NPC **ακόμα και με μόνη τη ζήτηση του
+> town centre**, οπότε το market inventory μένει **κάτω** από το I0 και κάθε πώληση εισπράττει
+> την πλευρά της **σπάνης**. Η πλευρά του glut, αυτή ακριβώς που το floor υποτίθεται ότι
+> προστατεύει, **δεν φτάνεται ποτέ**. Άρα ένα floor δεν έχει τιμή να κερδίσει — έχει μόνο όγκο
+> να χάσει. Μετρημένο, όχι επιχειρηματολογημένο: με το throttle ON το WOOL εισέπραξε **την ίδια
+> τιμή ανά μονάδα** ($241,46 → $241,37) και απλώς πούλησε **λιγότερες μονάδες** (348 → 328).
+
+| Πόλη (DEV_SEEDS 0-7, seat 0 vs `checkpoints/v1g_1`) | Δ mean bank | episode wins |
+|---|---|---|
+| engine (πλήρης πόλη) | **−$1.103** | 0/8 |
+| **χωρίς YARN_STORE** (η πόλη για την οποία γράφτηκε) | **−$1.909** | 0/8 |
+| καθόλου shops | **−$24.762** | 0/8 |
+
+Το πιο καθαρό εύρημα είναι το τελευταίο πείραμα, όχι το πρώτο: με `shop_evidence_min_unlocks=5`
+(μη τιμωρείς την πρώιμη σεζόν, όπου το «κανένα shop» είναι πληροφορία για το **ημερολόγιο**, όχι
+για την πόλη) η ζημιά εξαφανίζεται — **και το όφελος είναι ακριβώς $0**: −$16 στην πλήρη πόλη,
+**+$0** στην πόλη χωρίς YARN_STORE. Δηλαδή, μόλις αφήσεις ήσυχη την πρώιμη σεζόν, **το floor δεν
+δεσμεύει ποτέ**, γιατί η τιμή του wool δεν πέφτει ποτέ τόσο χαμηλά. Δεν είναι κακή βαθμονόμηση·
+δεν υπάρχει τίποτα να κερδηθεί.
+
+**Συνέπεια για τη στρατηγική — αυτό είναι το πραγματικό αποτέλεσμα του increment.** Η ίδια
+μέτρηση δίνει και το κόστος του ρίσκου που το §0bis.3 περιγράφει: μια πόλη **χωρίς YARN_STORE
+κοστίζει $12.077/ep από μόνη της** ($38.126 έναντι $50.203). Αυτό το κόστος είναι **παραγωγικό,
+όχι sell-side** — δεν υπάρχει αγοραστής, όχι λάθος χρονισμός πώλησης. Άρα:
+**το sell-side layer ΔΕΝ είναι μηχανισμός αντιστάθμισης του «δεσμεύεις το κοπάδι πριν δεις την
+πόλη».** Ό,τι απομένει ως πραγματική αντιστάθμιση αφορά τη **σύνθεση** του κοπαδιού (§v1h′) ή τη
+**μετατόπιση** παραγωγής, όχι τον ρυθμό/τιμή πώλησης.
+
+⚠️ **Το §0bis.3 χρειάζεται αυτή τη διόρθωση**: η φράση «το sell-side layer είναι ο μόνος
+μηχανισμός αντιστάθμισης που μας απομένει» ήταν λάθος — μετρήθηκε και δεν αντισταθμίζει τίποτα.
+
+**Ταύτιση με το (δ), όχι αντίφαση.** Ο κανόνας του (δ) («μηδενική ζήτηση ⇒ μονότονα φθίνουσα
+τιμή ⇒ πούλα νωρίς, πάντα») είναι ο **σωστός**· το (γ) ζητούσε το αντίθετό του για ζήτηση κοντά
+στο μηδέν. Και τα δύο δεν μπορούσαν να ισχύουν, και η μέτρηση έκρινε υπέρ του (δ). Το FERTILIZER
+εξαιρείται ρητά στον κώδικα ακριβώς γι' αυτόν τον λόγο, ώστε το (γ) να μη γίνει κατά λάθος τρίτη
+απόπειρα στο (δ).
+
+**(δ) Fertilizer: ⚠️ ΠΑΡΑΜΕΝΕΙ ΠΑΓΩΜΕΝΟ.** Δύο υλοποιήσεις (reorder· dedicated tier) μετρήθηκαν
+αρνητικά και έγιναν revert (§Β.1(ii)). Η επόμενη κίνηση **δεν** είναι τρίτη παραλλαγή
+floor/order/tier: είναι **μέτρηση της production timeline** — πότε *παράγεται* (όχι πότε
+πουλιέται) κάθε μονάδα FERTILIZER ανά μέρα, έναντι του μεγέθους κοπαδιού εκείνη τη μέρα, σε λίγα
+seeds. Αν η παραγωγή συγκεντρώνεται μετά τη μέρα ~15, ο μοχλός είναι **παραγωγικός**, όχι
+sell-side, και ανήκει σε άλλο increment. Είναι **market-only μέτρηση**, άρα τρέχει σε σταθερό
+seed χωρίς pin.
+
+**Τι μένει στον κώδικα και γιατί:**
+- `Snapshot.unlocked_shops` + [agent/demand.py](agent/demand.py): engine-pinned, tested,
+  μηδενικού κόστους, και **προαπαιτούμενο** για το v1i (sell-ahead) και για τη μήτρα
+  robustness της §ΜΕΡΟΣ Γ. Δεν είναι dead code με την έννοια του review.md L9 — είναι το
+  εργαλείο που παρήγαγε τη διάψευση.
+- Το `_dynamic_sell_floors` μένει **απενεργοποιημένο** ως το αντικείμενο στο οποίο αναφέρονται οι
+  παραπάνω αριθμοί, με tests που κρατούν τον μηχανισμό σωστό. **Το άναμμα του flag είναι
+  μετρημένη οπισθοδρόμηση, όχι ευκαιρία tuning.**
+
+**Επιβεβαιωμένο παράπλευρα (χρήσιμο για το §Πρωτόκολλο):** σε **8/8 seeds και σε κάθε ρύθμιση**,
+το knob άλλαξε τα BUY_SEED counts αλλά **δεν ξαναέριξε ποτέ** την ακολουθία shop unlock. Η
+κατάταξη «market-only» του §Πρωτόκολλου είναι πλέον **εμπειρικά επιβεβαιωμένη**, όχι μόνο
+επιχειρηματολογημένη.
+
+**Παγίδα που ΔΕΝ ενεργοποιήθηκε (και γιατί):** το 10-order cap. Μετρήθηκε **πριν** το gate, όπως
+απαιτεί το πρωτόκολλο: orders/turn 0,490 → 0,505, turns στο cap **56 → 56**, peak 10 → 10. Ένα
+floor μπορεί μόνο να **σμικρύνει** `sell_units` μέσα σε orders που ο executor έβγαζε ήδη — δομικά
+δεν μπορεί να επαναλάβει το crowd-out που σκότωσε το (δ).
+
+
+### v1h′ — 3ο quadrant (SW) [✅ ΚΛΕΙΣΤΟ 2026-08-08/09 — `checkpoints/v1h`, submitted]
+
+> **Αποτέλεσμα:** SW αγοράζεται και φυτεύεται **αποκλειστικά με WHEAT** (12 tiles), και το
+> πλήρωμα ανεβαίνει **6 → 10 μόνο μέσα στο παράθυρο εργασίας του SW**. Holdout-confirm (χωρίς
+> pin) **`IMPROVED` +$2.835,1/ep, 48/48 seeds, 96/96 episodes**, hard metrics 0. 3ο submission
+> έγινε (`SUBMISSION_ID 55383610`) και αντικατέστησε το v1e στα 2 ενεργά slots.
+> Πλήρη νούμερα, τα δύο bug που βρέθηκαν, και το sweep: **memory.md 2026-08-08**.
 >
-> **Β.0.1 verdict re-confirm:** το `runs/gate_v1g_*` **όντως δεν υπήρχε** (επιβεβαιώθηκε)· κανένα
-> `results.jsonl`/`.json` με τους αριθμούς δεν επιβίωσε πουθενά στο repo, μόνο πρόζα στο
-> `memory.md`/commit message. Το `gates/confirm_log.jsonl` entry που όντως έτρεξε
-> (`2026-08-07T11:57:48`, verdict `IMPROVED`, `go: false`) είχε `agent_a_fp` που **δεν** ταίριαζε
-> με το fingerprint του `checkpoints/v1g` — ο κώδικας που πέρασε το holdout gate δεν ήταν
-> bit-identical με αυτό που τελικά έγινε checkpoint (ανεξήγητο, πιθανόν trivial diff). Λύθηκε με
-> **live re-run** του holdout-confirm (τρέχον `main.py` = fingerprint του checkpoint, vs
-> `checkpoints/v1f`, `--metrics`, persisted σε `runs/gate_v1g_reconfirm_holdout/` +
-> `gates/gate_v1g_reconfirm_holdout/` — το πρώτο durable artifact του v1g gate που υπάρχει στο
-> repo): verdict **IMPROVED**, mean_diff **+$25,343.2/ep** (se 594.7, σχεδόν ταυτόσημο με το
-> claimed +$25.343/se=594.65), **96/96** episode wins, `animals_escaped_a=0` σε όλα τα 96,
-> `metric_gate_passed=False` **αποκλειστικά λόγω `weeds_lost_a=768`** (pre-existing issue, ήδη
-> στο v1e baseline — όχι v1g regression). Ο πυρήνας του claim επιβεβαιώθηκε ανεξάρτητα.
->
-> **Β.0.1 — οι 4 αριθμοί** (main.py vs `checkpoints/v1f`, seed 0 + τυχαίο seed 25 — v1g κέρδισε
-> και τα δύο, δεν βρέθηκε χαμένο seed σε 48/48 holdout):
-> | # | Μετρική | seed 0 | seed 25 | Verdict |
-> |---|---|---|---|---|
-> | 1 | avg WOOL / units | $233.9 / 58 | $244.5 / 58 | πολύ πάνω από $80 — **δεν** χρειάζεται screen |
-> | 2 | avg MILK / units | $271.8 / 175 | $266.7 / 175 | πολύ πάνω από $70 — **δεν** χρειάζεται screen |
-> | 3 | avg FERTILIZER / units, median day | $70.3 / 205, day **18** | $70.3 / 205, day **18** | **πουλάμε αργά** — meta πουλά day 3 |
-> | 4 | animals_escaped / weeds_lost / noops / shed_overflow | 0 / 8 / None / 0 | 0 / 8 / None / 0 | καθαρό, weeds_lost=pre-existing |
->
-> **Απόφαση:** το §v1g note (ζ) παραπάνω ("τρέξε screen `{8,5}` vs `{6,3}` vs `{8,3}` αν avg <
-> κατώφλια") **δεν ενεργοποιείται** — το SHEEP/COW target 6C+4S **μένει ως έχει**, καμία ανάγκη
-> screen προς τα κάτω. Το πραγματικό εύρημα είναι το #3 (fertilizer αργά) — ήδη καλύπτεται από το
-> προγραμματισμένο **v1g.2 fertilizer timing** work παρακάτω, όχι νέο increment.
->
-> **Β.0.2 — 3 χαμένα replays του live v1e** (`SUBMISSION 55301989`, 8 επεισόδια κατέβηκαν, 3
-> ήττες): vs Joseph Garcia (42.216 vs 56.379), Vincent Pan (42.520 vs 57.216), Mehrdad ALMASI
-> (40.459 vs 45.886). Και στα 3: `animals_escaped=0`, `weeds_lost=15` (ίδιο pre-existing pattern),
-> οι δικές μας avg sell prices υγιέστατες (wool ~$230-236, milk ~$252-277, fertilizer ~$85-94 —
-> καμία τιμή δεν κατέρρευσε), παραγωγή ταυτόσημη και στα 3 (ακόμα μικρό v1e, 3 ζώα). Η απόκλιση
-> bank ξεκινά **μέση παρτίδα (~μέρα 11-13)**, όχι μέρα 0 — συνεπές με «οι αντίπαλοι compound-άρουν
-> πιο γρήγορα με μεγαλύτερη λειτουργία», το ίδιο επιχείρημα πίσω από v1f/v1g. Καμία λογιστική
-> βλάβη στο replay· τίποτα δεν αμφισβητεί την κατεύθυνση scale-up.
->
-> **Β.0.3 — προαιρετικό, ΔΕΝ έτρεξε πλήρως.** Το community dataset ανανεώθηκε **σήμερα**
-> (2026-08-07 00:43, το "σταματά στις 08-04" δεν ισχύει πια). Το μικρό `episode_features.csv`
-> (1.7MB) κατέβηκε και ελέγχθηκε: **καμία στήλη `unlocked_shops`/shop-related δεν υπάρχει** στα
-> δομημένα CSV (35 στήλες, καμία). Θα χρειαζόταν πλήρες parsing του `replays.parquet`
-> (**738MB**) για το effect size. **Αναβλήθηκε σκόπιμα**: αν το v1g.2 shop-adaptive work
-> χρειαστεί τον ακριβή αριθμό αντί για τον θεωρητικό υπολογισμό (§0bis(γ)), μπαίνει ως
-> ξεχωριστό, στοχευμένο βήμα **μέσα** στο v1g.2 — όχι τώρα.
->
-> **Side finding:** ένα δεύτερο, παράλληλο session έκανε ήδη submit το v1g checkpoint στο Kaggle
-> (`SUBMISSION_ID 55324447`, status COMPLETE, `publicScore 508.3`) πριν κλείσει αυτό το session —
-> ρητή εντολή χρήστη, όχι πρόβλημα. Προσοχή στην ερμηνεία του score: μόνο **2 πραγματικά
-> επεισόδια** έχουν παιχτεί μέχρι στιγμής (1W/1L) έναντι 23 του v1e (`publicScore 549.2`) — το
-> `508.3 < 549.2` **δεν** είναι σήμα regression, είναι ασύγκλιτο μικρό δείγμα. Νέα μετρική
-> `units_sold_by_product` + `day` per sale προστέθηκε στο `harness/metrics.py`'s
-> `extract_metrics()` (δεν υπήρχε ήδη — το `average_sell_price` υπήρχε per-product).
->
-> **Επόμενο:** `v1g.1` (engine bump 1.32.4→1.32.5) — καμία εξάρτηση από άλλα ευρήματα αυτού του
-> session, μπορεί να ξεκινήσει άμεσα.
+> **Δύο πράγματα που δεν προέβλεπε αυτό το spec και αξίζει να μείνουν εδώ:**
+> 1. **Ούτε η γη ούτε το πλήρωμα αποδίδουν χωριστά** — τα δύο controls είναι **και τα δύο
+>    αρνητικά** (μόνο crew: −$1.651/ep· μόνο SW: −$1.128/ep) και θετικά μόνο μαζί. Αιτία: το
+>    crop budget ήταν **ήδη κορεσμένο στα 6 hands** (το `_capacity_limited_targets` έκοβε ήδη το
+>    STRAWBERRY 24 → 21), οπότε τρίτο quadrant χωρίς πλήρωμα = tiles που κανείς δεν ποτίζει, και
+>    πλήρωμα χωρίς tiles = fib κόστος για αδρανή χέρια. Το v1f εύρημα h6 > h8 **επιβεβαιώνεται**
+>    από το control — δεν παραβιάζεται· απλώς ίσχυε *για το workload που είχε τότε*, ακριβώς
+>    όπως το έλεγε το §0 ⚠️β.
+> 2. **Το FEED χρειάστηκε priority −1** για ζώο με `consecutive_unfed >= 1`. Το v1g είχε
+>    τραβήξει μπροστά μόνο το *deadline* του, που κερδίζει ισοπαλίες **μέσα** στο priority 0 —
+>    αλλά το FEED μοιράζεται το 0 με το WATER, και με SW+NE ζωντανά υπάρχουν περισσότερα
+>    «επείγοντα» WATER από units. Χωρίς αυτό: **2 escapes σε κάθε seed**, πάντα τα δύο
+>    μακρινότερα SHEEP, **με 30+ WHEAT στην αποθήκη και $35k στην τράπεζα** — ανταγωνισμός για
+>    units, όχι έλλειψη πόρου.
 
-### v1f — Crew scale-up (3 → 12 hands) [ΠΡΩΤΟ]
-
-Το φθηνότερο κομμάτι του χάσματος: fib κόστη σημαίνουν 12 hands ≈ **$232/μέρα** — ψίχουλα
-μπροστά σε ό,τι παράγουν 12×23 worker-turns. Οι νικητές έχουν 1,19× peak crew / 1,23× hires,
-και το `total_hires` είναι το ισχυρότερο correlate του bank (+0,76).
-
-- **Config**: `planner.hands_target` 3 → κλιμακωτά (screen 6/8/10/12 σε DEV — όχι «κράτα το
-  max», top-3 → confirm). Το `capacity_safety_factor` και το capacity gate του
-  [agent/planner.py](agent/planner.py) πρέπει να **διαβάζουν το πραγματικό φορτίο** (tiles +
-  ζώα + μεταφορές), αλλιώς τα έξτρα hands μένουν idle και το κόστος γίνεται καθαρή ζημιά.
-- **Τεχνικά σημεία**: HIRE μπαίνει **νωρίς** στη market λίστα (μετράει στο cap των 10 orders —
-  §2 Αμφισημία #2)· τα hands διαγράφονται κάθε EOD, άρα το commute είναι ημερήσιο κόστος —
-  η ανάθεση tasks σε 12 units πρέπει να μείνει nearest-first με το urgency tier του
-  §1.5.2 fix (`urgency_slack_margin`), που είναι ήδη σχεδιασμένο για αυτό.
-- **Έλεγχος φορτίου scheduler**: το v1c-εποχής STOP ήταν capacity-related· με 13 units το
-  `assign()` πρέπει να μείνει <333ms/turn. Profile πριν το gate.
-- **Αποδοχή**: metric gate (`water_weeds_lost == 0` ∧ `plant_decay_units_lost == 0` ∧
-  `unexplained_noops == 0`) → $-gate vs `checkpoints/v1e` → checkpoint `v1f`.
-
-> **(στ) v1f ΟΛΟΚΛΗΡΩΘΗΚΕ 2026-08-06 — `checkpoints/v1f` δημιουργήθηκε, `hands_target=6`.**
-> Screen 6/8/10/12 σε `DEV_SEEDS`: h6/h8 `IMPROVED`, h10/h12 `REGRESSED` (fixed 41 crop tiles +
-> 3 ζώα δεν έχουν άλλη δουλειά πέρα από ~7-8 hands' worth of unit-turns — τα έξτρα hands μένουν
-> idle, το hiring cost γίνεται καθαρή ζημιά, ακριβώς όπως προειδοποιούσε το spec). Μόνο h6/h8
-> πήγαν σε holdout-confirm (`REGRESSED` = STOP, όχι μηχανικό "top-3"). Holdout αποτέλεσμα: h6
-> +$2241.72/ep (se=48.97, 96/96 wins), h8 +$1107.15/ep (se=48.45, 96/96 wins) — μη επικαλυπτόμενα
-> 95% CI, h6 νικητής. Metric gate (το ρητό 3-item spec εδώ, όχι το αυστηρότερο harness-wide
-> `metric_gate_passed`) καθαρό και στα δύο. Σημείωση: `weeds_lost` (ευρύτερο PLANT→WEED
-> counter, διαφορετικό από `water_weeds_lost`) βρέθηκε μη-μηδενικό ήδη στο `checkpoints/v1e`
-> baseline (pre-existing, όχι v1f regression) — καταγράφεται εδώ ως ανοιχτό θέμα για μελλοντικό
-> increment, δεν μπλόκαρε το v1f. Capacity gate στο [agent/planner.py](agent/planner.py)
-> ενημερώθηκε ώστε το crop-target budget να αφαιρεί πρώτα τη σταθερή daily FEED/CARE ζήτηση
-> των ζώων (`_animal_daily_demand`) πριν μοιράσει τα υπόλοιπα unit-turns σε καλλιέργειες.
-> HIRE-ordering (tier 0) και nearest-first assignment επιβεβαιώθηκαν επαρκή as-is για 12+
-> units, χωρίς αλλαγή κώδικα· `assign()` profiled στα 13 units: max 63.73ms, πολύ κάτω από το
-> 333ms/turn όριο.
-
-### v1g — Μάζα ζώων (3 → ~13, cow/sheep-βαρύ)
-
-Ο ισχυρότερος compounder του παιχνιδιού (sheep cared: +$5.575/season, cow +$4.635 — §3.2#1).
-Στόχος-οροφή από την ελίτ: **8 cow + 5 sheep**· το GOOSE μένει στο 1 ή αφαιρείται (15%
-adoption, χαμηλό yield — μετρημένη απόφαση στο screen). Timings top-decile: cow μέρα 0,
-sheep μέρα 5 — ήδη συμβατά με το v1d design.
-
-- **Χωροθέτηση**: χρειάζονται ~11 νέα PASTURE tiles. Τα `animal_structure_tiles` επεκτείνονται
-  σε NW/NE κοντά στο shed (FEED/CARE/COLLECT = ημερήσιο commute ×13) — τα strawberry targets
-  χαμηλής προτεραιότητας ανακατανέμονται. **Δεν** τοποθετούνται δομές σε μη-αγορασμένη γη
-  (το BUY_LAND gate απαιτεί every-planned-animal-placed — βλ. σχόλιο COOP στο config).
-- **Feed logistics στα 13 ζώα = 13 wheat/μέρα.** Αυτό είναι το πραγματικό τεχνικό ρίσκο:
-  - Πηγές: καλλιέργεια wheat (χωρίς sell-cliff, ίσως γι' αυτό η ελίτ κρατά wheat tiles) vs
-    `BUY_PRODUCT WHEAT` (ανεβάζει την τιμή που πληρώνουμε εμείς). Screen και τα δύο μίγματα.
-  - Το wheat πρέπει να είναι **στο inventory του unit πριν το FEED** (G5)· procurement ≥1
-    turn νωρίτερα, reserved ledger — ήδη το v1d pattern, τώρα ×13.
-  - `FEED` έχει τον ίδιο zero-slack θάνατο με το WATER (`consecutive_unfed >= 2` → escape =
-    χαμένα $400-500 κεφαλαίου) — τα FEED tasks είναι tier-0 urgency.
-- **CARE παντού**: cared ζώο αποδίδει `1 + interval` ανά pickup (cow ×3, sheep ×4) — το CARE
-  είναι η κερδοφορία, όχι προαιρετικό. COLLECT_FERTILIZER καθημερινά (δεν συσσωρεύεται)·
-  το fertilizer πωλείται ή πάει σε wheat (cap 6).
-- **max_held (G8)**: pickup κάθε production day, αλλιώς η παραγωγή σταματά σιωπηλά.
-- **Αποδοχή**: metric gate + `animals_escaped == 0` + 0 clipped production ticks → $-gate vs
-  `v1f` → checkpoint `v1g`. Προσδοκία: εδώ ζει το μεγαλύτερο κομμάτι του $42k→$125k.
-
-> **[ενημ. 2026-08-07] Επιπλέον έλεγχος στο v1g verdict — μη το προσπεράσεις.** Ένα καθαρό
-> `IMPROVED` vs `v1f` **δεν** αποδεικνύει ότι τα ζώα 9-14 αξίζουν. Το v1f έχει 3 ζώα, άρα το v1g
-> κερδίζει σχεδόν σίγουρα σε απόλυτο $ — αλλά η ερώτηση είναι αν το **marginal** ζώο είναι θετικό.
-> Με ~264 μονάδες milk έναντι cliff 76 και ~160 wool έναντι cliff 59 (§0bis γ), και με το
-> `compare()` να τρέχει **και τα δύο seats** (άρα σε mirror ο συνολικός όγκος **διπλασιάζεται**),
-> είναι απολύτως πιθανό τα τελευταία ζώα να πουλάνε κοντά στο floor. **Αν το Β.0.1 #1/#2 δείξει
-> avg sell price κάτω από τα κατώφλια, τρέξε ένα μικρό screen `{COW:8,SHEEP:5}` (τρέχον) vs
-> `{6,3}` vs `{8,3}` σε `DEV_SEEDS` πριν προχωρήσεις.** Είναι φθηνό και απαντά το ερώτημα
-> οριστικά· χωρίς αυτό κουβαλάμε άγνωστο κόστος σε όλα τα επόμενα increments.
-
-> **(ζ) v1g ΟΛΟΚΛΗΡΩΘΗΚΕ 2026-08-07 — `checkpoints/v1g` δημιουργήθηκε, `targets={COW:6,SHEEP:4,
-> GOOSE:0}`, `hands_target=6`.** Η ελίτ-οροφή 8 COW + 5 SHEEP (+/- 1 GOOSE, 13-14 ζώα) **ΔΕΝ**
-> περνάει το metric gate σε κανένα screened `hands_target` (676-885 `animals_escaped` σε 96
-> dev-screen episodes) — το feed logistics ρίσκο που προειδοποιούσε το §Feed logistics
-> παραπάνω επιβεβαιώθηκε πραγματικό, όχι υποθετικό. 5 root-cause fixes χρειάστηκαν πριν
-> μηδενιστούν τα escapes σε *οποιοδήποτε* μέγεθος: (1) parallel `allowed_unit`-restricted WHEAT
-> PICKUP tasks αντί για ένα aggregated task/μέρα (μονός carrier αδύνατο να καλύψει 13 tiles σε
-> distance ≤8 εντός 24 turns)· (2) reorder `market_orders()` ώστε το WHEAT purchase να τρέχει
-> πριν το BUY_SEED/BUY_ANIMAL, όχι μετά (αντέστρεφε την τεκμηριωμένη `_ORDER_TIER` προτεραιότητα
-> για την πραγματική δέσμευση cash)· (3) wheat-reserve guard (`FEED_RESERVE_DAYS=2`) στο
-> BUY_ANIMAL ώστε η μαζική αγορά ζώων μέρα 0 να μην αδειάζει το bankroll πριν προλάβει να
-> ταΐσει· (4) πλήρης wheat-need offer σε κάθε unit αντί για `divmod`-based rationing (το
-> rationing άφηνε units υψηλού index με `count=0` όσο συρρικνωνόταν η ημερήσια ανάγκη, δομικά
-> starved)· (5) urgent deadline (`urgency_slack_margin`) για ζώα ήδη σε `consecutive_unfed >= 1`
-> — χωρίς αυτό το raw-position tie-break του `assign()` (`task.pos[1]` πρώτα) ευνοούσε πάντα
-> το ίδιο tile έναντι ενός άλλου σε δεσμευμένη χωρητικότητα, deterministic starvation
-> ανεξάρτητα από seed. **Screen sweep μεγέθους** (§απάντηση στο (στ) note παραπάνω, DEV_SEEDS,
-> `both_seats=True`): 7 ζώα (4C+3S) καθαρό `IMPROVED` +$24404/ep· 10 ζώα (6C+4S) καθαρό
-> `IMPROVED` +$25384/ep — **peak**· 11 ζώα (7C+4S) καθαρό αλλά χειρότερο +$18940/ep· 12 ζώα
-> (7C+5S) ξανααποτυγχάνει το gate (`water_weeds_lost=15`)· 13-14 ζώα (8C+5S ± GOOSE) αποτυγχάνει
-> βαριά (660-885 escapes). Νικητής: **10 ζώα (6 COW + 4 SHEEP, GOOSE αφαιρέθηκε)** — η κορυφή
-> είναι πριν το feed-logistics overhead αρχίσει να τρώει την επιπλέον ζωική απόδοση, όχι στην
-> ελίτ-οροφή. HOLDOUT_SEEDS confirm: `IMPROVED`, +$25343/ep (se=594.65), 96/96 episode wins vs
-> `checkpoints/v1f`, 0 errors, metric gate καθαρό (0 σε όλα τα 4 hard-gate metrics). GOOSE
-> αφαιρέθηκε ως μετρημένη απόφαση (15% adoption, χαμηλό yield, δεν χωράει στο 10-ζώο βέλτιστο).
-
-### v1g.1 — Engine bump 1.32.4 → **1.32.5** [ΑΜΕΣΩΣ ΜΕΤΑ ΤΟ v1g, ΠΡΙΝ ΑΠΟ ΚΑΘΕ ΑΛΛΟ ΚΩΔΙΚΑ]
-
-**Τι είναι:** το 1.32.5 μετακίνησε τα `DROP` / `PICKUP` / `PLACE`-into-shed **πριν** το
-`if tile == "LOCKED": return` guard. Σχόλιο του ίδιου του engine: *«three of the four shed-access
-tiles start LOCKED, so guarding them first would make the shed unreachable from those tiles»*.
-Ολόκληρο το υπόλοιπο diff: **καμία** άλλη αλλαγή, `kaggriculture.json` κενό (§0bis).
-
-**Γιατί μας αφορά — υπάρχει hardcoded λάθος παραδοχή:**
-[agent/scheduler.py](agent/scheduler.py):182 λέει
-`access = (4, 4)  # the only initially unlocked shed-access tile`. Ήταν **αληθές** στο 1.32.4·
-γίνεται **ψευδές** στο 1.32.5. Τα hands γεννιούνται και στα 4 κεντρικά tiles **αγνοώντας το
-LOCKED** (`SHED_ACCESS = ((4,4),(5,4),(4,5),(5,5))`, [agent/constants.py](agent/constants.py):25),
-άρα σήμερα ένα hand που ξεκινά στο (5,4)/(4,5)/(5,5) πρέπει να περπατήσει **πρώτα** στο (4,4) για
-κάθε PICKUP/DROP. Με το v1g αυτό είναι **13-14 WHEAT pickups + 13-14 COLLECT_FERTILIZER τη μέρα**
-— επαναλαμβανόμενο κόστος 1-2 turns ανά διαδρομή, ×6 hands, ×30 μέρες.
-
-**Πώς υλοποιείται (με τη σειρά — η σειρά είναι το μισό του βήματος):**
-1. `pip install -U kaggle-environments` (→ 1.32.5) **αφού** έχει κλείσει και checkpoint-αριστεί
-   το v1g.
-2. `pytest tests/` — **το `test_engine_reference_matches_installed` ΘΑ κοκκινίσει· αυτό είναι το
-   tripwire, όχι bug.** Ό,τι **άλλο** κοκκινίσει είναι πραγματική αλλαγή συμπεριφοράς και θέλει
-   διερεύνηση πριν προχωρήσεις.
-3. Refresh του `engine_reference/` (και τα 4 αρχεία: `.py`, `.json`, `README.md`, `AGENTS.md` — το
-   tripwire συγκρίνει και τα markdown, memory.md 2026-08-06).
-4. **Ξανά-baseline**: `create_checkpoint` δεν αρκεί — τρέξε `compare(checkpoints/v1g,
-   checkpoints/v1g, DEV_SEEDS)` **στο νέο engine** για να δεις πόσο μετακίνησε το ίδιο το engine
-   τα απόλυτα νούμερα. Κάθε επόμενο gate συγκρίνεται σε αυτό το νέο baseline.
-5. **Μόνο τότε** η αλλαγή κώδικα: αντικατάσταση του `access = (4, 4)` με «κοντινότερο tile από το
-   `SHED_ACCESS` ως προς τη θέση του unit».
-
-**Παγίδες που περιμένω:**
-- ⚠️ **Το `access` δεν είναι μόνο προορισμός, είναι και σημείο εκκίνησης υπολογισμού απόστασης.**
-  Αν το `assign()` υπολογίζει `best_distance` με βάση το (4,4), αλλάζοντας τον προορισμό αλλάζεις
-  σιωπηλά και το sort key του scheduler (`task_slack = deadline_step - step - (best_distance+1)`,
-  §1.5.2). Δηλαδή ένα «καθαρά logistics» fix μπορεί να μετακινήσει την **προτεραιοποίηση** — grep
-  για κάθε χρήση του `access` πριν αλλάξεις τη μία γραμμή.
-- ⚠️ **Ο κανόνας `_is_shed_adjacent` δεν άλλαξε** — μόνο ο LOCKED guard. Μην υποθέσεις ότι
-  «οποιοδήποτε tile δίπλα στο κέντρο» δουλεύει· είναι πάντα ακριβώς τα 4.
-- ⚠️ **Το submission bundle κουβαλά `agent/_vendored.py`** με αντιγραμμένες σταθερές. Αν το 1.32.5
-  είχε αλλάξει σταθερά, το vendored fallback θα ήταν σιωπηλά παλιό. Εδώ **δεν** άλλαξε καμία
-  (json diff κενό), αλλά ο έλεγχος parity πρέπει να ξανατρέξει ως μέρος του βήματος 2.
-- ⚠️ **Η ladder μπορεί να τρέχει άλλη έκδοση από εμάς.** Το bump μας ευθυγραμμίζει με το PyPI
-  latest, όχι απαραίτητα με τον server. Αν το fix εκμεταλλευτεί συμπεριφορά που ο server δεν έχει
-  ακόμα, τα PICKUP/DROP από locked tiles γίνονται **σιωπηλά no-ops** (το engine δεν πετά ποτέ
-  σφάλμα) — δηλαδή hands που «δουλεύουν» χωρίς αποτέλεσμα. **Mitigation:** το fix να είναι
-  **degradation-safe** — αν το PICKUP από locked tile αποτύχει, το επόμενο turn ο ίδιος unit
-  βρίσκεται ήδη ένα βήμα από το (4,4)· διάλεξε το κοντινότερο **ξεκλείδωτο** tile όταν υπάρχει
-  ισοπαλία απόστασης, ώστε η χειρότερη περίπτωση να είναι «ίδια συμπεριφορά με σήμερα».
-- **Αποδοχή:** metric gate → $-gate vs `checkpoints/v1g` **στο νέο engine** → checkpoint `v1g.1`.
-
-### v1g.2 — Shop-adaptive market layer + fertilizer timing
-
-**Γιατί τώρα και όχι στο v1i:** το §0bis(γ) δείχνει ότι σε **34,4%** των μελλοντικών επεισοδίων
-τα 5 sheep θα παράγουν προϊόν χωρίς αγοραστή. Αλλά **και σήμερα** η σειρά ξεκλειδώματος είναι
-τυχαία ανά episode — απλώς σήμερα ξεκλειδώνουν τελικά **όλα** τα 8, οπότε το ρίσκο είναι θέμα
-*χρονισμού* αντί *ύπαρξης*. Το feature αποδίδει και στα δύο καθεστώτα, άρα δεν είναι στοίχημα
-στην ανακοίνωση.
-
-**(α) Επαναφορά του `unlocked_shops` στο snapshot.** Το [agent/state.py](agent/state.py):14 το
-αφαίρεσε ως «zero real readers» (review L9) — σωστά τότε, λάθος τώρα. Είναι **δημόσιο πεδίο**
-(`obs.town.unlocked_shops`), μηδενικό κόστος ανάγνωσης.
-
-**(β) Παράγωγη μετρική: `npc_daily_demand[product]`.** Υπολογίζεται **ακριβώς**, όχι κατ' εκτίμηση,
-από δύο πράγματα που ξέρουμε ντετερμινιστικά:
-```
-per_shop = 2 if len(SHOPS[shop]) == 1 else 1        # single-product shops αγοράζουν διπλά
-ticks_per_day = turns_per_day // townShopSellInterval    # 24 // 4 = 6
-demand[p] = Σ_over_unlocked_shops( per_shop if p in SHOPS[shop] ) * ticks_per_day
-          + town_center_units_per_day(p)             # 2 σήμερα (×ramp), 1 μετά την αλλαγή
-```
-Οι `SHOPS` και τα intervals είναι **importable από το engine** (ήδη το κάνουμε στο
-[agent/constants.py](agent/constants.py)) — καμία hardcoded παραδοχή.
-
-**(γ) Πού καταναλώνεται η μετρική.** Δύο σημεία, όχι περισσότερα:
-1. **`sell_floor_price` δυναμικό**: το σημερινό `CONFIG["executor"]["sell_floor_price"]` είναι
-   στατικός πίνακας. Γίνεται `max(static_floor, f(npc_daily_demand))` — όταν η ημερήσια ζήτηση
-   ενός προϊόντος είναι ~0, το να το πουλάς επιθετικά είναι **αυτοκαταστροφή**: κατεβάζεις μόνιμα
-   την τιμή χωρίς κανείς να την ανεβάζει πίσω.
-2. **Ρυθμός πώλησης (units/turn)**: πούλα ανά μέρα το πολύ όσο απορροφά η ζήτηση + ένα μικρό
-   περιθώριο. Αυτό είναι το ίδιο trickle logic που ήδη υπάρχει — αλλάζει μόνο το *κατώφλι*.
-
-**(δ) Fertilizer: πούλα νωρίς, πάντα.** Ξεχωριστός κανόνας γιατί η ζήτηση είναι **μηδενική εξ
-ορισμού** (§0bis 0bis.2#1): η τιμή είναι μονότονα φθίνουσα, άρα το «περίμενε καλύτερη τιμή» είναι
-πάντα λάθος. Πρακτικά: FERTILIZER SELL με **πρώιμο order index** (πριν από τα SELL των προϊόντων
-που έχουν NPC ζήτηση και θα ανακάμψουν), κάθε μέρα, χωρίς floor πέρα από ένα μικρό ελάχιστο.
-
-> **[ενημ. 2026-08-07, §Β.0]** Εμπειρικά επιβεβαιωμένο, όχι μόνο θεωρητικό: 2 seeds (main.py vs
-> `checkpoints/v1f`) έδειξαν **median FERTILIZER sale day = 18** (meta πουλά μέρα 3) — το (δ) πιο
-> πάνω λύνει ακριβώς αυτό.
-
-**(α.1) Sub-step αναβεβλημένο από το Β.0, μπαίνει εδώ αν χρειαστεί:** το effect size του
-`unlocked_shops` στο τελικό bank (episodes με/χωρίς YARN_STORE) **δεν** υπάρχει σε κανένα
-δομημένο CSV του community dataset (`episode_features.csv`, 35 στήλες, ελέγχθηκε 2026-08-07) —
-θα χρειαστεί parsing του raw `replays.parquet` (**738MB**). Αν το (α)/(γ) παραπάνω χρειαστεί τον
-ακριβή αριθμό αντί για τον θεωρητικό υπολογισμό του §0bis(γ) για να βαθμονομηθεί, αυτό το
-parsing μπαίνει **εδώ**, ως στοχευμένο βήμα μέσα στο v1g.2 — όχι νωρίτερα.
-
-**Παγίδες:**
-- ⚠️ **Μην αλλάξεις το crop mix με βάση τα shops.** Είναι δελεαστικό («άνοιξε PET_CAFE ⇒ φύτεψε
-  carrot»), αλλά τα shops ξεκλειδώνουν **κάθε 3 μέρες** ενώ το strawberry θέλει 16 μέρες ως
-  παραγωγή — τη στιγμή που ξέρεις τη ζήτηση, η απόφαση φύτευσης έχει ήδη ληφθεί. **Το feature
-  αφορά ΜΟΝΟ την πώληση**, όχι τον planner. (Το crop mix προσαρμόζεται μέσω του v1h′ portfolio,
-  με μετρημένο gate.)
-- ⚠️ **Το 10-order cap.** Ένα δυναμικό sell layer τείνει να παράγει περισσότερα SELL orders. Το
-  engine κόβει `q[:10]` **positional, όχι priority-aware** (memory.md 2026-08-06 (στ)) — άρα κάθε
-  νέο order σπρώχνει έξω το τελευταίο. Το `_ORDER_TIER` πρέπει να επανελεγχθεί: HIRE μένει tier 0.
-- ⚠️ **Μην κάνεις το floor συνάρτηση της *στιγμιαίας* τιμής** — θα ταλαντωθεί (πουλάς → πέφτει η
-  τιμή → σταματάς → ανεβαίνει → πουλάς). Συνάρτηση της **ζήτησης** (σταθερή μέσα στη μέρα), όχι
-  της τιμής.
-- ⚠️ **G13 determinism**: καμία ανάγνωση `unlocked_shops` δεν επιτρέπεται να εξαρτάται από
-  **σειρά iteration set/dict** — το `unlocked_shops` είναι list, κράτα τη σειρά της ή ταξινόμησε.
-- **Αποδοχή**: metric gate → $-gate vs `v1g.1` → checkpoint `v1g.2`. **Επιπλέον gate ειδικά γι'
-  αυτό το feature**: ένα ad-hoc run με **χειροκίνητα περιορισμένο** `unlocked_shops` (π.χ. χωρίς
-  YARN_STORE) πρέπει να δείξει ότι ο agent **σταματά** να ξεπουλά wool — αλλιώς το feature είναι
-  γραμμένο αλλά ανενεργό. Αυτό δεν το πιάνει κανένα seed-based gate, γιατί σήμερα ξεκλειδώνουν όλα.
-
-### v1h′ — 3ο quadrant (SW)
+**Pre-gate κατάταξη knob: OCCUPANCY.** Το BUY_LAND ξεκλειδώνει 25 tiles, τα οποία γεμίζουν
+σταδιακά — δηλαδή αλλάζει **άμεσα** πόσα tiles είναι άδεια κάθε βράδυ, και για πολλές μέρες. Είναι
+το πιο occupancy-βαρύ increment ολόκληρου του roadmap. **Το gate του τρέχει με `pinned_shops()`
+ανά seed και στα δύο arms**, αλλιώς συγκρίνει δύο διαφορετικές πόλεις (§Πρωτόκολλο).
 
 - **Trigger όπως το NE**: reserve-based (`land.min_reserve`), όχι hardcoded μέρα — η ελίτ
   αγοράζει το #3 γύρω στη μέρα 11, αλλά το δικό μας self-regulating trigger (χρήματα + διαθέσιμο
@@ -592,22 +523,61 @@ parsing μπαίνει **εδώ**, ως στοχευμένο βήμα μέσα �
 - **Χρήση SW**: επέκταση pasture/strawberry με βάση ό,τι κέρδισε στο v1g screen — όχι
   αυτόματο mirror των NW counts (το v1c δίδαγμα: ο 1:1 mirror του carrot έσκασε στην
   κοινή αγορά· `ne_carrot_tiles: 3`, όχι 7).
+- **Κανένα portfolio rebalance προς το modal farm** (§0 ⚠️γ): τα crops δεν επιβιώνουν ως τη μέρα
+  30, άρα το elite fingerprint μετρά επιζώσες δομές, όχι στρατηγική. Το SW παραμένει (η γη είναι
+  μετρήσιμα ωφέλιμη), το portfolio όχι.
 
-> **[ενημ. 2026-08-07] Το «rebalance χαρτοφυλακίου» αφαιρέθηκε από τον τίτλο και από το scope.**
-> Στηριζόταν στη σύγκλιση προς το modal top farm, το οποίο αποδείχθηκε **measurement artifact**
-> (§0 ⚠️γ): τα crops δεν επιβιώνουν ως τη μέρα 30 στο engine, άρα το «8 cow + 6 sheep, καθόλου
-> crops» μετρά **επιζώσες δομές**, όχι στρατηγική. Ένα rebalance προς αυτό θα ήταν αντιγραφή
-> σφάλματος μέτρησης. Το SW παραμένει (η γη είναι μετρήσιμα ωφέλιμη), το portfolio όχι.
+**Τι αλλάζει πρακτικά στη χρήση του SW, με βάση τη νέα ιεράρχηση (§0bis.1(δ)):**
+- **WHEAT ανεβαίνει σε πραγματικό crop, όχι μόνο ζωοτροφή.** 5/8 shop κάλυψη (P(κανένα) =
+  0,04%), **καμία cliff** (>2.000 μονάδες ως το floor έναντι 59-76 για wool/milk), και με 10 ζώα
+  έχουμε **δωρεάν fertilizer** που το ανεβάζει στο cap 6 μονάδων/tile. Είναι το μόνο προϊόν που
+  δεν μπορούμε να κορέσουμε, και το meta το πουλά ήδη από τη **μέρα 2**.
+- **WOOL/MILK δεν επεκτείνονται στο SW** — και τώρα υπάρχει και δεύτερος, ισχυρότερος λόγος
+  πέρα από τα cliffs: βλ. το νέο ερώτημα παρακάτω.
+- **CARROT όχι** (10% κίνδυνος να μη ξεκλειδώσει αγοραστής + το v1c εύρημα ότι καταρρέει πρώτο).
+
+> **✅ ΑΠΑΝΤΗΘΗΚΕ 2026-08-08 — ΤΟ ΚΟΠΑΔΙ ΔΕΝ ΑΛΛΑΖΕΙ.** Το screen έτρεξε ακριβώς στη μορφή που
+> προτείνεται παρακάτω (`pinned_shops(basket_for(seed))`, DEV_SEEDS, both seats, vs
+> `checkpoints/v1g_1`) και **και οι δύο** cow-βαρύτερες συνθέσεις **REGRESSED**:
+> `{8C,2S}` −$5.093/ep (1/48 seed wins, sign test p≈3e-13, metrics καθαρά) και `{10C,0S}`
+> −$6.845/ep (6/48, **και** αποτυχία hard gate: 8 escapes, 2 water weeds). Το `{6C,4S}` του v1g
+> επιβεβαιώνεται ως το ανθεκτικό. **Ο μηχανισμός είναι διαφορετικός από αυτόν που περιγράφει
+> το μοντέλο του notebook**: η ζημιά **δεν** συγκεντρώνεται στις πόλεις χωρίς YARN_STORE — εκεί
+> το `{8C,2S}` χάνει **λιγότερο** (−$3.775 vs −$6.035 στις πόλεις **με** yarn store). Δηλαδή το
+> πρόβλημα δεν είναι «λείπει ο αγοραστής του wool» αλλά **κορεσμός του MILK**: σε mirror
+> πουλάνε **και οι δύο** παίκτες στην ίδια αγορά, οπότε η συγκέντρωση παραγωγής σε ένα προϊόν
+> κοστίζει περισσότερο από ό,τι κερδίζει η αποφυγή του σπάνιου αγοραστή. Το engine-verified
+> μοντέλο του §0bis.3 (cow κερδοφόρο στο 70,2% των draws) είναι **single-player** — ο ίδιος ο
+> συγγραφέας το δηλώνει — και αυτή είναι η πρώτη φορά που το όριό του μετριέται: η
+> **διαφοροποίηση WOOL/MILK** αξίζει περισσότερο από την επιλογή του «στατιστικά καλύτερου»
+> ζώου. Πλήρη νούμερα: memory.md 2026-08-08.
 >
-> **Τι αλλάζει πρακτικά στη χρήση του SW, με βάση τη νέα ιεράρχηση (§0bis δ):**
-> - **WHEAT ανεβαίνει σε πραγματικό crop, όχι μόνο ζωοτροφή.** 5/8 shop κάλυψη (P(κανένα) =
->   0,04%), **καμία cliff** (>2.000 μονάδες ως το floor έναντι 59-76 για wool/milk), και με 13-14
->   ζώα έχουμε **δωρεάν fertilizer** που το ανεβάζει στο cap 6 μονάδων/tile. Είναι το μόνο προϊόν
->   που δεν μπορούμε να κορέσουμε, και το meta το πουλά ήδη από τη **μέρα 2**.
-> - **WOOL/MILK δεν επεκτείνονται στο SW** μέχρι να απαντηθεί το Β.0.1 #1/#2. Αν είμαστε ήδη σε
->   κορεσμό στα 13-14 ζώα, το SW pasture είναι **αρνητικής αξίας**, όχι απλά μηδενικής.
-> - **CARROT όχι** (10% κίνδυνος να μη ξεκλειδώσει αγοραστής + το v1c εύρημα ότι καταρρέει πρώτο).
+> <details><summary>Το αρχικό ερώτημα (2026-08-07, από §0bis.3), ως τεκμηρίωση του γιατί έτρεξε</summary>
 >
+> **Αξίζει robustness screen της σύνθεσης κοπαδιού κάτω από πολλαπλά pinned town draws, ΠΡΙΝ
+> προστεθεί έστω ένα pasture tile στο SW;**
+>
+> Η αιτιολόγηση: pastures/ζώα αγοράζονται στο **άνοιγμα**, shops ξεκλειδώνουν από τη **μέρα 3** —
+> **δεσμευόμαστε στο κοπάδι πριν ξέρουμε την πόλη**. Η sell-side προσαρμογή (v1g.2 γ) **δοκιμάστηκε
+> και δεν μετριάζει καν τη ζημιά**: μετρημένο +$0 στην καλύτερη ρύθμιση, −$1.909/ep στη χειρότερη,
+> ενώ η ίδια η έλλειψη YARN_STORE κοστίζει $12.077/ep. Δηλαδή αυτό το screen **δεν είναι πλέον
+> προαιρετικό** — είναι το μόνο αντίμετρο που απομένει. Το engine-verified μοντέλο του notebook
+> δίνει **cow κερδοφόρο στο 70,2% των draws έναντι 28,2% για sheep**, και sheep season
+> $39,1k → $11,1k ανάλογα με το YARN_STORE. Δηλαδή η ερώτηση «6 COW + 4 SHEEP ή περισσότερες
+> αγελάδες;» **δεν** απαντιέται από το v1g screen: εκείνο έτρεξε σε **σημερινό** engine όπου
+> ξεκλειδώνουν πάντα και τα 8 shops, άρα μέτρησε **μία μόνο** πόλη — την πιο ευνοϊκή για sheep
+> που υπάρχει.
+>
+> **Προτεινόμενη μορφή (φθηνή, χωρίς αλλαγή κώδικα agent):** `compare({6C,4S}, {8C,2S}, DEV)` και
+> `vs {10C,0S}` με `pinned_shops(basket_for(seed))` — δηλαδή **baskets με επανάθεση**, το
+> καθεστώς που έρχεται. Αν η σύνθεση αποδειχθεί ευαίσθητη, αλλάζει **πριν** το SW την πολλαπλασιάσει.
+> **Προειδοποίηση εγκυρότητας:** αυτό είναι occupancy knob (διαφορετικά pasture tiles) *και*
+> ταυτόχρονα αλλάζει την κατανομή δειγματοληψίας ⇒ το verdict ισχύει **μόνο** για την
+> post-balance-change κατανομή. Δεν αντικαθιστά ένα κανονικό holdout-confirm στο σημερινό engine.
+> ⚠️ Αν αυτό εκτελεστεί, **αναφέρεται ρητά ως screen** — δεν είναι GO από μόνο του (§Πρωτόκολλο).
+>
+> </details>
+
 > ⚠️ **Παγίδα του BUY_LAND gate:** το gate απαιτεί **κάθε planned animal ήδη τοποθετημένο** πριν
 > αγοράσει γη (comment COOP στο [agent/config.py](agent/config.py)). Αν το v1h′ προσθέσει
 > animal targets στο SW, δημιουργείται **circular deadlock**: δεν αγοράζεις SW γιατί υπάρχει
@@ -616,11 +586,16 @@ parsing μπαίνει **εδώ**, ως στοχευμένο βήμα μέσα �
 > ακριβώς τον λόγο). **Κάθε νέα δομή στο SW απαιτεί πρώτα αλλαγή του gate**, όχι απλή προσθήκη
 > tile στο config.
 
-- **Αποδοχή**: metric gate → $-gate vs `v1g.2` → checkpoint `v1h`. Μετά το v1h, ξανατρέχει το
-  Φάσης-1 συνολικό κριτήριο σε νέο επίπεδο: median vs starter — και **2ο submission αν
-  holdout-confirm `IMPROVED`** έναντι του v1e που ήδη ανέβηκε.
+- **Αποδοχή** ✅ *(όπως εκτελέστηκε: metric gate → dev-screen vs `checkpoints/v1g_1` **με**
+  `--town-pin schedule` → holdout-confirm **χωρίς** pin → `checkpoints/v1h`· το «vs `v1g_2`»
+  εδώ ήταν άκυρο, το v1g.2 δεν προήγαγε ποτέ checkpoint)*. Μετά το
+  v1h, ξανατρέχει το Φάσης-1 συνολικό κριτήριο σε νέο επίπεδο: median vs starter — και **3ο
+  submission αν holdout-confirm `IMPROVED`** έναντι του v1g που ήδη ανέβηκε.
 
 ### v1i — Sell-ahead arbitrage (άξονας β — «πούλα πριν το κύμα»)
+
+**Pre-gate κατάταξη knob: MARKET-ONLY** (μετάθεση/ρυθμός SELL orders) ⇒ σταθερό seed αρκεί, δεν
+απαιτείται pinning — εκτός αν η υλοποίηση επηρεάσει planner/scheduler.
 
 Πρώτο market-intelligence feature, **μετά** την κλίμακα (χωρίς όγκο παραγωγής δεν υπάρχει τι
 να χρονίσεις). Η απόδειξη αξίας: one-turn preemption = 31-1 σε mirrors, +$2.304 μέσο margin
@@ -634,47 +609,58 @@ parsing μπαίνει **εδώ**, ως στοχευμένο βήμα μέσα �
   2. **Ζωντανό market inventory** έναντι των γνωστών cliffs 1.32.x: **strawberry 62 / wool
      59 / milk 76 / melon 158** net μονάδες ως το $1 floor· wheat χωρίς cliff
      ([docs/reference/market.md](docs/reference/market.md)).
-  3. **Ορατά ώριμα tiles του αντιπάλου** (η φάρμα του είναι δημόσια — §2): πόσες μονάδες
-     ωριμάζουν και πότε ⇒ πότε θα χτυπήσει το κύμα του την αγορά.
+  3. **Ορατά ώριμα tiles του αντιπάλου** (η φάρμα του είναι δημόσια — MASTERPLAN §2): πόσες
+     μονάδες ωριμάζουν και πότε ⇒ πότε θα χτυπήσει το κύμα του την αγορά.
 - **Εκτέλεση**: μετάθεση των δικών μας SELL **πριν** το προβλεπόμενο κύμα, trickle
-  (unit-by-unit lockstep — πλεονέκτημα μόνο σε προγενέστερο order index, §2 Αμφισημία #3),
-  ποτέ dump που ανοίγει εμείς το cliff. Το `market_price()` είναι importable από το engine —
+  (unit-by-unit lockstep — πλεονέκτημα μόνο σε προγενέστερο order index, MASTERPLAN §2 Αμφισημία
+  #3), ποτέ dump που ανοίγει εμείς το cliff. Το `market_price()` είναι importable από το engine —
   ο υπολογισμός marginal revenue είναι ακριβής, όχι εκτίμηση.
-
-> **[ενημ. 2026-08-07] Δύο συγκεκριμένες βελτιώσεις που μπαίνουν εδώ:**
->
-> **(1) Ακριβές άθροισμα αντί endpoint.** Το [agent/executor.py](agent/executor.py):89 ελέγχει
-> `market_price(product, inventory + sell_units + safety_units) > floor`. Επειδή η εκτέλεση είναι
-> **per-unit με pre-sell quote**, το πραγματικό έσοδο είναι `Σ_{i=0..q-1} p(s+i)` και η **πρώτη**
-> μονάδα εισπράττει `p(s)`, όχι `p(s+q)`. Ο σημερινός έλεγχος είναι **συντηρητικός** (υποεκτιμά ⇒
-> δεν πουλάμε ενώ θα έπρεπε) — **όχι bug**, αλλά χαμένο έσοδο σε ρηχές καμπύλες. Αντικατάσταση με
-> άθροιση μονάδα-μονάδα: πούλα όσο η **επόμενη** μονάδα αποδίδει `p(s+i) > floor`.
-> ⚠️ **Παγίδα:** μην αντικαταστήσεις το `safety_units` με το άθροισμα — είναι δύο διαφορετικά
-> πράγματα. Το `opponent_price_safety_units` μοντελοποιεί το **δικό του** ταυτόχρονο SELL στο ίδιο
-> index (lockstep), το άθροισμα μοντελοποιεί τη **δική μας** ολίσθηση. Χρειάζονται και τα δύο.
->
-> **(2) Το prior ημερολόγιο μετακινήθηκε — όπως προβλέφθηκε.** Σύγκριση
-> [topfarms-22](docs/meta/ladder_snapshots.md#topfarms-22) (08-05) με το
-> [08-07 snapshot](docs/meta/ladder_snapshots.md#meta0807) (δεδομένα 08-06):
-> **milk 8 → 10 · strawberry 16 → 18 · wool 9 → 9 · melon 10 → 10**, και νέο:
-> **fertilizer μέρα 3, από 1.366/1.366 seats**. Δύο από τα τέσσερα μετακινήθηκαν κατά 2 μέρες
-> **μέσα σε μία μέρα ladder**. Αυτό είναι η εμπειρική απόδειξη του MASTERPLAN §3.3 warning:
-> **το ημερολόγιο είναι seed για bootstrap, ποτέ σταθερά**. Αν ο v1i μηχανισμός χρειάζεται
-> hardcoded μέρα για να δουλέψει, είναι λάθος σχεδιασμένος.
+- **(1) Ακριβές άθροισμα αντί endpoint.** Το [agent/executor.py](agent/executor.py):89 ελέγχει
+  `market_price(product, inventory + sell_units + safety_units) > floor`. Επειδή η εκτέλεση είναι
+  **per-unit με pre-sell quote**, το πραγματικό έσοδο είναι `Σ_{i=0..q-1} p(s+i)` και η **πρώτη**
+  μονάδα εισπράττει `p(s)`, όχι `p(s+q)`. Ο σημερινός έλεγχος είναι **συντηρητικός** (υποεκτιμά ⇒
+  δεν πουλάμε ενώ θα έπρεπε) — **όχι bug**, αλλά χαμένο έσοδο σε ρηχές καμπύλες. Αντικατάσταση με
+  άθροιση μονάδα-μονάδα: πούλα όσο η **επόμενη** μονάδα αποδίδει `p(s+i) > floor`.
+  ⚠️ **Παγίδα:** μην αντικαταστήσεις το `safety_units` με το άθροισμα — είναι δύο διαφορετικά
+  πράγματα. Το `opponent_price_safety_units` μοντελοποιεί το **δικό του** ταυτόχρονο SELL στο ίδιο
+  index (lockstep), το άθροισμα μοντελοποιεί τη **δική μας** ολίσθηση. Χρειάζονται και τα δύο.
+- **(2) Το prior ημερολόγιο μετακινήθηκε — όπως προβλέφθηκε.** Σύγκριση
+  [topfarms-22](docs/meta/ladder_snapshots.md#topfarms-22) (08-05) με το
+  [08-07 snapshot](docs/meta/ladder_snapshots.md#meta0807) (δεδομένα 08-06):
+  **milk 8 → 10 · strawberry 16 → 18 · wool 9 → 9 · melon 10 → 10**, και νέο:
+  **fertilizer μέρα 3, από 1.366/1.366 seats**. Δύο από τα τέσσερα μετακινήθηκαν κατά 2 μέρες
+  **μέσα σε μία μέρα ladder** ⇒ **το ημερολόγιο είναι seed για bootstrap, ποτέ σταθερά**. Αν ο
+  v1i μηχανισμός χρειάζεται hardcoded μέρα για να δουλέψει, είναι λάθος σχεδιασμένος.
 - **Όριο (Ανοιχτό #11)**: χρησιμοποιούμε **στατιστικά** του meta (πότε πουλάνε), ποτέ
   trajectories/routes. Καμία αντιγραφή του V13-R3 κώδικα — είναι evidence, όχι πηγή.
 - **Αποδοχή**: $-gate vs `v1h` **και** mirror-margin έλεγχος (να μη χαλάει το δικό μας mirror).
 
 ### Μετά τα increments: BBO sweeps (προτεραιότητα #6)
 
-CMA-ES/Optuna στο `CONFIG` **μόνο αφού** υπάρχουν τα v1f-v1i features — πριν από αυτά
-βελτιστοποιεί σε λάθος ταβάνι (§3.4). Στο screen→confirm πρωτόκολλο, ποτέ «κράτα το max».
+CMA-ES/Optuna στο `CONFIG` **μόνο αφού** υπάρχουν τα v1g.2-v1i features — πριν από αυτά
+βελτιστοποιεί σε λάθος ταβάνι (MASTERPLAN §3.4). Στο screen→confirm πρωτόκολλο, ποτέ «κράτα το
+max».
+
+> ⚠️ **[ενημ. 2026-08-07] Το BBO είναι το πιο εκτεθειμένο βήμα σε ολόκληρο το roadmap** και
+> χρειάζεται ρητό σχέδιο πριν ξεκινήσει. Δύο λόγοι που πολλαπλασιάζονται μεταξύ τους:
+> 1. **Οι περισσότερες παράμετροι του `CONFIG` είναι occupancy knobs** (`hands_target`, tile
+>    targets ανά crop/quadrant, animal targets, land triggers) ⇒ **κάθε** variant τραβά
+>    διαφορετική πόλη ⇒ ο θόρυβος που το BBO προσπαθεί να ελαχιστοποιήσει περιέχει έναν όρο που
+>    δεν ελέγχει κανείς.
+> 2. **Multiple comparisons**: με k variants και spread ~19% του median, το «κράτα το max»
+>    επιλέγει θόρυβο με πιθανότητα που μεγαλώνει με το k (MASTERPLAN §6.1#2). Ο town draw
+>    **προσθέτει** σε αυτόν τον θόρυβο, δεν τον αντικαθιστά.
+>
+> **Ελάχιστη απαίτηση πριν το πρώτο sweep:** κάθε occupancy παράμετρος αξιολογείται μέσα σε
+> **σταθερό σετ pinned towns κοινό για όλα τα variants** (`schedule_for(seed)` σήμερα,
+> `basket_for(seed)` μετά την αλλαγή), και το confirm stage τρέχει **και** χωρίς pin ώστε να
+> φανεί αν το κέρδος επιβιώνει στην πραγματική κατανομή.
 
 ---
 
 ## ΜΕΡΟΣ Γ — Bench & robustness (άξονες γ, δ — τρέχει παράλληλα, κλείνει ~20/09)
 
-1. **Mirror margin metric** στο bench (§7#3): κάθε compare καταγράφει και το margin σε
+1. **Mirror margin metric** στο bench (MASTERPLAN §7#3): κάθε compare καταγράφει και το margin σε
    mirror matches, όχι μόνο W/L — η κορυφή κρίνεται σε ψίχουλα (+$3).
 2. **Robustness matrix Φάσης 3** με «αυριανά» σενάρια, όχι μόνο σημερινούς flooders:
    αντίπαλοι με δικό τους sell-ahead· sell ημερολόγια μετατοπισμένα **±2-4 μέρες** από το
@@ -682,45 +668,42 @@ CMA-ES/Optuna στο `CONFIG` **μόνο αφού** υπάρχουν τα v1f-v1
    (optimization ceiling). Tuning που κερδίζει οριακά σήμερα αλλά καταρρέει σε μετατοπισμένο
    ημερολόγιο **απορρίπτεται**.
 
-   > **[ενημ. 2026-08-07] Τρία νέα υποχρεωτικά σενάρια ζήτησης** — δεν καλύπτονται από κανένα
-   > seed, γιατί σήμερα ξεκλειδώνουν πάντα **και τα 8** shops. Απαιτούν χειροκίνητο override του
-   > `unlocked_shops` (ή `env.configuration`), όχι νέο seed set:
-   >
-   > | Σενάριο | Πώς στήνεται | Τι πρέπει να αποδειχθεί |
-   > |---|---|---|
-   > | **Χωρίς YARN_STORE** | `unlocked_shops` χωρίς `YARN_STORE` | Ο agent **σταματά** να ξεπουλά wool· δεν κρατά 5 sheep σε καθαρή ζημιά |
-   > | **Διπλά shops** | π.χ. 3× `FARMERS_MARKET` + 2× `BAKERY` | Το sell rate ανεβαίνει εκεί που υπάρχει διπλή ζήτηση — αλλιώς το §v1g.2(β) δεν διαβάζεται πουθενά |
-   > | **Flat town center** | `townCenterSellInterval = 24` + patched `TOWN_CENTER_DEMAND_SCHEDULE` σε `[(0,1)]` | Το late-game sell timing δεν καταρρέει όταν φύγει το ×4 ramp |
-   >
-   > ⚠️ Το τρίτο σενάριο **προσομοιώνει την ανακοινωμένη αλλαγή πριν κυκλοφορήσει** — είναι ο
-   > φθηνότερος τρόπος να ξέρουμε αν μας πονάει, χωρίς να στοιχηματίσουμε τίποτα πάνω της.
-   > Στήνεται με monkeypatch στο **harness**, ποτέ στο `agent/` (θα μόλυνε το submission).
+   **Τέσσερα υποχρεωτικά σενάρια ζήτησης** — δεν καλύπτονται από κανένα seed, γιατί σήμερα
+   ξεκλειδώνουν πάντα **και τα 8** shops. Απαιτούν override του `unlocked_shops` ή του
+   `env.configuration`, **ποτέ αλλαγή στο `agent/`** (θα μόλυνε το submission):
 
-3. **Meta refresh πριν τη Φάση 3**: re-download του community dataset (υποχρεωτικό —
-   MASTERPLAN §3.2bis freshness note· snapshot μας: **08-04**) + νέα μέρα topfarms για το
-   consensus anomaly και τη wheat-primary επιβεβαίωση. **Νέο ερώτημα προς το dataset (Β.0.3):**
-   effect size του `unlocked_shops` στο τελικό bank — ποτέ δεν το έχουμε κοιτάξει.
-4. **Engine bump detector**: σε κάθε νέο `kaggle-environments` στη ladder →
-   `pip install -U` + `pytest tests/` — ό,τι κοκκινίσει είναι η αλλαγή συμπεριφοράς.
-   Το 1.32.4 μένει pinned μέχρι να περάσει το suite στη νέα έκδοση.
+   | Σενάριο | Πώς στήνεται | Τι πρέπει να αποδειχθεί |
+   |---|---|---|
+   | **Χωρίς YARN_STORE** | `pinned_shops([...])` χωρίς `YARN_STORE` | Ο agent **σταματά** να ξεπουλά wool· δεν κρατά sheep σε καθαρή ζημιά |
+   | **Καμία shop ζήτηση** | `no_shops()` | Το δάπεδο: πόσο βγάζει ο agent με μόνο το town center — και ότι δεν καταρρέει |
+   | **Διπλά shops** | `pinned_shops(basket_for(seed))` (επανάθεση ⇒ φυσικά διπλότυπα) | Το sell rate ανεβαίνει εκεί που υπάρχει διπλή ζήτηση — αλλιώς το §v1g.2(β) δεν διαβάζεται πουθενά |
+   | **Flat town center** | `townCenterSellInterval = 24` + patched `TOWN_CENTER_DEMAND_SCHEDULE` σε `[(0,1)]` | Το late-game sell timing δεν καταρρέει όταν φύγει το ×4 ramp |
 
-   > **[ενημ. 2026-08-07] Ο detector έγινε συγκεκριμένος και πρέπει να τρέχει ΧΩΡΙΣ install.**
-   > Η διαδικασία που χρησιμοποιήθηκε για να ανιχνευθεί το 1.32.5 ενώ έτρεχε το v1g gate — και
-   > είναι η **σωστή** διαδικασία γενικά, γιατί δεν πειράζει το ενεργό περιβάλλον:
-   >
-   > ```powershell
-   > pip index versions kaggle-environments            # LATEST vs INSTALLED
-   > pip download kaggle-environments==<νέα> --no-deps --no-binary :all: -d <scratchpad>
-   > tar -xzf ...; diff -u engine_reference/kaggriculture.py <extracted>/kaggriculture.py
-   > diff -u engine_reference/kaggriculture.json <extracted>/kaggriculture.json   # ⚠️ ΜΗΝ το παραλείψεις
-   > ```
-   >
-   > ⚠️ **Το `.json` diff είναι εξίσου σημαντικό με το `.py`** — εκεί ζουν τα
-   > `townCenterSellInterval`, `turnsPerDay`, `maxMarketOrdersPerTurn`, `shedCapacity`. Μια balance
-   > change μπορεί να είναι **αποκλειστικά** json και να μη φαίνεται καθόλου στον κώδικα.
-   > ⚠️ **Ο έλεγχος γίνεται τακτικά, όχι μόνο όταν κάτι σπάσει.** Οι οργανωτές έχουν ήδη
-   > ανακοινώσει balance changes (§0bis)· η επόμενη έκδοση είναι πιθανόν αυτή που τις φέρνει, και
-   > θέλουμε να το μάθουμε από diff, όχι από ανεξήγητη πτώση rating.
+   Τα τρία πρώτα στήνονται πλέον **χωρίς νέο monkeypatch** από το
+   [harness/town_pin.py](harness/town_pin.py) (§Β.0′). Το τέταρτο **προσομοιώνει την ανακοινωμένη
+   αλλαγή πριν κυκλοφορήσει** — ο φθηνότερος τρόπος να ξέρουμε αν μας πονάει, χωρίς να
+   στοιχηματίσουμε τίποτα πάνω της· χρειάζεται ακόμα δικό του harness-level patch.
+
+3. **Meta refresh πριν τη Φάση 3**: re-download του community dataset (MASTERPLAN §3.2bis
+   freshness note· το dataset ανανεώθηκε ήδη 08-07 — το «σταματά στις 08-04» δεν ισχύει) + νέα
+   μέρα topfarms για το consensus anomaly και τη wheat-primary επιβεβαίωση.
+4. **Engine bump detector**: τρέχει **τακτικά και ΧΩΡΙΣ install** — ένα `pip install -U` στη μέση
+   ενός gate ακυρώνει τη σύγκριση:
+
+   ```powershell
+   pip index versions kaggle-environments            # LATEST vs INSTALLED
+   pip download kaggle-environments==<νέα> --no-deps --no-binary :all: -d <scratchpad>
+   tar -xzf ...; diff -u engine_reference/kaggriculture.py <extracted>/kaggriculture.py
+   diff -u engine_reference/kaggriculture.json <extracted>/kaggriculture.json   # ⚠️ ΜΗΝ το παραλείψεις
+   ```
+
+   ⚠️ **Το `.json` diff είναι εξίσου σημαντικό με το `.py`** — εκεί ζουν τα
+   `townCenterSellInterval`, `turnsPerDay`, `maxMarketOrdersPerTurn`, `shedCapacity`. Μια balance
+   change μπορεί να είναι **αποκλειστικά** json και να μη φαίνεται καθόλου στον κώδικα. Οι
+   οργανωτές έχουν ήδη ανακοινώσει αλλαγές (§0bis)· η επόμενη έκδοση είναι πιθανόν αυτή που τις
+   φέρνει, και θέλουμε να το μάθουμε από diff, όχι από ανεξήγητη πτώση rating.
+   ⚠️ **Όταν έρθει η αλλαγή, το §0bis.3 πρέπει να ξαναϋπολογιστεί** — οι αριθμοί εκεί μοντελοποιούν
+   **αδημοσίευτο** PR. Αν κυκλοφορήσει τροποποιημένο, είναι λάθος.
 
 ---
 
@@ -733,30 +716,71 @@ CMA-ES/Optuna στο `CONFIG` **μόνο αφού** υπάρχουν τα v1f-v1
 - **Metric gates πριν το $-verdict**: `water_weeds_lost == 0` ∧ `plant_decay_units_lost == 0`
   (+ ανά increment: `animals_escaped`, clipped ticks, `unexplained_noops`).
 - **Immutable checkpoint** σε **κάθε** αποδεκτή κατάσταση, με fingerprint verification (G15).
-- **Both seats πάντα** — το weed RNG είναι seat- και opponent-tile-fill-εξαρτώμενο (§2 #6).
+- **Both seats πάντα** — το weed RNG είναι seat- και opponent-tile-fill-εξαρτώμενο
+  (MASTERPLAN §2 #6/#7).
+- **Ποτέ engine bump ή επεξεργασία `agent/` όσο τρέχει gate.** Ο agent φορτώνεται σε **κάθε
+  worker process ξεχωριστά**· επεξεργασία κατά τη διάρκεια ενός parallel run δίνει **ανάμεικτα**
+  αποτελέσματα μεταξύ seeds — ακριβώς το είδος σιωπηλής μόλυνσης που έκρυψε το `c7767bb`
+  regression. Ένα engine bump στη μέση ενός gate ακυρώνει εξίσου τη σύγκριση: το `compare()`
+  μετρά A vs B στο ίδιο seed· αν το B έτρεξε σε άλλο engine, το `mean_diff` δεν σημαίνει τίποτα.
+  **Επιτρέπεται πάντα:** εγγραφή σε `.md` — τα docs δεν διαβάζονται από κανέναν worker.
 - **Ρητά εκτός** (standing αποφάσεις, δεν επανεξετάζονται χωρίς νέα δεδομένα): RL (μόνο στον
-  4-πλό trigger του §4)· BC/IL/trajectory copying και κάθε replay-derived prior (Ανοιχτό #11)·
-  W&B (τοπικό HTML report)· εκτέλεση κώδικα από competitor notebooks (evidence, όχι πηγή).
+  4-πλό trigger του MASTERPLAN §4)· BC/IL/trajectory copying και κάθε replay-derived prior
+  (Ανοιχτό #11)· W&B (τοπικό HTML report)· εκτέλεση κώδικα από competitor notebooks (evidence,
+  όχι πηγή).
+
+### ⭐ ΥΠΟΧΡΕΩΤΙΚΟ pre-gate ερώτημα (νέο 2026-08-07) — «τι είδους knob είναι αυτό;»
+
+**Πριν σχεδιαστεί οποιοδήποτε νέο increment, απαντάται γραπτά στο σχέδιό του:**
+
+> **Μπορεί αυτή η αλλαγή να μεταβάλει πόσα tiles είναι κατειλημμένα οποιαδήποτε βραδιά;**
+
+Η αιτιολόγηση είναι engine fact, όχι προτίμηση: shop unlock και weed spawning μοιράζονται το ίδιο
+per-day RNG stream (§0ter, MASTERPLAN §2 #7).
+
+| Απάντηση | Κατηγορία | Τι απαιτεί το gate |
+|---|---|---|
+| **ΟΧΙ** — αλλάζει μόνο σειρά/ρυθμό/κατώφλια market orders (sell batch, sell floor, order tier) | **market-only** | Τίποτα επιπλέον. Σταθερό seed **είναι** ελεγχόμενο πείραμα: και τα δύο arms τραβούν την ίδια πόλη (16/16 seeds στη μέτρηση του notebook) και ένα effect δεκάδων coins λύνεται από λίγα episodes |
+| **ΝΑΙ** — labour/crew, φύτευση, συγκομιδή, DIG, BUY_LAND, τοποθέτηση ζώων/δομών, routing που μετακινεί εργασία μέσα στη μέρα | **occupancy** | **Ένα από τα δύο, ρητά δηλωμένο:** (α) το gate τρέχει με `pinned_shops(schedule_for(seed))` και στα **δύο** arms — [harness/town_pin.py](harness/town_pin.py)· ή (β) μεγαλύτερο seed budget με **γραπτή αιτιολόγηση** γιατί το τρέχον DEV/HOLDOUT μέγεθος αρκεί για το αναμενόμενο effect size |
+| **ΔΕΝ ΞΕΡΩ** | — | Θεωρείται **occupancy** μέχρι αποδείξεως του εναντίου |
+
+**Τρεις κανόνες που συνοδεύουν το παραπάνω:**
+1. **Το pinning μειώνει, δεν εξαλείφει** (~19% του noise sd στη μέτρηση του notebook). Δεν κάνει
+   ένα occupancy gate ισοδύναμο με market-only gate — απλώς φθηνότερο.
+2. **Ένα pinned αποτέλεσμα ισχύει μόνο για τις πόλεις που πινάρισες.** Πίναρε σετ που καλύπτει το
+   εύρος· μετά τη balance change πίναρε **baskets με επανάθεση** (`basket_for`), όχι permutations.
+3. **Το τελικό holdout-confirm τρέχει και ΧΩΡΙΣ pin.** Το pin είναι εργαλείο *screening*· το GO
+   πρέπει να επιβιώνει στην πραγματική κατανομή πόλεων, όχι στην πινaρισμένη.
+
+---
 
 ## Χρονοδιάγραμμα (ενδεικτικό)
 
 | Βήμα | Στόχος | Κατάσταση |
 |---|---|---|
-| Α. Submission v1e + baselines | 08-06 | ✅ **ΕΓΙΝΕ** (SUBMISSION_ID 55301989) |
-| v1f crew | 08-06 | ✅ **ΚΛΕΙΣΤΟ** (`hands_target=6`) |
-| v1g ζώα | 08-07 | 🔄 **ΤΡΕΧΕΙ** |
-| **Β.0 συλλογή δεδομένων από v1g report** | 08-08 | ⏸ αμέσως μετά το v1g |
-| **v1g.1 engine bump 1.32.5 + shed access** | 08-08 → 08-09 | ⏸ *πριν από κάθε άλλο κώδικα* |
-| **v1g.2 shop-adaptive + fertilizer timing** | 08-09 → 08-13 | ⏸ |
-| v1h′ SW quadrant (**χωρίς** portfolio rebalance) (+2ο submission αν IMPROVED) | 08-13 → 08-18 | ⏸ |
-| v1i sell-ahead (+ exact per-unit sum) | 08-18 → 08-28 | ⏸ |
-| BBO sweeps + Φάση 3 robustness (**+3 σενάρια ζήτησης**) | Σεπτέμβριος → ~09-20 | ⏸ |
+| Α. Submission v1e + baselines | 08-06 | ✅ **ΕΓΙΝΕ** (`SUBMISSION_ID 55301989`) |
+| v1f crew (`hands_target=6`) | 08-06 | ✅ **ΚΛΕΙΣΤΟ** — memory.md 2026-08-06 |
+| v1g ζώα (10: 6 COW + 4 SHEEP, +$25,3k/ep holdout) | 08-07 | ✅ **ΚΛΕΙΣΤΟ** — memory.md 2026-08-07 |
+| Β.0 συλλογή δεδομένων από v1g report | 08-07 | ✅ **ΟΛΟΚΛΗΡΩΘΗΚΕ** — memory.md 2026-08-07 |
+| Submission v1g | 08-07 | ✅ **ΕΓΙΝΕ** (`SUBMISSION_ID 55324447`) |
+| v1g.1 engine bump 1.32.5 (bump-only· routing fix reverted) | 08-07 | ✅ **ΟΛΟΚΛΗΡΩΘΗΚΕ** (`checkpoints/v1g_1`) — memory.md 2026-08-07 |
+| v1g.2 σκέλος (δ) fertilizer timing — 2 προσπάθειες | 08-07 | ⛔ **REVERTED, ΠΑΓΩΜΕΝΟ** — memory.md 2026-08-07 |
+| Β.0′ town-pin harness (module + ενσωμάτωση στο `compare()`) | 08-08 | ✅ **ΚΛΕΙΣΤΟ** — memory.md 2026-08-08 |
+| v1g.2 (α)/(β) `unlocked_shops` + `npc_daily_demand` | 08-07 | ✅ **ΕΓΙΝΕ** (engine-pinned, ενεργό μόνο ως μοντέλο) |
+| v1g.2 σκέλος (γ) shop-adaptive sell floor | 08-07 | ⛔ **ΔΙΑΨΕΥΣΤΗΚΕ, ΑΠΕΝΕΡΓΟ** — memory.md 2026-08-07 |
+| Herd-composition screen (pinned baskets) | 08-08 | ✅ **ΑΡΝΗΤΙΚΟ** — `{6C,4S}` μένει· memory.md 2026-08-08 |
+| v1h′ SW quadrant + WHEAT + crew 6→10 (+$2.835/ep holdout) | 08-08 | ✅ **ΚΛΕΙΣΤΟ** (`checkpoints/v1h`) — memory.md 2026-08-08 |
+| Submission v1h | 08-09 | ✅ **ΕΓΙΝΕ** (`SUBMISSION_ID 55383610`· έριξε το v1e εκτός) |
+| v1i sell-ahead (+ exact per-unit sum) | 08-09 → 08-19 | ⏸ **ΕΠΟΜΕΝΟ** |
+| BBO sweeps (**με pinned towns**) + Φάση 3 robustness (**4 σενάρια ζήτησης**) | Σεπτέμβριος → ~09-20 | ⏸ |
 | Champion/challenger κλείδωμα 2 slots | 09-23 → 09-30 | ⏸ |
 
-> **Το v1g.2 πήρε 4 μέρες, όχι 1**, επειδή περιλαμβάνει και το ad-hoc gate με χειροκίνητο
-> `unlocked_shops` — που είναι **η μόνη** επαλήθευση ότι το feature πραγματικά ενεργοποιείται.
-> Ένα shop-adaptive layer που περνά τα seed gates αλλά δεν αλλάζει ποτέ συμπεριφορά είναι
-> χειρότερο από το τίποτα: κουβαλά την πολυπλοκότητα χωρίς το όφελος.
+> **Το v1h′ εκτιμήθηκε 08-12 → 08-19 και έκλεισε 08-08/09**, μαζί με το Β.0′ και το herd screen
+> που είχαν προστεθεί στο scope του. Ο λόγος δεν είναι ότι ήταν μικρότερο: τα δύο controls
+> («μόνο crew», «μόνο γη») κόστισαν 4 seeds ο καθένας και **απέκλεισαν κατευθείαν** τον χώρο
+> παραμέτρων που αλλιώς θα δοκιμαζόταν με πλήρη 48-seed gates. Το ίδιο και το herd screen: ένα
+> αρνητικό αποτέλεσμα σε 2 συγκρίσεις έκλεισε ένα ερώτημα που το spec χαρακτήριζε «το μόνο
+> ανοιχτό αντίμετρο». **Φθηνά controls πριν από ακριβά gates** — αξίζει να επαναληφθεί στο v1i.
 
 Ο χρόνος δεν είναι ο περιοριστικός πόρος — η ποιότητα του gate είναι. Κανένα βήμα δεν
 προσπερνά το confirm για να «προλάβει» την ημερομηνία του πίνακα.

@@ -33,6 +33,7 @@ from typing import Optional, Sequence
 from harness.checkpoint import agent_fingerprint
 from harness.play import play
 from harness.seeds import CONFIRM_SEED_SETS, DEV_SEEDS, NAMED_SEED_SETS
+from harness.town_pin import PIN_MODES, pinned_town, schedule_for_mode
 
 # Two-sided 95% t-critical value by degrees of freedom (df = n-1). Exact through df=30,
 # then a handful of anchor points with linear interpolation, 1.96 (normal) beyond df=120 —
@@ -168,13 +169,21 @@ def _append_confirm_ledger(path: Path, row: dict) -> None:
         f.write(json.dumps(row) + "\n")
 
 
-def _play_orientation(agent_first, agent_second, seed, steps, run_dir, record, strict, metrics):
+def _play_orientation(agent_first, agent_second, seed, steps, run_dir, record, strict, metrics,
+                      town_pin=None, town_schedule=None):
     """Module-level (picklable) unit of work for the ProcessPoolExecutor path (plan.md
     §1.5.1): exactly one `play()` call, returning the raw (bank_first, bank_second) rewards
     plus the per-seat metrics dict a single orientation needs. Kept at module scope — a
-    nested closure isn't picklable and would silently break the Windows spawn start method."""
-    result = play(agent_first, agent_second, seed, steps=steps, run_dir=run_dir, record=record,
-                  strict=strict, metrics=metrics)
+    nested closure isn't picklable and would silently break the Windows spawn start method.
+
+    current_phase.md §Β.0′: the town pin is applied **here**, inside the worker, from the
+    picklable `(town_pin, town_schedule)` pair — a context manager cannot cross a process
+    boundary, and under the spawn start method the parent's monkeypatch does not exist in the
+    child at all. Both orientations of a seed get the same pair, so both arms of a comparison
+    play the same town."""
+    with pinned_town(town_pin, town_schedule):
+        result = play(agent_first, agent_second, seed, steps=steps, run_dir=run_dir, record=record,
+                      strict=strict, metrics=metrics)
     return result.rewards, result.metrics
 
 
@@ -209,6 +218,11 @@ class CompareResult:
     incomplete: bool = False  # True if any seed errored or was otherwise skipped
     code_fingerprints: tuple = ("", "")
     stage: Optional[str] = None  # "dev-screen" | "holdout-confirm" | None (plan.md §1.5.3)
+    # current_phase.md §Β.0′: which town-pin regime both arms played under (None = the engine's
+    # own draw), and the exact per-seed schedule that produced it — a pinned verdict is only
+    # valid for the towns actually pinned, so the towns are part of the result, not a setting.
+    town_pin: Optional[str] = None
+    town_schedules: dict = field(default_factory=dict)  # {seed: [shop names]} — {} when unpinned
     metrics_checked: bool = False  # whether the metrics param was on for this run
     water_weeds_lost_a: Optional[int] = None  # None unless metrics_checked (review.md C3)
     plant_decay_units_lost_a: Optional[int] = None
@@ -249,6 +263,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             workers: int = 1,
             metrics: bool = False,
             stage: Optional[str] = None,
+            town_pin: Optional[str] = None,
             accept_within_margin: bool = False,
             allow_repeat_confirm: bool = False,
             confirm_ledger_path: Optional[Path] = None) -> CompareResult:
@@ -305,6 +320,21 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     environment, and warns if KAGGRI_DEBUG is (review.md H7) — both are recorded either way
     in the `env` field.
 
+    town_pin (current_phase.md §Β.0′, harness.town_pin) pins which shops the town unlocks, so
+    both arms of an *occupancy* comparison play the same town on a given seed. Shop unlock and
+    weed spawning share one per-day RNG stream (MASTERPLAN §2 #7), so any change to how many
+    tiles are occupied at night — crew size, planting, BUY_LAND, animal placement — re-rolls the
+    whole shop sequence, and an unpinned occupancy gate silently compares two different towns.
+    Modes: "schedule" (a per-seed permutation of the 8 types — today's engine), "basket" (a
+    per-seed draw *with replacement* — the announced balance change), "no_shops" (town centre
+    only, the robustness floor). The pin is a function of the seed, never a constant: a constant
+    schedule samples one town n times instead of reducing noise. Three limits, all load-bearing:
+    it reduces (~19% of noise sd) rather than removes noise, it does not touch the weed stream,
+    and a pinned result only holds for the pinned towns — which is why a stage="holdout-confirm"
+    run with a pin warns: the GO must survive the real town distribution, not the pinned one.
+    The chosen mode and the exact per-seed schedules are recorded on the result and in
+    results.jsonl's `_meta` row, and --resume refuses to mix a pinned run with an unpinned one.
+
     `go` is only ever True for stage="holdout-confirm" with verdict IMPROVED or NON_INFERIOR
     (or WITHIN_MARGIN with accept_within_margin=True) *and* metrics_checked with the metric
     gate passed *and* no sign-test-confirmed regression (review.md H2: wins_b > wins_a at
@@ -313,6 +343,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     """
     if stage is not None and stage not in VALID_STAGES:
         raise ValueError(f"compare(): stage must be one of {VALID_STAGES} or None, got {stage!r}")
+    if town_pin is not None and town_pin not in PIN_MODES:
+        raise ValueError(
+            f"compare(): town_pin must be one of {PIN_MODES} or None, got {town_pin!r}"
+        )
 
     collected_warnings: list = []
 
@@ -393,6 +427,20 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             )
             if message is not None
         )
+        if town_pin is not None:
+            # current_phase.md §Πρωτόκολλο rule 3: pinning is a *screening* tool. A GO has to
+            # survive the real distribution of towns, not the handful this run pinned.
+            _warn(
+                f"compare(): stage='holdout-confirm' with town_pin={town_pin!r} — a pinned "
+                "confirm only establishes the result for the pinned towns. The final confirm "
+                "for a GO must also run unpinned (current_phase.md §Πρωτόκολλο, rule 3)."
+            )
+
+    # §Β.0′ point 1: the pin must be a function of the seed, so a run samples a *range* of
+    # towns rather than one town n times — and both orientations of a seed get the same one.
+    town_schedules = (
+        {seed: schedule_for_mode(town_pin, seed) for seed in seeds} if town_pin is not None else {}
+    )
 
     # review.md C1/C2: a confirm seed set is checked exactly once per (agent_b, seed set)
     # question. Checked up front (before playing anything) so a disallowed repeat fails fast.
@@ -425,6 +473,19 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     # contract (not just fingerprints) — metrics/both_seats/steps — and resuming into a
     # results.jsonl recorded under a different contract raises, instead of silently averaging
     # an unmeasured metric gate or a single-seat run into what looks like a complete report.
+    # §Β.0′ point 2: the pinned town is part of the run contract, recorded alongside the
+    # fingerprints so a results.jsonl says which towns produced it (G15) instead of being
+    # indistinguishable from an unpinned run.
+    meta_row = {
+        "_meta": True,
+        "code_fingerprints": list(code_fingerprints),
+        "metrics": metrics,
+        "both_seats": both_seats,
+        "steps": steps,
+        "town_pin": town_pin,
+        "town_schedules": {str(seed): schedule for seed, schedule in town_schedules.items()},
+    }
+
     done = {}
     if resume and jsonl_path is not None and jsonl_path.exists():
         lines = [line for line in jsonl_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -452,6 +513,19 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                         "never silently launder into a measured GO just because every seed "
                         "looks 'done')"
                     )
+            # Checked separately from the loop above, with a None default: a results.jsonl
+            # written before §Β.0′ existed has no town_pin key and is an unpinned run, so it
+            # must still resume as one — while resuming it *with* a pin (or vice versa) mixes
+            # two different town distributions into one mean_diff and has to raise.
+            recorded_town_pin = meta.get("town_pin")
+            if recorded_town_pin != town_pin:
+                raise ValueError(
+                    f"compare(): --resume run_dir {run_dir_path} was recorded with "
+                    f"town_pin={recorded_town_pin!r}, but this call passes town_pin="
+                    f"{town_pin!r} — delete {jsonl_path} or use a different run_dir instead of "
+                    "mixing pinned and unpinned towns (or two different pin modes) into one "
+                    "verdict (current_phase.md §Β.0′)"
+                )
             data_lines = lines[1:]
         elif lines:
             raise ValueError(
@@ -467,31 +541,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             # diagnosis ("no recorded code fingerprints"). Write the meta line now, same as the
             # fresh-run branch below, so this behaves like the fresh run it actually is.
             data_lines = []
-            jsonl_path.write_text(
-                json.dumps({
-                    "_meta": True,
-                    "code_fingerprints": list(code_fingerprints),
-                    "metrics": metrics,
-                    "both_seats": both_seats,
-                    "steps": steps,
-                }) + "\n",
-                encoding="utf-8",
-            )
+            jsonl_path.write_text(json.dumps(meta_row) + "\n", encoding="utf-8")
         for line in data_lines:
             row = json.loads(line)
             done[row["seed"]] = row
     elif jsonl_path is not None:
         run_dir_path.mkdir(parents=True, exist_ok=True)
-        jsonl_path.write_text(
-            json.dumps({
-                "_meta": True,
-                "code_fingerprints": list(code_fingerprints),
-                "metrics": metrics,
-                "both_seats": both_seats,
-                "steps": steps,
-            }) + "\n",
-            encoding="utf-8",
-        )
+        jsonl_path.write_text(json.dumps(meta_row) + "\n", encoding="utf-8")
 
     def _persist(row: dict) -> None:
         if jsonl_path is not None:
@@ -596,7 +652,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 for seed, swap in jobs:
                     first, second = (agent_b, agent_a) if swap else (agent_a, agent_b)
                     fut = executor.submit(_play_orientation, first, second, seed, steps, run_dir,
-                                           record, strict, metrics)
+                                           record, strict, metrics, town_pin,
+                                           town_schedules.get(seed))
                     future_to_job[fut] = (seed, swap)
                 for fut in concurrent.futures.as_completed(future_to_job):
                     seed, swap = future_to_job[fut]
@@ -671,8 +728,15 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         for seed in pending_seeds:
             try:
                 orientations = []
-                r_a0 = play(agent_a, agent_b, seed, steps=steps, run_dir=run_dir, record=record,
-                            strict=strict, metrics=metrics)
+                # Both orientations of this seed inside ONE `with`: the pin has to be identical
+                # across the two arms, or the comparison is between two different towns —
+                # exactly the failure §Β.0′ exists to remove.
+                with pinned_town(town_pin, town_schedules.get(seed)):
+                    r_a0 = play(agent_a, agent_b, seed, steps=steps, run_dir=run_dir, record=record,
+                                strict=strict, metrics=metrics)
+                    if both_seats:
+                        r_b0 = play(agent_b, agent_a, seed, steps=steps, run_dir=run_dir,
+                                    record=record, strict=strict, metrics=metrics)
                 orientation0 = {
                     "layout": "A@0/B@1",
                     "bank_a": r_a0.rewards[0],
@@ -693,8 +757,6 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 orientations.append(orientation0)
 
                 if both_seats:
-                    r_b0 = play(agent_b, agent_a, seed, steps=steps, run_dir=run_dir, record=record,
-                                strict=strict, metrics=metrics)
                     orientation1 = {
                         "layout": "B@0/A@1",
                         "bank_a": r_b0.rewards[1],
@@ -871,6 +933,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "agent_a_fp": code_fingerprints[0],
             "agent_b_fp": code_fingerprints[1],
             "seed_set_name": seed_set_name,
+            "town_pin": town_pin,  # §Β.0′: a pinned confirm must be legible as such in the ledger
             "verdict": verdict,
             "go": go,
             "repeat_confirm_index": repeat_confirm_index,
@@ -898,6 +961,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         incomplete=incomplete,
         code_fingerprints=code_fingerprints,
         stage=stage,
+        town_pin=town_pin,
+        town_schedules={str(seed): schedule for seed, schedule in town_schedules.items()},
         metrics_checked=metrics,
         water_weeds_lost_a=water_weeds_lost_a,
         plant_decay_units_lost_a=plant_decay_units_lost_a,

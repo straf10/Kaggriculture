@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAIN = REPO_ROOT / "main.py"
 
 
-def _minimal_observation(*, player=0, step=0, hands=()):
+def _minimal_observation(*, player=0, step=0, hands=(), shops=()):
     farms = [
         {
             "money": 3000,
@@ -48,7 +48,7 @@ def _minimal_observation(*, player=0, step=0, hands=()):
         "farms": farms,
         "private": {"shed": {}, "seeds": {}, "inventories": [{}]},
         "market": {"inventory": {}, "prices": {}},
-        "town": {"unlocked_shops": []},
+        "town": {"unlocked_shops": list(shops)},
     }
 
 
@@ -111,6 +111,10 @@ def test_vendored_constants_and_prices_match_pinned_engine():
     assert _vendored.SHOPS == engine.SHOPS
     # review_89d99f0_2026-08-05.md L9 — TOWN_CENTER_DEMAND_SCHEDULE was vendored but never pinned by a test.
     assert _vendored.TOWN_CENTER_DEMAND_SCHEDULE == engine.TOWN_CENTER_DEMAND_SCHEDULE
+    # v1g.2 — the demand model reads TOWN_CENTER_PRODUCTS, so the fallback's derivation of it
+    # (from MARKET_PARAMS, minus FERTILIZER) has to stay identical to the engine's own.
+    assert _vendored.PRODUCTS == engine.PRODUCTS
+    assert _vendored.TOWN_CENTER_PRODUCTS == engine.TOWN_CENTER_PRODUCTS
     for item, params in engine.MARKET_PARAMS.items():
         equilibrium, capacity = params["I0"], params["T"]
         for inventory in (equilibrium - capacity, equilibrium, equilibrium + capacity):
@@ -134,11 +138,18 @@ def test_m12_harvest_ready_age_derived_from_crops():
     """review.md M12 — the hardcoded `age >= 3` (CARROT) / `age >= 16` (STRAWBERRY) harvest
     triggers in scheduler.py must stay derived from CROPS, not drift into a second hand-copied
     magic number if the pinned engine's CROPS constants ever change."""
-    from agent.scheduler import _CARROT_WATER_WINDOW, _HARVEST_READY_AGE
+    from agent.scheduler import _HARVEST_READY_AGE, _WATER_WINDOWS
 
     assert _HARVEST_READY_AGE["CARROT"] == 3
     assert _HARVEST_READY_AGE["STRAWBERRY"] == 16
-    assert _CARROT_WATER_WINDOW == (2, 3)
+    # v1h': the CARROT-only window became a per-crop table when WHEAT joined. CARROT's own
+    # values are unchanged — that is the point of asserting them next to WHEAT's.
+    assert _WATER_WINDOWS["CARROT"] == (2, 3)
+    assert _HARVEST_READY_AGE["WHEAT"] == 4
+    assert _WATER_WINDOWS["WHEAT"] == (2, 4)
+    # STRAWBERRY is ongoing: it gains yield from the engine's daily refresh, not from watering
+    # inside a window, so it must stay out of the table (watering it is purely survival).
+    assert "STRAWBERRY" not in _WATER_WINDOWS
 
 
 def test_g13_sequential_episodes_are_clean_and_equal():
@@ -692,5 +703,380 @@ def test_v1g_buy_animal_caps_at_open_slot_headroom():
 
     buy_orders = [order for order in orders if order[0] == "BUY_ANIMAL" and order[1] == "COW"]
     assert buy_orders == [["BUY_ANIMAL", "COW", 2]]
+
+
+def _throttle_config():
+    """CONFIG with the v1g.2 (γ) sell throttle forced ON.
+
+    The shipped CONFIG has `dynamic_sell_floor: False` — the hypothesis was measured and
+    falsified (see the comment on that key). The mechanism still has to be *correct* while it
+    sits there disabled, so the tests below exercise it explicitly rather than inheriting the
+    shipped flag: a disabled feature that has quietly rotted is worse than no feature. The
+    evidence gate is opened to 0 for the same reason — these tests are about the demand model
+    and the floor arithmetic, not about when the layer chooses to engage.
+    """
+    config = copy.deepcopy(CONFIG)
+    config["executor"]["dynamic_sell_floor"] = True
+    config["executor"]["shop_evidence_min_unlocks"] = 0
+    return config
+
+
+def _plan_with_shops(shops, *, day=5, shed=None, config=None):
+    """A DayPlan built the way policy.agent builds it, for a town holding exactly `shops`."""
+    observation = _minimal_observation(step=day * 24, shops=shops)
+    observation["private"]["shed"] = dict(shed or {})
+    return make_day_plan(parse(observation), config or _throttle_config())
+
+
+def test_v1g2_shipped_config_keeps_the_falsified_throttle_disabled():
+    """v1g.2 (γ): the throttle is OFF in the shipped agent and the plan therefore carries the
+    static table verbatim. Pinned as a test because the measurement that disabled it is the
+    whole result of the increment: turning the key back on is a $1,103/ep regression in a full
+    town and $1,909/ep in the no-YARN_STORE town the layer was written for, with no measured
+    upside in any town (0/8 episode wins everywhere)."""
+    assert CONFIG["executor"]["dynamic_sell_floor"] is False
+
+    plan = _plan_with_shops(sorted(engine.SHOPS), shed={"WOOL": 200}, config=CONFIG)
+
+    assert plan.sell_floor_price == CONFIG["executor"]["sell_floor_price"]
+
+
+def test_v1g2_evidence_gate_ignores_a_town_that_has_barely_unlocked():
+    """v1g.2: shops appear one per townShopUnlockInterval in BOTH regimes, so an early town
+    looks shop-poor whether or not it will ever draw the missing shop — "no buyer yet" is not
+    evidence of "no buyer"."""
+    config = _throttle_config()
+    config["executor"]["shop_evidence_min_unlocks"] = 5
+
+    early = _plan_with_shops(["BAKERY", "PET_CAFE"], day=4, config=config)
+
+    assert early.sell_floor_price == CONFIG["executor"]["sell_floor_price"]
+
+
+def test_v1g2_snapshot_keeps_shop_order_and_duplicates():
+    """v1g.2 (α): after the announced balance change the engine draws shops WITH replacement,
+    so a repeated name is a second buyer that consumes its own units every tick. Collapsing the
+    list to a set would silently halve the measured demand of exactly the products a duplicated
+    shop makes safe — and would also make the reading order-dependent on set iteration (G13)."""
+    observation = _minimal_observation(shops=["YARN_STORE", "BAKERY", "YARN_STORE"])
+
+    snapshot = parse(observation)
+
+    assert snapshot.unlocked_shops == ("YARN_STORE", "BAKERY", "YARN_STORE")
+
+
+def test_v1g2_npc_daily_demand_matches_engine_town_consume():
+    """v1g.2 (β): the demand model is a reimplementation of `_town_consume`, so pin it against
+    the engine by actually running a full day of the engine's own consumption and comparing the
+    inventory it removed. Swept across shop sets (including duplicates and the empty town), days
+    that straddle both TOWN_CENTER_DEMAND_SCHEDULE steps, and the announced balance change's
+    townCenterSellInterval — the last one is the whole point of reading the intervals out of
+    `configuration` instead of hardcoding 1.32.5's defaults."""
+    import types
+
+    from agent.demand import npc_daily_demand
+
+    shop_sets = (
+        [],
+        ["YARN_STORE"],
+        ["YARN_STORE", "YARN_STORE", "BAKERY"],
+        sorted(engine.SHOPS),
+    )
+    configurations = (
+        {"townShopSellInterval": 4, "townCenterSellInterval": 12, "turnsPerDay": 24},
+        {"townShopSellInterval": 4, "townCenterSellInterval": 24, "turnsPerDay": 24},
+        {"townShopSellInterval": 5, "townCenterSellInterval": 7, "turnsPerDay": 24},
+    )
+    for configuration in configurations:
+        turns_per_day = configuration["turnsPerDay"]
+        for shops in shop_sets:
+            for day in (0, 9, 10, 19, 20, 29):
+                market = engine._new_market()
+                before = dict(market["inventory"])
+                env = types.SimpleNamespace(configuration=configuration)
+                state = [types.SimpleNamespace(
+                    observation=types.SimpleNamespace(market=market, town={"unlocked_shops": list(shops)})
+                )]
+                for step in range(day * turns_per_day, (day + 1) * turns_per_day):
+                    engine._town_consume(env, state, step)
+                consumed = {
+                    item: before[item] - market["inventory"][item]
+                    for item in before
+                    if before[item] != market["inventory"][item]
+                }
+
+                assert npc_daily_demand(shops, day, configuration) == consumed
+
+
+def test_v1g2_zero_demand_products_keep_their_static_floor():
+    """v1g.2 (γ): FERTILIZER has no buyer at all — no shop lists it and TOWN_CENTER_PRODUCTS
+    excludes it — so its price is monotonically decreasing in cumulative sales and total revenue
+    for a given number of units is path-independent. Throttling it can only strand stock at $0,
+    which is also why §v1g.2 (δ) stays frozen: this feature must not become a third attempt at
+    fertilizer timing by accident."""
+    static = CONFIG["executor"]["sell_floor_price"]["FERTILIZER"]
+
+    plan = _plan_with_shops(sorted(engine.SHOPS), shed={"FERTILIZER": 200})
+
+    assert "FERTILIZER" not in {
+        item for shop in engine.SHOPS.values() for item in shop
+    }
+    assert plan.sell_floor_price["FERTILIZER"] == static
+
+
+def test_v1g2_missing_shop_raises_the_floor_of_its_only_product():
+    """v1g.2 (γ) — the feature's whole reason to exist. WOOL is bought by exactly one shop type
+    (YARN_STORE), so a town that never draws it leaves wool with town-centre demand only. Its
+    glut curve is the steepest in the game (`sq`, above_target 3.20, cliff at 59 net units), so
+    that is precisely where dumping is most expensive."""
+    with_store = _plan_with_shops(sorted(engine.SHOPS))
+    without_store = _plan_with_shops([s for s in sorted(engine.SHOPS) if s != "YARN_STORE"])
+
+    assert without_store.sell_floor_price["WOOL"] > with_store.sell_floor_price["WOOL"]
+    assert with_store.sell_floor_price["WOOL"] >= CONFIG["executor"]["sell_floor_price"]["WOOL"]
+
+
+def test_v1g2_dynamic_floor_only_ever_raises_the_static_floor():
+    """v1g.2: the static table stays the hard lower bound in every town, on every day. This is
+    what makes `dynamic_sell_floor: False` an exact restore of pre-v1g.2 behaviour — i.e. what
+    makes the $-gate a clean A/B rather than two unrelated sell policies."""
+    static = CONFIG["executor"]["sell_floor_price"]
+    towns = ([], ["YARN_STORE"], ["PET_CAFE", "PET_CAFE"], sorted(engine.SHOPS))
+
+    for shops in towns:
+        for day in (0, 12, 25):
+            plan = _plan_with_shops(shops, day=day)
+            for product, floor in static.items():
+                assert plan.sell_floor_price[product] >= floor
+
+
+def test_v1g2_liquidation_pressure_relaxes_the_throttle():
+    """v1g.2: a floor that never lets go turns into a single endgame dump straight through the
+    cliff it exists to avoid. Once the shed holds more than the days before liquidation_day can
+    move at the throttled rate, the tolerated glut widens to at least the rate that clears it."""
+    shops = [s for s in sorted(engine.SHOPS) if s != "YARN_STORE"]
+    day = CONFIG["endgame"]["liquidation_day"] - 4
+
+    light = _plan_with_shops(shops, day=day, shed={"WOOL": 4})
+    heavy = _plan_with_shops(shops, day=day, shed={"WOOL": 400})
+
+    assert heavy.sell_floor_price["WOOL"] < light.sell_floor_price["WOOL"]
+
+
+def test_v1g2_throttle_cannot_add_a_market_order():
+    """v1g.2: both frozen fertilizer attempts (§v1g.2 δ) lost money by pushing SELL WOOL past
+    the engine's positional `q[:10]` cut. A floor can only shrink `sell_units` inside orders the
+    executor was already emitting (and drop the ones it shrinks to zero), so this increment is
+    structurally incapable of repeating that failure — pinned here so a later refactor into a
+    real per-day rate budget can't quietly reintroduce the risk."""
+    from agent.executor import market_orders
+    from agent.scheduler import make_ledger
+
+    shops = [s for s in sorted(engine.SHOPS) if s != "YARN_STORE"]
+    observation = _minimal_observation(step=12 * 24, shops=shops)
+    observation["farms"][0]["money"] = 50_000
+    observation["private"]["shed"] = {
+        "WOOL": 40, "MILK": 40, "CARROT": 40, "STRAWBERRY": 40, "FERTILIZER": 40,
+    }
+    observation["market"]["inventory"] = {
+        item: params["I0"] for item, params in engine.MARKET_PARAMS.items()
+    }
+    snapshot = parse(observation)
+
+    off_config = copy.deepcopy(CONFIG)
+    off_config["executor"]["dynamic_sell_floor"] = False
+    on_config = _throttle_config()
+    baseline = market_orders(
+        snapshot, make_day_plan(snapshot, off_config), make_ledger(snapshot), [], off_config
+    )
+    throttled = market_orders(
+        snapshot, make_day_plan(snapshot, on_config), make_ledger(snapshot), [], on_config
+    )
+
+    assert len(throttled) <= len(baseline)
+    baseline_sells = {order[1]: order[2] for order in baseline if order[0] == "SELL"}
+    throttled_sells = {order[1]: order[2] for order in throttled if order[0] == "SELL"}
+    assert set(throttled_sells) <= set(baseline_sells)
+    for product, units in throttled_sells.items():
+        assert units <= baseline_sells[product]
+    # ...and the throttle is actually doing something in this town, so the assertions above are
+    # not vacuously true.
+    assert throttled_sells["WOOL"] < baseline_sells["WOOL"]
+
+
+# --------------------------------------------------------------------------- v1h' (SW quadrant)
+
+
+def _quadrant_of(x, y):
+    return ("N" if y < 5 else "S") + ("W" if x < 5 else "E")
+
+
+def test_v1h_wheat_tiles_are_all_sw_and_avoid_the_shed_doorway():
+    """The SW target list is the whole of v1h's land use, so its structural properties are
+    asserted rather than eyeballed: every tile is genuinely in SW (a stray NW/NE entry would be
+    planted before the quadrant is even bought, stealing a tile from CARROT/STRAWBERRY), and
+    none of them is one of the four shed-access tiles the 10-animal feed pipeline stands on."""
+    wheat_tiles = CONFIG["scheduler"]["target_tiles"]["WHEAT"]
+    assert wheat_tiles
+    assert all(_quadrant_of(x, y) == "SW" for x, y in wheat_tiles)
+    assert not set(wheat_tiles) & {tuple(t) for t in engine._shed_access_tiles(10)}
+    assert len(set(wheat_tiles)) == len(wheat_tiles)
+    # Nearest-shed-first: the commute is paid ~6 times per 5-day cycle, so this ordering is what
+    # makes the capacity gate trim the *expensive* tiles first.
+    distances = [abs(x - 4) + abs(y - 4) for x, y in wheat_tiles]
+    assert distances == sorted(distances)
+
+
+def test_v1h_no_animal_structure_sits_on_bought_land():
+    """The BUY_LAND deadlock trap (current_phase.md §v1h): the purchase gate requires every
+    planned animal to already be placed, so a PASTURE/COOP on a not-yet-bought quadrant can
+    never be built, its animal can never be placed, and the land can never be bought. Already
+    avoided twice by hand (COOP in v1e, PASTURE in v1g); this makes it a test."""
+    for tiles in CONFIG["scheduler"]["animal_structure_tiles"].values():
+        assert all(_quadrant_of(x, y) == "NW" for x, y in tiles)
+
+
+def test_v1h_land_targets_follow_the_engines_own_order_and_stop_before_se():
+    """BUY_LAND takes no argument — the engine picks LAND_ORDER[len(unlocked)-1] itself — so a
+    config list that disagreed with LAND_ORDER would buy something other than what it names."""
+    wanted = tuple(CONFIG["land"]["quadrants"])
+    assert wanted == tuple(engine.LAND_ORDER[:len(wanted)])
+    assert "SE" not in wanted
+
+
+def test_v1h_buy_land_walks_from_ne_to_sw_at_the_right_price_then_stops():
+    """One quadrant per purchase, priced by how many are already owned, and nothing once the
+    configured list is exhausted — the engine would silently no-op an extra BUY_LAND, but the
+    reserve check would already have committed the cash to it."""
+    from agent.executor import market_orders
+    from agent.planner import DayPlan
+
+    def orders_for(quadrants, money):
+        observation = _minimal_observation(step=1, hands=tuple((4, 3) for _ in range(6)))
+        observation["farms"][0]["unlocked_quadrants"] = list(quadrants)
+        observation["farms"][0]["money"] = money
+        snapshot = parse(observation)
+        plan = DayPlan(hands_target=6)  # no animal_purchases -> the animal gate is vacuous here
+        return market_orders(snapshot, plan, make_ledger(snapshot), [], CONFIG)
+
+    reserve = CONFIG["land"]["min_reserve"]
+    assert ["BUY_LAND"] in orders_for(["NW"], 1000 + reserve)
+    assert ["BUY_LAND"] not in orders_for(["NW"], 1000 + reserve - 1)
+    # SW: $2000 + reserve — the price moved with the quadrant, it is not NE's $1000 again.
+    assert ["BUY_LAND"] in orders_for(["NW", "NE"], 2000 + reserve)
+    assert ["BUY_LAND"] not in orders_for(["NW", "NE"], 2000 + reserve - 1)
+    # SE is not on the list at any price.
+    assert ["BUY_LAND"] not in orders_for(["NW", "NE", "SW"], 100000)
+
+
+def _plan_with_quadrants(quadrants, *, day, hands=8):
+    observation = _minimal_observation(step=day * 24, hands=tuple((4, 3) for _ in range(hands)))
+    observation["farms"][0]["unlocked_quadrants"] = list(quadrants)
+    return make_day_plan(parse(observation), CONFIG)
+
+
+def test_v1h_wheat_waits_for_sw_and_for_strawberrys_planting_window_to_close():
+    """Two gates, both load-bearing. Without SW the tiles are LOCKED. And while STRAWBERRY is
+    still being planted, _capacity_limited_targets trims whichever crop has the *largest*
+    target — which would be STRAWBERRY (24) — so an early WHEAT target would be paid for out
+    of STRAWBERRY's budget rather than its own."""
+    last_strawberry_day = CONFIG["planner"]["strawberry_last_plant_day"]
+
+    no_sw = _plan_with_quadrants(["NW", "NE"], day=last_strawberry_day + 3)
+    assert no_sw.plant_targets.get("WHEAT", 0) == 0
+
+    too_early = _plan_with_quadrants(["NW", "NE", "SW"], day=last_strawberry_day)
+    assert too_early.plant_targets.get("WHEAT", 0) == 0
+
+    ready = _plan_with_quadrants(["NW", "NE", "SW"], day=last_strawberry_day + 1)
+    assert ready.plant_targets.get("WHEAT", 0) > 0
+
+
+def test_v1h_wheat_planting_stops_in_time_to_still_mature():
+    """WHEAT is one-shot: HARVEST empties the tile, and yield only peaks at max_yield_day. A
+    seed planted past wheat_last_plant_day is a tile watered for the rest of the season and
+    harvested by nobody."""
+    last_day = CONFIG["planner"]["wheat_last_plant_day"]
+    assert _plan_with_quadrants(["NW", "NE", "SW"], day=last_day).plant_targets.get("WHEAT", 0) > 0
+    assert _plan_with_quadrants(["NW", "NE", "SW"], day=last_day + 1).plant_targets.get("WHEAT", 0) == 0
+    assert last_day + engine.CROPS["WHEAT"]["max_yield_day"] <= CONFIG["endgame"]["liquidation_day"]
+
+
+def test_v1h_crew_grows_only_once_sw_is_actually_owned():
+    """v1f measured hands_target=6 as the optimum *for the workload it had*. The crew rises with
+    the third quadrant, not with the intention to buy it — hands are re-hired (and re-paid)
+    every single morning, so an early bump is a recurring cost against tiles that don't exist."""
+    assert _plan_with_quadrants(["NW", "NE"], day=10).hands_target == CONFIG["planner"]["hands_target"]
+    assert (
+        _plan_with_quadrants(["NW", "NE", "SW"], day=10).hands_target
+        == CONFIG["planner"]["sw_hands_target"]
+    )
+    # ...and it drops back for the endgame, once SW's last crop is harvestable. Carrying the
+    # bigger crew into liquidation cost exactly 2 far SHEEP per episode in all four smoke seeds
+    # (see planner.make_day_plan) — the endgame runs at the crew v1g's feed logistics were
+    # tuned for.
+    last_work_day = (
+        CONFIG["planner"]["wheat_last_plant_day"] + engine.CROPS["WHEAT"]["max_yield_day"]
+    )
+    assert (
+        _plan_with_quadrants(["NW", "NE", "SW"], day=last_work_day).hands_target
+        == CONFIG["planner"]["sw_hands_target"]
+    )
+    assert (
+        _plan_with_quadrants(["NW", "NE", "SW"], day=last_work_day + 1).hands_target
+        == CONFIG["planner"]["hands_target"]
+    )
+    assert last_work_day < CONFIG["endgame"]["liquidation_day"]
+
+
+def test_v1h_wheat_seeds_are_only_bought_once_wheat_is_actually_targeted():
+    """BUY_SEED WHEAT must be inert before SW: plant_targets has no WHEAT key at all until then,
+    so _remaining_unplanted_targets sees a limit of 0 and buys nothing."""
+    from agent.executor import market_orders
+    from agent.planner import DayPlan
+
+    observation = _minimal_observation(step=24 * 10, hands=tuple((4, 3) for _ in range(6)))
+    observation["farms"][0]["money"] = 50000
+    snapshot = parse(observation)
+
+    without = market_orders(snapshot, DayPlan(plant_targets={"CARROT": 3}),
+                             make_ledger(snapshot), [], CONFIG)
+    assert not [order for order in without if order[:2] == ["BUY_SEED", "WHEAT"]]
+
+    with_wheat = market_orders(snapshot, DayPlan(plant_targets={"WHEAT": 8}),
+                                make_ledger(snapshot), [], CONFIG)
+    assert [order for order in with_wheat if order[:2] == ["BUY_SEED", "WHEAT"]]
+
+
+def test_v1h_wheat_is_watered_inside_its_yield_window_not_only_every_other_day():
+    """The engine grows a non-ongoing crop's yield_units only on a WATER inside
+    [(max_yield_day+1)//2, max_yield_day]. Watering WHEAT purely on the survival rule
+    (consecutive_unwatered >= 1) alternates days and would land inside that window at most
+    once, turning a 3-unit tile into a 1-unit tile."""
+    x, y = CONFIG["scheduler"]["target_tiles"]["WHEAT"][0]
+    crop_data = engine.CROPS["WHEAT"]
+    window = ((crop_data["max_yield_day"] + 1) // 2, crop_data["max_yield_day"])
+
+    def water_tasks_at(age):
+        day = 10
+        observation = _minimal_observation(step=day * 24, hands=tuple((4, 4) for _ in range(8)))
+        observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE", "SW"]
+        observation["farms"][0]["tiles"][y][x] = {
+            "kind": "PLANT", "crop": "WHEAT", "planted_day": day - age,
+            "watered_today": False, "consecutive_unwatered": 0, "yield_units": 0,
+            "fertilized_until_day": -1,
+        }
+        snapshot = parse(observation)
+        plan = make_day_plan(snapshot, CONFIG)
+        return [
+            task for task in build_tasks(snapshot, plan, CONFIG)
+            if task.kind == "WATER" and task.pos == (x, y)
+        ]
+
+    # consecutive_unwatered is 0 in every case below, so the survival rule alone produces
+    # nothing — any WATER task here comes from the yield window.
+    for age in range(window[0], window[1] + 1):
+        assert water_tasks_at(age), f"no WATER task for WHEAT at age {age}"
+    assert not water_tasks_at(0)
 
 

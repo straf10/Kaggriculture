@@ -20,6 +20,7 @@ from harness.play import play
 from harness.profile import report
 from harness.report import load_receipts, load_replay, write_report
 from harness.seeds import DEV_SEEDS, NAMED_SEED_SETS
+from harness.town_pin import PIN_MODES
 
 _SEED_SETS = dict(NAMED_SEED_SETS)
 
@@ -84,6 +85,8 @@ def _results_json_dict(result) -> dict:
         "verdict": result.verdict,
         "code_fingerprints": result.code_fingerprints,
         "stage": result.stage,
+        "town_pin": result.town_pin,
+        "town_schedules": result.town_schedules,
         "metrics_checked": result.metrics_checked,
         "water_weeds_lost_a": result.water_weeds_lost_a,
         "plant_decay_units_lost_a": result.plant_decay_units_lost_a,
@@ -111,14 +114,14 @@ def _cmd_compare(args):
     result = compare(args.agent_a, args.agent_b, seeds, both_seats=not args.single_seat,
                       steps=args.steps, run_dir=out_dir, record=args.record,
                       strict=not args.no_strict, resume=args.resume, workers=args.workers,
-                      metrics=args.metrics, stage=stage,
+                      metrics=args.metrics, stage=stage, town_pin=args.town_pin,
                       accept_within_margin=args.accept_within_margin,
                       allow_repeat_confirm=args.allow_repeat_confirm,
                       confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None)
     print(f"seeds={len(seeds)} ({result.seed_set_name}) both_seats={not args.single_seat} "
           f"workers={args.workers}")
     print(f"stage={result.stage} metrics_checked={result.metrics_checked} "
-          f"repeat_confirm_index={result.repeat_confirm_index}")
+          f"town_pin={result.town_pin} repeat_confirm_index={result.repeat_confirm_index}")
     print(f"wins_a={result.wins_a} wins_b={result.wins_b} ties={result.ties} "
           f"sign_test_p={result.sign_test_p} errors={len(result.errors)}")
     print(f"episode_wins_a={result.episode_wins_a} episode_wins_b={result.episode_wins_b} "
@@ -263,6 +266,14 @@ def main():
                             help="tracked directory that also receives a copy of --out's "
                                  "results.json (small, no replays) — the durable, git-tracked "
                                  "evidence a gate ran (review.md H5)")
+    p_compare.add_argument("--town-pin", choices=PIN_MODES, default=None,
+                            help="pin which shops the town unlocks so both arms play the same "
+                                 "town per seed (current_phase.md §Β.0′): schedule=permutation "
+                                 "of the 8 types (today's engine) | basket=draw with "
+                                 "replacement (announced balance change) | no_shops=town centre "
+                                 "only. Required for occupancy knobs (crew, planting, BUY_LAND, "
+                                 "animal placement); screening only — the final confirm must "
+                                 "also run unpinned")
     p_compare.add_argument("--stage", choices=VALID_STAGES, default=None,
                             help="dev-screen|holdout-confirm — defaults to the matching stage "
                                  "for --seed-set dev/holdout; smoke has no default stage and "

@@ -1,4 +1,4 @@
-kaggle-environments==1.32.4
+kaggle-environments==1.32.5
 pytest==9.1.1
 kaggle==2.2.4
 kagglehub==1.0.2

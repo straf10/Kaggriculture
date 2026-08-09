@@ -39,25 +39,6 @@ CONFIG = {
         # HOLDOUT_SEEDS: +$2241.72/ep (se=48.97) vs h8's +$1107.15/ep (se=48.45), non-overlapping
         # 95% CIs, both 96/96 episode wins vs v1e, 0 errors.
         "hands_target": 6,
-        # v1h': the crew size once SW is actually owned. v1f's h6-beats-h8 result is not
-        # contradicted, it is *conditioned*: it measured 6/8/10/12 hands against a fixed 41-tile
-        # crop ceiling and 3 animals, and its own conclusion was "no further crew scaling
-        # without first growing the real workload" (current_phase.md §0 ⚠️β). SW is that
-        # workload. The capacity gate below is already binding at 6 hands with NE unlocked —
-        # _capacity_limited_targets trims STRAWBERRY from 24 to 21 — so buying a third quadrant
-        # without also raising the crew buys tiles nobody can water, which is the same dead
-        # -capital mistake MASTERPLAN §3.2#7 warns about for land bought before hands exist.
-        # Hands are re-hired every morning (the engine wipes farm["hands"] at end of day), so
-        # this is a recurring fib(n) cost, not a one-off: 6 hands cost 1+1+2+3+5+8 = $20/day,
-        # 10 cost $143/day. That ~$123/day is what the extra ~77 unit-turns/day has to pay for.
-        #
-        # Screened on DEV_SEEDS against checkpoints/v1g_1 with pinned towns. 8 hands is not
-        # enough at any tile count that pays: at 12 WHEAT tiles it still lost 1 animal per
-        # episode to feed contention. 10 is the first size where the herd stays whole while SW
-        # is being worked, and 12 measured identical to 10 (the 11th and 12th hire cost fib(10)
-        # =89 / fib(11)=144 at an hour when the bank rarely has it, so they are mostly never
-        # actually hired). See memory.md 2026-08-08 for the full sweep.
-        "sw_hands_target": 10,
         "capacity_safety_factor": 0.8,
         # plan.md §5 v1c: added to carrot_tiles/strawberry_tiles once "NE" is in
         # snapshot.my_quadrants (the NE-mirrored tiles appended to target_tiles below). NOT a
@@ -79,44 +60,6 @@ CONFIG = {
         # pre-v1c). Doubling the daily budget alongside the tile counts keeps both crops
         # actually plantable.
         "ne_max_new_plants_per_day": 5,
-        # v1h' (current_phase.md §v1h'): SW is planted with WHEAT and nothing else.
-        #
-        # Why WHEAT and not a mirror of NW/NE: (a) it is the only product we cannot saturate —
-        # 5 of the 8 shops buy it (P(no buyer) = 0.04%) and its cliff is >2000 units against
-        # WOOL's 59 and MILK's 76; (b) we are its biggest *customer*, not its seller — 10
-        # animals eat 1 WHEAT/day each, ~280 units/season, and buying that many pushes the
-        # market price from $25 to ~$42 (below-I0 scarcity side), so a home-grown unit is worth
-        # its avoided purchase, not its sale price; (c) STRAWBERRY cannot go here at all —
-        # strawberry_last_plant_day is 5 and SW is not affordable until well after that; (d) no
-        # PASTURE/COOP goes here, deliberately: BUY_LAND's gate requires every planned animal
-        # already placed, so a structure on not-yet-bought land deadlocks it (the trap that
-        # already kept COOP in v1e and PASTURE in v1g on NW).
-        #
-        # Not fertilized, on purpose: one FERTILIZE covers day..day+2, i.e. all three of
-        # WHEAT's yield-bearing waterings, doubling the tile's 3 units to 6. But the marginal
-        # FERTILIZER unit still sells for ~$88-100 on a curve 493 units deep, against +3 WHEAT
-        # worth ~$75-125. That is a coin-flip, not a win, and it would need its own gate.
-        #
-        # 12, screened on DEV_SEEDS against checkpoints/v1g_1 under pinned towns: 8 tiles is
-        # too little to pay for the land and the crew (+$796/ep on a 4-seed smoke), 16 earns
-        # slightly more per episode (+$3,190 vs +$2,942) but pushes the 100-slot shed into
-        # overflow — 3,100 units burnt across 96 episodes against 12's 40 — and still lost an
-        # animal. 12 is the size that clears every hard metric with 48/48 seed wins.
-        "sw_wheat_tiles": 12,
-        "sw_max_new_plants_per_day": 3,
-        # WHEAT is one-shot (HARVEST empties the tile), so a tile is a repeating ~5-day cycle
-        # and a seed planted too late never matures (yield peaks at max_yield_day = age 4).
-        #
-        # 20, not 22, and the reason is measured rather than arithmetic. At 22 a tile is still
-        # alive and still generating priority-0 WATER tasks *during liquidation* (day >= 26),
-        # where they compete directly with FEED for the same units — a seed-0 smoke run lost
-        # both far SHEEP ((0,2) and (0,3), distance 5-6) to consecutive_unfed on day 27 with
-        # $35k in the bank, i.e. purely to unit contention, not to money. Cutting off at 20
-        # means the last tile is harvest-ready on day 24 and the whole quadrant is empty before
-        # liquidation starts, so the endgame keeps the undivided crew v1g's feed logistics
-        # were sized around. The cost is the tail of one cycle; the alternative was an
-        # animals_escaped gate failure.
-        "wheat_last_plant_day": 20,
     },
     "scheduler": {
         "enabled": True,
@@ -169,23 +112,6 @@ CONFIG = {
                 (9, 2), (9, 1), (9, 0),
                 (8, 0), (7, 0), (6, 0),
             ),
-            # v1h': the SW quadrant (x < 5, y >= 5), ordered nearest-shed-spawn-first — WHEAT
-            # is watered on 4 of every 5 days (ages 1-4: age 1 to survive consecutive_unwatered
-            # >= 2, ages 2-4 inside the engine's yield window) plus a PLANT and a HARVEST visit
-            # per cycle, so the commute is paid ~6 times per 5 days per tile and tile distance
-            # dominates the cost. Same unlock-gated growth story as the NE mirrors above: SW
-            # tiles read "LOCKED" (a string, not None) until BUY_LAND lands, so build_tasks'
-            # `tile is None` check makes every entry past the unlock a harmless no-op.
-            # (4, 5) is deliberately absent even though it is the nearest SW tile of all: it is
-            # one of the four shed-access tiles every PICKUP/DROP in the feed pipeline stands
-            # on, and the 10-animal feed loop is not worth risking for one tile.
-            "WHEAT": (
-                (3, 5), (4, 6),
-                (2, 5), (3, 6), (4, 7),
-                (1, 5), (2, 6), (3, 7), (4, 8),
-                (0, 5), (1, 6), (2, 7), (3, 8), (4, 9),
-                (0, 6), (1, 7), (2, 8), (3, 9),
-            ),
         },
         # plan.md §5.1 v1d / v1g: reserved structure tiles for animal placement, carved up
         # per-name by agent.animal_slots.animal_slot_ranges in config["animals"]["targets"]
@@ -215,10 +141,6 @@ CONFIG = {
         "enabled": True,
         "max_market_orders": 10,
         "seed_buffer": 6,
-        # v1g.2: these stay the hard lower bound. planner._dynamic_sell_floors may only RAISE a
-        # product's floor above the value here (and only for products with non-zero NPC demand),
-        # never lower it — so turning dynamic_sell_floor off restores the pre-v1g.2 behaviour
-        # exactly, which is what makes the two sides of the $-gate a clean A/B.
         "sell_floor_price": {
             "CARROT": 5,
             "STRAWBERRY": 8,
@@ -227,56 +149,14 @@ CONFIG = {
             "WOOL": 20,
             "FERTILIZER": 10,
         },
-        # v1g.2 (γ): size each floor against the glut the town can actually work off, read from
-        # the shops that actually unlocked this episode. See planner._dynamic_sell_floors for
-        # why a floor and a rate cap are the same object here.
-        #
-        # ⚠️ OFF — MEASURED NEGATIVE, HYPOTHESIS FALSIFIED (2026-08-07, DEV_SEEDS 0-7 vs
-        # checkpoints/v1g_1). The premise of current_phase.md §v1g.2 (γ) — "near-zero NPC demand
-        # makes aggressive selling self-destructive" — does not hold in this engine, because the
-        # agent is production-constrained, never glut-constrained: our ~2 wool/day sell rate is
-        # below NPC absorption even with town-centre demand alone, so market inventory stays
-        # BELOW I0 and every sale realizes the scarcity side of the price curve. The glut side
-        # the floor protects against is never reached. Measured consequence: throttling bought
-        # no price at all (WOOL $241.46/u -> $241.37/u) and only removed volume (348u -> 328u),
-        # for -$1,103/ep in a full town, -$1,909/ep with no YARN_STORE — i.e. it lost hardest in
-        # the exact town it was designed for — and -$24,762/ep with no shops at all. Gating it on
-        # shop_evidence_min_unlocks removes the loss but yields exactly $0 upside, because once
-        # the early season is left alone the floor never binds: with min_unlocks=5 the delta is
-        # -$16 in a full town and +$0 in a no-YARN_STORE town, 0/8 wins everywhere.
-        #
-        # Left in place, disabled, as the artifact those numbers refer to. Turning it on is a
-        # measured regression, not a tuning opportunity — the missing-shop risk is production-
-        # side (a wool-less town costs $12,077/ep by itself) and sell-side adaptation cannot
-        # reach it. See memory.md 2026-08-07 and current_phase.md §v1g.2.
-        "dynamic_sell_floor": False,
-        # How many days' worth of NPC demand of glut to tolerate before refusing to sell. Higher
-        # = weaker throttle (3.0 already leaves STRAWBERRY's floor below its static 8 with a full
-        # town, i.e. inactive, while binding on CARROT/MILK/WOOL). A BBO sweep knob
-        # (current_phase.md §BBO); 3.0 is the value the v1g.2 gate was run at.
-        "sell_headroom_days": 3.0,
-        # How many shops must have unlocked before "no shop buys this" is evidence about the
-        # town rather than about the calendar. Shops appear one per townShopUnlockInterval (3)
-        # days in both the current and the announced regime, so day 4 always looks shop-poor;
-        # throttling on that taxes the early season, where revenue still compounds into
-        # hands/animals/land. Measured: without this gate the layer cost $1,103/ep on
-        # DEV_SEEDS 0-7 against checkpoints/v1g_1 at every headroom that bound at all.
-        "shop_evidence_min_unlocks": 5,
         "opponent_price_safety_units": 4,
     },
     "land": {
         # plan.md §5 v1c / MASTERPLAN §3.2#7: buy NE as soon as money allows AND a workforce
         # actually exists to work it (buying land before hands_target hands are hired would
-        # be dead capital).
+        # be dead capital). Scoped to NE only for v1c; SW/SE are a later-phase roadmap item
+        # (MASTERPLAN §3.2#7), not needed to clear Phase 1's acceptance criteria.
         "enabled": True,
-        # v1h': how many quadrants past NW to buy, in the engine's own fixed LAND_ORDER
-        # (NE $1000 -> SW $2000 -> SE $4000 — BUY_LAND takes no argument, the engine picks the
-        # next one). SE is deliberately excluded, not merely unreached: nobody in the elite
-        # buys it (topfarms-19, which has the #3 quadrant landing around day 11 and the #4
-        # never), and at $4000 it would be a fourth quadrant we already cannot staff.
-        # Listing the names rather than a count keeps this checkable against LAND_ORDER
-        # instead of being a bare "2" that silently means something else after an engine bump.
-        "quadrants": ("NE", "SW"),
         # A dev-screen run (main.py vs checkpoints/v1d, a REAL competing seller — unlike the
         # earlier "pass"-opponent smoke tests, which gave main.py the entire market to itself
         # and hid this) showed land's $1000 landing on day 0 (as soon as hands_target + both

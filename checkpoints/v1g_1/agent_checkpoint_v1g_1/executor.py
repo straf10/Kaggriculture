@@ -157,11 +157,7 @@ def market_orders(
 
     if not plan.force_liquidation:
         seed_buffer = int(executor_config["seed_buffer"])
-        # v1h': WHEAT joins as SW's crop. It costs $10/seed (the cheapest in CROPS) and its
-        # target is 0 until SW is unlocked and STRAWBERRY's planting window has closed, so this
-        # buys nothing at all before then — _remaining_unplanted_targets reads plan.plant_targets,
-        # which the planner leaves out entirely until both conditions hold.
-        for crop in ("CARROT", "STRAWBERRY", "WHEAT"):
+        for crop in ("CARROT", "STRAWBERRY"):
             if plan.plant_targets.get(crop, 0) <= 0:
                 continue
             seed_count = int(ledger.seeds.get(crop, 0))
@@ -218,19 +214,10 @@ def market_orders(
             available_money -= buy_n * cost
             total_placed += buy_n
 
-    # v1h': owned_extra counts quadrants past NW, which is exactly the index the engine itself
-    # uses to price and pick the next one (_do_buy_land: LAND_ORDER[len(unlocked)-1]). Buying
-    # is therefore a walk down land["quadrants"] in LAND_ORDER order, not an NE special case —
-    # and the assert-by-config below keeps the two lists from silently drifting apart.
-    land_config = config.get("land", {})
-    wanted_quadrants = tuple(land_config.get("quadrants", ()))
-    owned_extra = sum(1 for quadrant in snapshot.my_quadrants if quadrant != "NW")
     if (
         not plan.force_liquidation
-        and land_config.get("enabled", False)
-        and owned_extra < len(wanted_quadrants)
-        and owned_extra < len(LAND_ORDER)
-        and LAND_ORDER[owned_extra] == wanted_quadrants[owned_extra]
+        and config.get("land", {}).get("enabled", False)
+        and "NE" not in snapshot.my_quadrants
         and len(snapshot.hand_positions) >= plan.hands_target
         and all(animal_placed(snapshot, name) for name in plan.animal_purchases)
     ):
@@ -242,13 +229,10 @@ def market_orders(
         # cash first left too little for the very next day's wheat purchase, starving both
         # animals to death by day 2. Requiring animals already placed defers land until after
         # that (much cheaper, ~$900 total) obligation is already paid for.
-        # BUY_LAND is atomic (like HIRE), so the engine no-ops it once every quadrant is owned.
-        # v1h': the same reserve applies to each purchase. SW costs twice NE ($2000 vs $1000)
-        # and therefore lands later on its own, without a second, separately-tuned threshold —
-        # the trigger stays "the shed has genuine surplus beyond survival needs", which is what
-        # made it self-regulating in v1c.
-        cost = int(LAND_PRICES[owned_extra])
-        reserve = int(land_config.get("min_reserve", 0))
+        # BUY_LAND is atomic (like HIRE), so the engine no-ops it for a seed >= LAND_ORDER's
+        # length; scoped to NE only here (see config.py's "land" comment).
+        cost = int(LAND_PRICES[LAND_ORDER.index("NE")])
+        reserve = int(config["land"].get("min_reserve", 0))
         if available_money >= cost + reserve:
             orders.append(["BUY_LAND"])
             available_money -= cost
