@@ -51,6 +51,74 @@ VALID_STAGES = ("dev-screen", "holdout-confirm")
 GATES_DIR = Path("gates")
 DEFAULT_CONFIRM_LEDGER = GATES_DIR / "confirm_log.jsonl"
 
+# current_phase.md §1 Απόφαση Α (2026-08-10): the hard-zero gate is split in two.
+#
+# Counters that indicate a *logic fault* stay hard zero — there is no price at which a clipped
+# production tick or an unexplained no-op is acceptable, because it means the agent did
+# something it did not intend. Counters that are *losses* get priced, because a loss is a
+# number of dollars and has to be compared against the dollars the change earns. The old
+# all-hard-zero gate rejected +$3,019.3/ep for 84 burnt units and 34 lost tiles across 96
+# episodes (memory.md 2026-08-09 (ε)) — that is a $237/ep objection to a $3,019/ep gain, and
+# three sessions were spent on it while the ladder rating stood still (current_phase.md §0).
+#
+# Prices are deliberately conservative (they over-state the loss, so the gate errs towards
+# rejecting):
+#   escape           $1,000  — $400-500 purchase price plus the rest of the season's output
+#   burnt shed unit    $150  — under the measured premium average ($200-270), over wheat ($25-54)
+#   lost crop tile     $300  — the tile's remaining yield plus the DIG needed to reclaim it
+METRIC_UNIT_PRICES = {
+    "animals_escaped": 1000.0,
+    "shed_overflow_burnt": 150.0,
+    "lost_crop_tiles": 300.0,
+}
+# The raw counters a run may have to explain. `lost_crop_tiles` above is derived from the last
+# two of these rather than being a counter of its own — see priced_metric_counts().
+PRICED_SOURCE_METRICS = (
+    "animals_escaped", "shed_overflow_burnt", "unexpected_weeds_lost", "water_weeds_lost",
+)
+# Both bounds bind. The fraction keeps a loss proportionate to what the change actually earns;
+# the absolute cap stops a large mean_diff from buying an unlimited amount of breakage.
+PRICED_LOSS_GAIN_FRACTION = 0.10
+PRICED_LOSS_ABSOLUTE_CAP = 500.0
+
+
+def priced_metric_counts(counts) -> dict:
+    """Collapse the raw counters into the quantities that actually get priced."""
+    return {
+        "animals_escaped": counts.get("animals_escaped") or 0,
+        "shed_overflow_burnt": counts.get("shed_overflow_burnt") or 0,
+        # unexpected_weeds_lost and water_weeds_lost fire on the *same* PLANT->WEED transition
+        # (harness/metrics.py:315-341): a tile that died of thirst is also an unexpected weed,
+        # so the two overlap almost completely (34/34 in gate_v1h2d_feed_slack). Summing them
+        # would charge the same lost tile twice; the priced quantity is their union, which is
+        # bounded below by each of them and never under-prices either one.
+        "lost_crop_tiles": max(
+            counts.get("unexpected_weeds_lost") or 0, counts.get("water_weeds_lost") or 0
+        ),
+    }
+
+
+def priced_metric_loss(counts, episodes: int) -> tuple:
+    """Return (loss_per_episode, {priced quantity: $/episode}) for raw counters `counts`.
+
+    `counts` maps the bare metric name (no `_a` suffix) to its summed count over `episodes`
+    episodes. Counters outside PRICED_SOURCE_METRICS are ignored — they are either hard-zero
+    structural checks or diagnostics (raw `weeds_lost`).
+    """
+    if not episodes:
+        return 0.0, {}
+    priced = priced_metric_counts(counts)
+    breakdown = {
+        metric: priced[metric] * price / episodes
+        for metric, price in METRIC_UNIT_PRICES.items()
+    }
+    return sum(breakdown.values()), breakdown
+
+
+def priced_loss_budget(mean_diff: float) -> float:
+    """The most $/episode of priced loss a change earning `mean_diff` is allowed to cause."""
+    return min(PRICED_LOSS_ABSOLUTE_CAP, PRICED_LOSS_GAIN_FRACTION * max(mean_diff, 0.0))
+
 _T_TABLE = {
     1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
     6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
@@ -256,6 +324,13 @@ class CompareResult:
     sales_count_a: Optional[int] = None  # denominator for the units_sold_at_or_below_5_a budget
     unexplained_noops_a: Optional[int] = None  # None unless diagnostics were collected (KAGGRI_DEBUG)
     market_sim_aborted_a: Optional[bool] = None  # review.md M11: True fails the gate
+    # current_phase.md §1 Απόφαση Α: what the surviving losses cost per episode, what they were
+    # allowed to cost, and the written mechanism for each one that is non-zero.
+    priced_loss_per_episode: Optional[float] = None
+    priced_loss_budget_used: Optional[float] = None
+    priced_loss_breakdown: dict = field(default_factory=dict)
+    metric_mechanisms: dict = field(default_factory=dict)
+    unexplained_metrics: tuple = ()  # non-zero priced counters with no declared mechanism
     metric_gate_passed: Optional[bool] = None  # None unless metrics_checked
     prior_dev_screen_found: bool = False
     min_effect_used: float = 0.0  # review.md H1: the actual $ floor this verdict was judged against
@@ -289,6 +364,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             accept_within_margin: bool = False,
             allow_repeat_confirm: bool = False,
             confirm_ledger_path: Optional[Path] = None,
+            metric_mechanisms: Optional[dict] = None,
             screen_evidence_dir: Optional[Path] = None) -> CompareResult:
     """Paired-seed protocol: A and B play the same seeds. With both_seats=True (default),
     each seed is played twice — A@seat0/B@seat1 and B@seat0/A@seat1 — since the weed-RNG
@@ -324,11 +400,20 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
 
     metrics=True additionally extracts every hard-loss counter, the semantic unexpected-weed
     counter, low-price-sale budget, diagnostics no-ops, and market-simulation health for
-    agent_a's seat in every orientation. Hard losses must be zero, sales at <=$5 must stay
-    within 2%, and the market simulation must complete. Raw `weeds_lost` remains diagnostic
-    because successful ongoing-crop retirement also produces a PLANT->WEED transition. Off by
+    agent_a's seat in every orientation. Raw `weeds_lost` remains diagnostic because
+    successful ongoing-crop retirement also produces a PLANT->WEED transition. Off by
     default — extract_metrics() is not free. When metrics=False gate fields are None, not 0:
     absence of measurement is not proof of zero loss.
+
+    The metric gate itself is current_phase.md §1 Απόφαση Α (2026-08-10), in three parts:
+      - structural faults stay hard zero: plant_decay_units_lost, clipped_production_ticks,
+        unexplained no-ops, market-simulation abort, and the <=2% low-price sale budget;
+      - losses are priced (METRIC_UNIT_PRICES) and must fit priced_loss_budget(mean_diff),
+        i.e. both <=10% of the measured gain and <=$500/episode;
+      - every non-zero priced counter must have a declared mechanism in `metric_mechanisms`
+        ({metric name without the _a suffix: one-line explanation}). An undeclared non-zero
+        counter fails the gate: pricing buys tolerance for *understood* loss, never for
+        unexplained loss, which is exactly the bug-detector role the old hard-zero gate had.
 
     stage tags which decision this report may back: "dev-screen" (tuning/screening — never a
     GO by itself, seeds must be a subset of harness.seeds.DEV_SEEDS) or "holdout-confirm"
@@ -967,13 +1052,38 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         units_sold_budget_ok = (
             sales_count_a == 0 or (units_sold_at_or_below_5_a / sales_count_a) <= 0.02
         )
-        metric_gate_passed = (
-            water_weeds_lost_a == 0 and plant_decay_units_lost_a == 0
-            and animals_escaped_a == 0 and clipped_production_ticks_a == 0
-            and shed_overflow_burnt_a == 0 and unexpected_weeds_lost_a == 0
+        # current_phase.md §1 Απόφαση Α. Structural faults first — no price applies to these.
+        structural_ok = (
+            plant_decay_units_lost_a == 0
+            and clipped_production_ticks_a == 0
             and units_sold_budget_ok
             and (unexplained_noops_a is None or unexplained_noops_a == 0)
             and not market_sim_aborted_a
+        )
+        priced_counts = {
+            "animals_escaped": animals_escaped_a,
+            "shed_overflow_burnt": shed_overflow_burnt_a,
+            "unexpected_weeds_lost": unexpected_weeds_lost_a,
+            "water_weeds_lost": water_weeds_lost_a,
+        }
+        priced_loss_per_episode, priced_loss_breakdown = priced_metric_loss(
+            priced_counts, len(raw_orientations)
+        )
+        priced_loss_budget_used = priced_loss_budget(mean_diff)
+        declared = {
+            metric: text
+            for metric, text in (metric_mechanisms or {}).items()
+            if str(text).strip()
+        }
+        unexplained_metrics = tuple(
+            metric for metric, count in sorted(priced_counts.items())
+            if (count or 0) > 0 and metric not in declared
+        )
+        metric_gate_passed = (
+            structural_ok
+            and not unexplained_metrics
+            # 1e-9 absorbs float division only; it is far below one cent per episode.
+            and priced_loss_per_episode <= priced_loss_budget_used + 1e-9
         )
     else:
         water_weeds_lost_a = plant_decay_units_lost_a = None
@@ -982,6 +1092,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         units_sold_at_or_below_5_a = None
         sales_count_a = unexplained_noops_a = None
         market_sim_aborted_a = None
+        priced_loss_per_episode = priced_loss_budget_used = None
+        priced_loss_breakdown = {}
+        declared = {}
+        unexplained_metrics = ()
         metric_gate_passed = None
 
     # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
@@ -1058,6 +1172,11 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         sales_count_a=sales_count_a,
         unexplained_noops_a=unexplained_noops_a,
         market_sim_aborted_a=market_sim_aborted_a,
+        priced_loss_per_episode=priced_loss_per_episode,
+        priced_loss_budget_used=priced_loss_budget_used,
+        priced_loss_breakdown=priced_loss_breakdown,
+        metric_mechanisms=dict(declared),
+        unexplained_metrics=unexplained_metrics,
         metric_gate_passed=metric_gate_passed,
         prior_dev_screen_found=prior_dev_screen_found,
         min_effect_used=effective_min_effect,

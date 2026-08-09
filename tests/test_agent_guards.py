@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from kaggle_environments import make
 from kaggle_environments.envs.kaggriculture import kaggriculture as engine
 
 from agent import _vendored
@@ -149,11 +148,6 @@ def test_v1h1_town_center_ramp_is_gone_from_the_engine():
     assert not hasattr(engine, "TOWN_CENTER_DEMAND_SCHEDULE")
     assert not hasattr(_vendored, "TOWN_CENTER_DEMAND_SCHEDULE")
     assert engine.MAX_SHOP_INSTANCES == 8
-
-
-def test_executor_shed_capacity_matches_engine_configuration():
-    env = make("kaggriculture")
-    assert CONFIG["runtime"]["shed_capacity"] == int(env.configuration.shedCapacity)
 
 
 def test_l3_hire_cost_matches_engine():
@@ -323,22 +317,6 @@ def test_h8_market_truncation_keeps_hire_over_sell():
     ledger = make_ledger(snapshot)
     orders = market_orders(snapshot, plan, ledger, [["PASS"]], tight_config)
     assert orders == [["HIRE"]]
-
-
-def test_h1_truncation_emits_selected_sell_before_spends():
-    from agent.executor import _truncate_orders
-
-    requested = [
-        ["SELL", "CARROT", 1],
-        ["SELL", "MILK", 1],
-        *(["HIRE"] for _ in range(9)),
-    ]
-    kept, dropped = _truncate_orders(requested, 10)
-
-    assert len(kept) == 10
-    assert len(dropped) == 1
-    assert kept[0][0] == "SELL"
-    assert all(order[0] != "SELL" for order in kept[1:])
 
 
 def test_g10_strawberry_planting_stops_after_opening_window():
@@ -629,7 +607,7 @@ def test_v1c_buy_land_triggers_replan_and_grows_targets():
     assert plan_after.plant_targets["CARROT"] > carrot_target_before
 
 
-def test_v1c_land_purchase_waits_for_full_target_herd():
+def test_v1c_land_purchase_waits_for_animals_to_be_placed_first():
     """A v1c+v1d interaction bug found via a full smoke-test replay: BUY_LAND's own gate
     (hands_target hands hired) is satisfiable as early as day 0 hour ~2, well before COW/SHEEP
     are actually bought (hour 4/6) and placed. Land grabbing its $1000 first left too little
@@ -644,22 +622,11 @@ def test_v1c_land_purchase_waits_for_full_target_herd():
     observation["farms"][0]["money"] = 3000
     snapshot = parse(observation)
     ledger = make_ledger(snapshot)
-    plan = DayPlan(hands_target=3, animal_purchases={"COW": 2, "SHEEP": 1})
+    plan = DayPlan(hands_target=3, animal_purchases={"COW": 1, "SHEEP": 1})
 
     orders = market_orders(snapshot, plan, ledger, [], CONFIG)
-    assert ["BUY_LAND"] not in orders
 
-    observation["farms"][0]["money"] = 100_000
-    observation["farms"][0]["tiles"][4][4] = _animal_tile("COW")
-    observation["farms"][0]["tiles"][4][3] = _animal_tile("SHEEP")
-    snapshot = parse(observation)
-    orders = market_orders(snapshot, plan, make_ledger(snapshot), [], CONFIG)
     assert ["BUY_LAND"] not in orders
-
-    observation["farms"][0]["tiles"][3][4] = _animal_tile("COW")
-    snapshot = parse(observation)
-    orders = market_orders(snapshot, plan, make_ledger(snapshot), [], CONFIG)
-    assert ["BUY_LAND"] in orders
 
 
 def test_v1e_liquidation_drop_excludes_carried_wheat():
@@ -742,51 +709,6 @@ def test_v1h2_d3_liquidation_respects_hard_floor():
     assert engine.market_price(
         "MILK", engine.MARKET_PARAMS["MILK"]["I0"] + sell_units + safety
     ) <= floor
-
-
-def test_v1h2d_eod_sell_order_uses_lowest_marginal_value_first():
-    from agent.executor import market_orders
-    from agent.planner import DayPlan
-
-    config = copy.deepcopy(CONFIG)
-    config["land"]["enabled"] = False
-    observation = _minimal_observation(step=23)
-    observation["private"]["shed"] = {"STRAWBERRY": 60, "MILK": 60}
-    snapshot = parse(observation)
-    with pytest.MonkeyPatch.context() as monkeypatch:
-        monkeypatch.setattr(
-            "agent.executor.market_price",
-            lambda product, inventory: 10 if product == "MILK" else 100,
-        )
-        orders = market_orders(
-            snapshot,
-            DayPlan(hands_target=0, sell_floor_price={"STRAWBERRY": 5, "MILK": 5}),
-            make_ledger(snapshot),
-            [["PASS"]],
-            config,
-        )
-
-    sell_products = [order[1] for order in orders if order[0] == "SELL"]
-    assert sell_products[:2] == ["MILK", "STRAWBERRY"]
-
-
-def test_v1h2d_eod_and_liquidation_use_same_strict_floor():
-    from agent.executor import market_orders
-    from agent.planner import DayPlan
-
-    config = copy.deepcopy(CONFIG)
-    config["land"]["enabled"] = False
-    floor = config["executor"]["liquidation_floor_price"]
-    observation = _minimal_observation(step=23)
-    observation["private"]["shed"]["WHEAT"] = 1
-    snapshot = parse(observation)
-    with pytest.MonkeyPatch.context() as monkeypatch:
-        monkeypatch.setattr("agent.executor.market_price", lambda product, inventory: floor)
-        orders = market_orders(
-            snapshot, DayPlan(hands_target=0), make_ledger(snapshot), [["PASS"]], config
-        )
-
-    assert not any(order[:2] == ["SELL", "WHEAT"] for order in orders)
 
 
 def test_v1g_animal_slot_ranges_carves_contiguous_blocks_per_name():

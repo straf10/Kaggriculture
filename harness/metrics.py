@@ -235,6 +235,15 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
 
     weeds_lost = 0
     unexpected_weeds_lost = 0
+    # current_phase.md §v1h.2: an ongoing crop that was harvested to zero yield is retired by
+    # the engine as a PLANT->WEED transition, and that is a success, not a loss. The engine
+    # does not retire it in the same turn as the harvest: it retires it at the next
+    # max_lifespan_step decay tick, which is measured 17-24 steps later (seed 1: harvests at
+    # steps 389/392/416/419/438, retirements at 408/432/456). The confirmed-harvest set is
+    # therefore accumulated over the whole episode, not read from the transition that happens
+    # to contain the WEED. Keyed by (position, crop, planted_day), so a *replanted* crop on the
+    # same tile is a different key and can never inherit the previous plant's exemption.
+    harvested_to_zero: set = set()
     water_weeds_lost = 0
     decay_weeds_lost = 0
     animals_escaped = 0
@@ -284,6 +293,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             configuration,
         )
         shed_overflow_burnt += overflow[seat]
+        harvested_to_zero.update(successful_ongoing_harvests[seat])
         sale_day = int(previous_observation.get("day", 0))
         for sale in transition_sales[seat]:
             sale["day"] = sale_day
@@ -323,8 +333,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
                             lifespan >= 0
                             and previous_engine_step >= lifespan
                             and (previous_engine_step - lifespan) % 2 == 0
-                            and ((x, y), crop_instance)
-                            in successful_ongoing_harvests[seat]
+                            and ((x, y), crop_instance) in harvested_to_zero
                         )
                         if not successful_harvest_retirement:
                             unexpected_weeds_lost += 1

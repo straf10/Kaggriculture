@@ -167,6 +167,40 @@ def test_v1h2d_successful_ongoing_harvest_retirement_is_expected():
     assert metrics["plant_decay_units_lost"] == 0
 
 
+def test_v1h2d_retirement_is_expected_even_when_it_lands_turns_after_the_harvest():
+    """The engine does not retire a harvested ongoing crop in the harvest's own turn: it
+    retires it at the next max_lifespan_step decay tick. Measured on a real episode (seed 1),
+    that gap is 17-24 steps — harvests at 389/392/416/419/438, retirements at 408/432/456 —
+    so a same-transition-only exclusion marks every one of them as an unexpected loss and
+    prices ~8 healthy retirements per episode as $2,400/ep of damage.
+
+    The second tile is the other half of the guard: the accumulated set must not turn into a
+    blanket amnesty for whatever else weeds over on a later turn.
+    """
+    env = make(
+        "kaggriculture",
+        configuration={"seed": 0, "episodeSteps": 12, "turnsPerDay": 2, "weedSpawnChance": 0},
+    )
+    farm = env.state[0].observation.farms[0]
+    farm["farmer"] = [0, 0]
+    plant = {
+        "kind": "PLANT", "crop": "STRAWBERRY", "planted_day": -10,
+        "watered_today": True, "consecutive_unwatered": 0,
+        "yield_units": 1, "max_lifespan_step": 4, "fertilized_until_day": -1,
+    }
+    farm["tiles"][0][0] = dict(plant)  # harvested to zero on step 0, retires on step 4
+    farm["tiles"][0][1] = dict(plant)  # never harvested, retires on the same schedule
+    replay = _finish(env, {"farmer": ["HARVEST"], "hands": [], "market": []})
+
+    metrics = extract_metrics(replay, 0)
+    assert metrics["weeds_lost"] == 2
+    assert metrics["unexpected_weeds_lost"] == 1  # only the tile nobody harvested
+    # Both tiles are still charged for the unit that was on them when the decay tick landed:
+    # an ongoing crop regrows after being harvested, and the regrown unit is a real loss.
+    # Retirement being expected does not make the produce left on the plant free.
+    assert metrics["plant_decay_units_lost"] == 2
+
+
 def test_v1h2d_unharvested_decay_remains_unexpected_and_hard_loss():
     env = make(
         "kaggriculture",

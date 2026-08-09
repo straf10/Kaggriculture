@@ -12,7 +12,12 @@ import pytest
 
 import harness.cli as harness_cli
 from harness.checkpoint import agent_fingerprint, create_checkpoint
-from harness.compare import VALID_STAGES, compare
+from harness.compare import (
+    VALID_STAGES,
+    compare,
+    priced_loss_budget,
+    priced_metric_loss,
+)
 from harness.play import play, resolve_agent
 from harness.profile import report, timed
 from harness.seeds import HOLDOUT_SEEDS
@@ -777,6 +782,128 @@ def test_v1h2d_compare_gates_unexpected_not_raw_weeds():
         unexpected = compare("A", "B", [0], both_seats=False, record=False, metrics=True)
 
     assert unexpected.metric_gate_passed is False
+
+
+# ------------------------------------------------- current_phase.md §1 Απόφαση Α (priced gate)
+
+def _gate_counts(gate_name):
+    """Real measured counters from a tracked gate artifact — the whole point of pinning the
+    new gate to these three is that they are not hypotheticals: they are the three decisions
+    the old hard-zero gate got wrong (or right) in memory.md 2026-08-09 (δ)/(ε)."""
+    payload = json.loads(
+        (REPO_ROOT / "gates" / gate_name / "results.json").read_text(encoding="utf-8")
+    )
+    counts = {
+        metric: payload.get(f"{metric}_a")
+        for metric in ("animals_escaped", "shed_overflow_burnt",
+                       "unexpected_weeds_lost", "water_weeds_lost")
+    }
+    episodes = payload["episode_wins_a"] + payload["episode_wins_b"] + payload["episode_ties"]
+    return counts, episodes, payload["mean_diff"]
+
+
+@pytest.mark.parametrize("gate_name,accepted,expected_loss", [
+    # v1h_2c alone: +$2,888.5/ep bought with 39 escapes = $406.3/ep against a $288.8/ep budget.
+    # (This pre-v1h.2d artifact predates the shed_overflow_burnt field, which memory.md
+    # 2026-08-09 (δ) records as 1,510 — including it would only push the loss further over.)
+    # Rejected under the old gate, rejected under this one: pricing is not a loosening.
+    ("gate_v1h2_dev", False, 406.25),
+    # EOD surplus alone: overflow eliminated but 54 escapes survive = $562.5/ep — over the $500
+    # absolute cap *and* over the $153.0/ep the +$1,529.8 gain affords. Both bounds reject it.
+    ("gate_v1h2d_eod_surplus", False, 562.5),
+    # EOD + FEED: 84 burnt units ($131.3) + 34 lost tiles ($106.3) = $237.5/ep against
+    # +$3,019.3/ep = 7.9%, inside both bounds. This is the arm the old gate wrongly rejected.
+    ("gate_v1h2d_feed_slack", True, 237.5),
+])
+def test_v1h2d_priced_gate_decides_the_three_measured_arms(gate_name, accepted, expected_loss):
+    counts, episodes, mean_diff = _gate_counts(gate_name)
+    loss, breakdown = priced_metric_loss(counts, episodes)
+    budget = priced_loss_budget(mean_diff)
+
+    assert episodes == 96  # 48 dev seeds x both seats; a changed denominator changes every price
+    assert loss == pytest.approx(expected_loss)
+    assert (loss <= budget) is accepted
+    # The breakdown has to explain the total, or the number in the ledger is not auditable.
+    assert loss == pytest.approx(sum(breakdown.values()))
+
+
+def test_v1h2d_priced_gate_does_not_charge_a_lost_tile_twice():
+    """water_weeds_lost and unexpected_weeds_lost fire on the same PLANT->WEED transition;
+    the feed-slack arm reports 34 for both because they are the same 34 tiles."""
+    loss, breakdown = priced_metric_loss(
+        {"unexpected_weeds_lost": 34, "water_weeds_lost": 34}, 96
+    )
+    assert breakdown["lost_crop_tiles"] == pytest.approx(34 * 300 / 96)
+    assert loss == pytest.approx(34 * 300 / 96)
+    # A thirst death that the semantic counter did not see still costs a tile, and vice versa.
+    assert priced_metric_loss({"water_weeds_lost": 34}, 96)[0] == pytest.approx(34 * 300 / 96)
+    assert priced_metric_loss({"unexpected_weeds_lost": 34}, 96)[0] == pytest.approx(34 * 300 / 96)
+
+
+def test_v1h2d_priced_gate_bounds_are_both_binding():
+    """Both bounds are load-bearing: the fraction is what rejects the EOD-only arm on ratio,
+    the absolute cap is what stops a large gain from buying unlimited breakage."""
+    # A huge gain does not buy unlimited breakage: the absolute cap holds it at $500.
+    assert priced_loss_budget(1_000_000.0) == 500.0
+    # A small gain is held by the fraction, well under the cap.
+    assert priced_loss_budget(1_000.0) == 100.0
+    # A change that earns nothing gets no loss budget at all.
+    assert priced_loss_budget(0.0) == 0.0
+    assert priced_loss_budget(-5_000.0) == 0.0
+
+
+@pytestmark_small_seed_warning
+def test_v1h2d_priced_gate_requires_a_declared_mechanism():
+    """Pricing buys tolerance for understood loss, never for unexplained loss — that is the
+    bug-detector role the hard-zero gate used to play, and it is the only part of it kept."""
+    def fake_play(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        rewards = (100_000.0, 0.0) if a == "A" else (0.0, 100_000.0)
+        metrics = {
+            "water_weeds_lost": 0, "plant_decay_units_lost": 0, "animals_escaped": 0,
+            "clipped_production_ticks": 0, "shed_overflow_burnt": 1,
+            "weeds_lost": 8, "unexpected_weeds_lost": 0,
+        }
+        return SimpleNamespace(rewards=rewards, metrics={0: metrics, 1: metrics})
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        undeclared = compare("A", "B", [0], both_seats=False, record=False, metrics=True)
+        declared = compare("A", "B", [0], both_seats=False, record=False, metrics=True,
+                            metric_mechanisms={"shed_overflow_burnt": "peak-production day"})
+        blank = compare("A", "B", [0], both_seats=False, record=False, metrics=True,
+                         metric_mechanisms={"shed_overflow_burnt": "   "})
+
+    # $150/ep of loss against a $100,000/ep gain — comfortably inside both bounds either way.
+    assert undeclared.priced_loss_per_episode == pytest.approx(150.0)
+    assert undeclared.priced_loss_budget_used == 500.0
+    assert undeclared.unexplained_metrics == ("shed_overflow_burnt",)
+    assert undeclared.metric_gate_passed is False
+    assert declared.unexplained_metrics == ()
+    assert declared.metric_gate_passed is True
+    assert blank.metric_gate_passed is False  # whitespace is not an explanation
+
+
+@pytestmark_small_seed_warning
+def test_v1h2d_structural_faults_stay_hard_zero_at_any_price():
+    """clipped_production_ticks and plant_decay_units_lost are not losses to be priced: they
+    mean the agent did something it did not intend. No mean_diff buys them."""
+    def fake_play(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        rewards = (100_000.0, 0.0) if a == "A" else (0.0, 100_000.0)
+        metrics = {
+            "water_weeds_lost": 0, "plant_decay_units_lost": 0, "animals_escaped": 0,
+            "clipped_production_ticks": 1, "shed_overflow_burnt": 0,
+            "weeds_lost": 0, "unexpected_weeds_lost": 0,
+        }
+        return SimpleNamespace(rewards=rewards, metrics={0: metrics, 1: metrics})
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=False, record=False, metrics=True,
+                          metric_mechanisms={"animals_escaped": "irrelevant to a hard zero"})
+
+    assert result.priced_loss_per_episode == 0.0
+    assert result.unexplained_metrics == ()
+    assert result.metric_gate_passed is False
 
 
 @pytestmark_small_seed_warning

@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from harness.checkpoint import DEFAULT_CHECKPOINT_ROOT, create_checkpoint
-from harness.compare import VALID_STAGES, compare
+from harness.compare import PRICED_SOURCE_METRICS, VALID_STAGES, compare
 from harness.play import play
 from harness.profile import report
 from harness.report import load_receipts, load_replay, write_report
@@ -100,6 +100,11 @@ def _results_json_dict(result) -> dict:
         "sales_count_a": result.sales_count_a,
         "unexplained_noops_a": result.unexplained_noops_a,
         "market_sim_aborted_a": result.market_sim_aborted_a,
+        "priced_loss_per_episode": result.priced_loss_per_episode,
+        "priced_loss_budget_used": result.priced_loss_budget_used,
+        "priced_loss_breakdown": result.priced_loss_breakdown,
+        "metric_mechanisms": result.metric_mechanisms,
+        "unexplained_metrics": list(result.unexplained_metrics),
         "metric_gate_passed": result.metric_gate_passed,
         "prior_dev_screen_found": result.prior_dev_screen_found,
         "min_effect_used": result.min_effect_used,
@@ -117,6 +122,27 @@ def _results_json_dict(result) -> dict:
     }
 
 
+def _parse_metric_mechanisms(pairs) -> dict:
+    """`--metric-mechanism shed_overflow_burnt=<why>` -> {metric: explanation}.
+
+    current_phase.md §1 Απόφαση Α: a priced counter may only be non-zero if the run says, in
+    writing and in the tracked results.json, why it is non-zero.
+    """
+    mechanisms = {}
+    for pair in pairs or ():
+        metric, separator, explanation = pair.partition("=")
+        if not separator or not metric.strip() or not explanation.strip():
+            raise SystemExit(f"--metric-mechanism expects METRIC=explanation, got {pair!r}")
+        metric = metric.strip()
+        if metric not in PRICED_SOURCE_METRICS:
+            raise SystemExit(
+                f"--metric-mechanism: {metric!r} is not a priced metric "
+                f"(expected one of {sorted(PRICED_SOURCE_METRICS)})"
+            )
+        mechanisms[metric] = explanation.strip()
+    return mechanisms
+
+
 def _cmd_compare(args):
     seeds = list(_SEED_SETS[args.seed_set]) if args.seed_set else _parse_seeds(args.seeds)
     out_dir = Path(args.out) if args.out else None
@@ -130,6 +156,7 @@ def _cmd_compare(args):
                       accept_within_margin=args.accept_within_margin,
                       allow_repeat_confirm=args.allow_repeat_confirm,
                       confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None,
+                      metric_mechanisms=_parse_metric_mechanisms(args.metric_mechanism),
                       screen_evidence_dir=Path(args.gates_dir))
     print(f"seeds={len(seeds)} ({result.seed_set_name}) both_seats={not args.single_seat} "
           f"workers={args.workers}")
@@ -157,7 +184,11 @@ def _cmd_compare(args):
               f"units_sold_at_or_below_5_a={result.units_sold_at_or_below_5_a}/"
               f"{result.sales_count_a} "
               f"unexplained_noops_a={result.unexplained_noops_a} "
-              f"market_sim_aborted_a={result.market_sim_aborted_a} "
+              f"market_sim_aborted_a={result.market_sim_aborted_a}")
+        print(f"priced_loss={result.priced_loss_per_episode:.1f}/ep "
+              f"budget={result.priced_loss_budget_used:.1f}/ep "
+              f"breakdown={ {k: round(v, 1) for k, v in result.priced_loss_breakdown.items() if v} } "
+              f"unexplained_metrics={list(result.unexplained_metrics)} "
               f"metric_gate_passed={result.metric_gate_passed}")
     if result.env:
         print(f"env={result.env}")
@@ -270,6 +301,11 @@ def main(argv=None):
                             help="extract all hard-loss, low-price-sale, no-op, and market-"
                                  "simulation metrics for agent_a; required (with an unpinned, "
                                  "both-seats --stage holdout-confirm) for GO=True")
+    p_compare.add_argument("--metric-mechanism", action="append", metavar="METRIC=WHY",
+                            help="declare why a priced loss counter is non-zero, e.g. "
+                                 "--metric-mechanism shed_overflow_burnt='peak-production days'. "
+                                 "current_phase.md §1 Απόφαση Α: any non-zero priced counter "
+                                 "without one fails the metric gate (repeatable)")
     p_compare.add_argument("--min-effect", type=float, default=None,
                            help="practical improvement threshold in dollars per episode "
                                 "(default: max($200, 2%% of mean bank_b))")
