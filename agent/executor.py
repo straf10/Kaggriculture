@@ -43,6 +43,122 @@ def _remaining_unplanted_targets(snapshot: Snapshot, plan: DayPlan, config: dict
     return remaining
 
 
+def _projected_eod_stock(snapshot: Snapshot, scheduled_unit_actions: list[list[str]]) -> int:
+    """Stock that will compete for shed capacity after this turn's unit actions and EOD drop."""
+    total = sum(snapshot.shed.values()) + sum(
+        sum(inventory.values()) for inventory in snapshot.inventories
+    )
+    unit_positions = (snapshot.farmer_pos, *snapshot.hand_positions)
+    for unit_index, action in enumerate(scheduled_unit_actions):
+        if unit_index >= len(unit_positions) or not isinstance(action, list) or not action:
+            continue
+        x, y = unit_positions[unit_index]
+        tile = snapshot.my_tiles[y][x]
+        inventory = (
+            snapshot.inventories[unit_index]
+            if unit_index < len(snapshot.inventories)
+            else {}
+        )
+        op = action[0]
+        if op == "HARVEST" and isinstance(tile, dict) and tile.get("yield_units", 0) > 0:
+            if tile.get("kind") == "PLANT":
+                crop_data = CROPS.get(tile.get("crop"))
+                if (
+                    crop_data is not None
+                    and snapshot.day - tile.get("planted_day", snapshot.day)
+                    >= crop_data["first_yield_day"]
+                ):
+                    total += int(tile["yield_units"])
+            elif "animal" in tile:
+                total += int(tile["yield_units"])
+        elif (
+            op == "COLLECT_FERTILIZER"
+            and isinstance(tile, dict)
+            and "animal" in tile
+            and tile.get("fertilizer_available")
+        ):
+            total += 1
+        elif (
+            op == "FEED"
+            and isinstance(tile, dict)
+            and "animal" in tile
+            and not tile.get("fed_today")
+            and inventory.get("WHEAT", 0) > 0
+        ):
+            total -= 1
+        elif op == "PLACE" and len(action) >= 2 and inventory.get(action[1], 0) > 0:
+            total -= 1
+    return total
+
+
+def _projected_near_term_incoming(
+    snapshot: Snapshot,
+    scheduled_unit_actions: list[list[str]],
+    horizon_days: int = 2,
+) -> int:
+    """Conservative reserve for products mechanically due before prices refresh enough."""
+    unit_positions = (snapshot.farmer_pos, *snapshot.hand_positions)
+    harvested = {
+        unit_positions[index]
+        for index, action in enumerate(scheduled_unit_actions)
+        if index < len(unit_positions)
+        and isinstance(action, list)
+        and action[:1] == ["HARVEST"]
+    }
+    incoming = 0
+    for y, row in enumerate(snapshot.my_tiles):
+        for x, tile in enumerate(row):
+            if not isinstance(tile, dict) or (x, y) in harvested:
+                continue
+            if tile.get("kind") == "PLANT":
+                crop = CROPS.get(tile.get("crop"))
+                if crop is None:
+                    continue
+                yield_units = int(tile.get("yield_units", 0))
+                if crop["ongoing"]:
+                    for offset in range(1, horizon_days + 1):
+                        future_day = snapshot.day + offset
+                        days_since_first = (
+                            future_day
+                            - tile.get("planted_day", future_day)
+                            - crop["first_yield_day"]
+                        )
+                        if days_since_first >= 0 and days_since_first % crop["interval"] == 0:
+                            yield_units = min(crop["max_yield"], yield_units + 2)
+                    if (
+                        snapshot.day + horizon_days
+                        - tile.get("planted_day", snapshot.day)
+                        >= crop["first_yield_day"]
+                    ):
+                        incoming += yield_units
+                elif (
+                    snapshot.day + horizon_days
+                    - tile.get("planted_day", snapshot.day)
+                    >= crop["first_yield_day"]
+                ):
+                    # WATER/FERTILIZE can still increase a finite crop before harvest; reserve
+                    # its bounded maximum rather than pretending today's partial yield is final.
+                    incoming += int(crop["max_yield"])
+            elif "animal" in tile:
+                animal = ANIMALS.get(tile.get("animal"))
+                if animal is None:
+                    continue
+                yield_units = int(tile.get("yield_units", 0))
+                for offset in range(1, horizon_days + 1):
+                    future_day = snapshot.day + offset
+                    days_since_first = (
+                        future_day
+                        - tile.get("placed_day", future_day)
+                        - animal["first_yield_day"]
+                    )
+                    if days_since_first >= 0 and days_since_first % animal["interval"] == 0:
+                        yield_units = min(animal["max_held"], yield_units + 2)
+                incoming += yield_units
+                # The engine makes one fertilizer unit available at every daily refresh.
+                incoming += horizon_days
+    return incoming
+
+
 def market_orders(
     snapshot: Snapshot,
     plan: DayPlan,
@@ -52,7 +168,6 @@ def market_orders(
     farm_hand_cost_mult: int = 1,
 ) -> list[list]:
     """Allocate the v1a SELL/BUY_SEED orders within all hard budgets."""
-    del scheduled_unit_actions
     executor_config = config["executor"]
     if not executor_config.get("enabled", False):
         return []
@@ -73,6 +188,7 @@ def market_orders(
         # the shed (rounding leftovers, or an animal that already escaped/died) is stranded
         # value the endgame must not leave on the table.
         sell_products += ("WHEAT",)
+    sell_units_by_product = {}
     for product in sell_products:
         product_in_shed = int(snapshot.shed.get(product, 0))
         if product_in_shed <= 0:
@@ -95,6 +211,90 @@ def market_orders(
             and market_price(product, inventory + sell_units + safety_units) > floor
         ):
             sell_units += 1
+        if sell_units:
+            sell_units_by_product[product] = sell_units
+
+    # v1h.2d: SW-grown WHEAT beyond the next full-herd ration is genuine surplus. Dispose of
+    # that surplus at EOD before it crowds out tomorrow's less-liquid animal products, then
+    # cover any remaining immediate headroom shortfall from ordinary sellable stock. Every
+    # marginal unit still obeys the existing $5 hard floor. This is product/reserve-aware and
+    # EOD-only: neither a blanket floor nor the rejected dynamic sell throttle.
+    turns_per_day = int(config["runtime"]["turns_per_day"])
+    if not plan.force_liquidation and snapshot.hour == turns_per_day - 1:
+        shed_capacity = 100  # pinned engine 1.32.6 configuration
+        projected_stock = _projected_eod_stock(snapshot, scheduled_unit_actions)
+        placed_animals = sum(
+            1
+            for row in snapshot.my_tiles
+            for tile in row
+            if isinstance(tile, dict) and "animal" in tile
+        )
+        reserves = {"WHEAT": placed_animals}
+        product = "WHEAT"
+        product_in_shed = int(snapshot.shed.get(product, 0))
+        already_selling = sell_units_by_product.get(product, 0)
+        carried_wheat = sum(
+            int(inventory.get(product, 0)) for inventory in snapshot.inventories
+        )
+        reserve_needed_in_shed = max(0, reserves[product] - carried_wheat)
+        wheat_surplus = max(
+            0,
+            product_in_shed - already_selling - reserve_needed_in_shed,
+        )
+        inventory = int(snapshot.market_inventory.get(product, 0))
+        safety_units = int(executor_config["opponent_price_safety_units"])
+        hard_floor = int(executor_config["liquidation_floor_price"])
+        extra = 0
+        while (
+            extra < wheat_surplus
+            and market_price(
+                product,
+                inventory + already_selling + extra + safety_units,
+            ) >= hard_floor
+        ):
+            extra += 1
+        if extra:
+            sell_units_by_product[product] = already_selling + extra
+
+        normal_sells = sum(sell_units_by_product.values())
+        near_term_incoming = _projected_near_term_incoming(
+            snapshot, scheduled_unit_actions
+        )
+        headroom_needed = max(
+            0,
+            projected_stock + near_term_incoming - shed_capacity - normal_sells,
+        )
+        if headroom_needed > 0:
+            for product in dict.fromkeys(sell_products):
+                if headroom_needed <= 0:
+                    break
+                product_in_shed = int(snapshot.shed.get(product, 0))
+                already_selling = sell_units_by_product.get(product, 0)
+                surplus = max(
+                    0,
+                    product_in_shed - already_selling - reserves.get(product, 0),
+                )
+                if surplus <= 0:
+                    continue
+                inventory = int(snapshot.market_inventory.get(product, 0))
+                safety_units = int(executor_config["opponent_price_safety_units"])
+                hard_floor = int(executor_config["liquidation_floor_price"])
+                extra = 0
+                while (
+                    extra < surplus
+                    and extra < headroom_needed
+                    and market_price(
+                        product,
+                        inventory + already_selling + extra + safety_units,
+                    ) >= hard_floor
+                ):
+                    extra += 1
+                if extra:
+                    sell_units_by_product[product] = already_selling + extra
+                    headroom_needed -= extra
+
+    for product in dict.fromkeys((*sell_products, "WHEAT")):
+        sell_units = sell_units_by_product.get(product, 0)
         if sell_units:
             orders.append(["SELL", product, sell_units])
 

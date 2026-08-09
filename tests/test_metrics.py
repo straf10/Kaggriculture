@@ -62,6 +62,7 @@ def test_metrics_detect_plant_loss_and_animal_escape():
 
     metrics = extract_metrics(replay, 0)
     assert metrics["weeds_lost"] == 1
+    assert metrics["unexpected_weeds_lost"] == 1
     assert metrics["water_weeds_lost"] == 1
     assert metrics["animals_escaped"] == 1
 
@@ -144,3 +145,43 @@ def test_metrics_own_harvest_not_counted_as_decay():
 
     metrics = extract_metrics(replay, 0)
     assert metrics["plant_decay_units_lost"] == 0
+
+
+def test_v1h2d_successful_ongoing_harvest_retirement_is_expected():
+    env = make(
+        "kaggriculture",
+        configuration={"seed": 0, "episodeSteps": 4, "turnsPerDay": 2, "weedSpawnChance": 0},
+    )
+    farm = env.state[0].observation.farms[0]
+    farm["farmer"] = [0, 0]
+    farm["tiles"][0][0] = {
+        "kind": "PLANT", "crop": "STRAWBERRY", "planted_day": -10,
+        "watered_today": True, "consecutive_unwatered": 0,
+        "yield_units": 1, "max_lifespan_step": 0, "fertilized_until_day": -1,
+    }
+    replay = _finish(env, {"farmer": ["HARVEST"], "hands": [], "market": []})
+
+    metrics = extract_metrics(replay, 0)
+    assert metrics["weeds_lost"] == 1
+    assert metrics["unexpected_weeds_lost"] == 0
+    assert metrics["plant_decay_units_lost"] == 0
+
+
+def test_v1h2d_unharvested_decay_remains_unexpected_and_hard_loss():
+    env = make(
+        "kaggriculture",
+        configuration={"seed": 0, "episodeSteps": 4, "turnsPerDay": 2, "weedSpawnChance": 0},
+    )
+    farm = env.state[0].observation.farms[0]
+    farm["farmer"] = [0, 0]
+    farm["tiles"][0][0] = {
+        "kind": "PLANT", "crop": "STRAWBERRY", "planted_day": -10,
+        "watered_today": True, "consecutive_unwatered": 0,
+        "yield_units": 1, "max_lifespan_step": 0, "fertilized_until_day": -1,
+    }
+    replay = _finish(env)
+
+    metrics = extract_metrics(replay, 0)
+    assert metrics["weeds_lost"] == 1
+    assert metrics["unexpected_weeds_lost"] == 1
+    assert metrics["plant_decay_units_lost"] == 1

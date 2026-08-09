@@ -52,9 +52,9 @@ submissions· ενεργά (η Kaggle κρατά μόνο 2): **v1g** (`55324447
 **v1h** (`55383610`). Το v1h.1 έκανε το υποχρεωτικό bump σε **1.32.6** και πάγωσε το
 code-identical baseline **`checkpoints/v1h_1`**. Το v1h.2 έφτασε ως `v1h_2c` (`{4C,6S}`):
 συνολικό pinned DEV **IMPROVED +$2.888,5/ep**, αλλά STOP χωρίς holdout λόγω 39 escapes και 1.510
-overflow· το raw `weeds_lost=768` χρειάζεται semantic decomposition, όχι policy gaming.
-Επόμενο και μοναδικό ενεργό increment: **v1h.2d residual-loss restoration**, §v1h.2. Πλήρες
-ιστορικό εκτέλεσης: **memory.md 2026-08-09 (δ)**.
+overflow. Το `v1h.2d` διόρθωσε το semantic weed gate και μηδένισε χωριστά overflow/escapes,
+αλλά το combined isolated DEV άφησε 34 πραγματικά weed losses και 84 overflow ⇒ **STOP χωρίς
+holdout/checkpoint**. Πλήρες ιστορικό: **memory.md 2026-08-09 (ε)**.
 
 ---
 
@@ -819,7 +819,7 @@ floor μπορεί μόνο να **σμικρύνει** `sell_units` μέσα σ
 - **Το ordering bug του executor** (SELL θέση εξαρτάται από το αν έγινε truncation) — πλήρης
   περιγραφή στο §v1i σημείο (3).
 
-### v1h.2 — Επαναφορά του metric gate στο 1.32.6 [⏸ STOP· συνέχεια κλειδωμένη: v1h.2d]
+### v1h.2 — Επαναφορά του metric gate στο 1.32.6 [⛔ STOP στο v1h.2d isolated DEV]
 
 **Γιατί προηγείται των πάντων:** το `checkpoints/v1h` / `v1h_1` είναι το baseline **κάθε**
 επόμενου gate, και σήμερα αποτυγχάνει σε hard metrics σε **48/48 seeds**. Ένα gate με
@@ -871,29 +871,35 @@ gaming και occupancy κόστος, όχι αποκατάσταση απώλε
 
 #### v1h.2d — σαφές checklist
 
+**Κατάσταση 2026-08-09:** semantic repair και diagnosis ολοκληρώθηκαν. Το isolated EOD
+headroom ήταν `IMPROVED +$1.529,8/ep`, CI `[+$1.018,8,+$2.040,8]`, με overflow 0 αλλά 54
+escapes. Το μοναδικό επιτρεπτό FEED slack follow-up ήταν `IMPROVED +$3.019,3/ep`, CI
+`[+$2.227,1,+$3.811,6]`, με escapes 0 αλλά `water_weeds=unexpected_weeds=34` και overflow 84.
+Το corrected hard gate απέτυχε ⇒ **STOP**· total DEV, holdout και checkpoint δεν τρέχουν.
+
 **Pre-gate classification: OCCUPANCY (συντηρητικά, από την αρχή).** Η semantic αλλαγή είναι
 harness-only και συμπεριφορικά ουδέτερη, αλλά πιθανό FEED deadline/routing fix μπορεί να αλλάξει
 ποια tiles εξυπηρετούνται κάθε βράδυ. Άρα όλα τα DEV screens: seeds 0-47, both seats,
 `--town-pin basket --metrics`. Το μοναδικό τελικό holdout: 100-147, both seats, **χωρίς pin**.
 
-- [ ] Κράτησε frozen candidate το `v1h_2c` και accepted baseline το `v1h_1`· κανένα engine bump.
-- [ ] Πρόσθεσε `unexpected_weeds_lost` χωρίς να αλλάξει το raw diagnostic. Guards: successful
+- [x] Κράτησε frozen candidate το `v1h_2c` και accepted baseline το `v1h_1`· κανένα engine bump.
+- [x] Πρόσθεσε `unexpected_weeds_lost` χωρίς να αλλάξει το raw diagnostic. Guards: successful
       ongoing-crop harvest retirement **δεν** μετρά· starvation και unharvested decay συνεχίζουν
       να αποτυγχάνουν μέσω των υφιστάμενων hard counters.
-- [ ] Από το υπάρχον DEV artifact, κάνε product/day/task trace σε αντιπροσωπευτικά failing seeds,
+- [x] Από το υπάρχον DEV artifact, κάνε product/day/task trace σε αντιπροσωπευτικά failing seeds,
       όχι tuning ανά seed. Το εύρημα ότι και τα 36 escape episodes ανήκουν στα 62 overflow
       episodes κάνει πρώτο hypothesis το κοινό shed/feed congestion.
-- [ ] Πρώτα απομόνωσε το ελάχιστο product-aware EOD headroom fix: πώληση μόνο πραγματικού surplus,
+- [x] Πρώτα απομόνωσε το ελάχιστο product-aware EOD headroom fix: πώληση μόνο πραγματικού surplus,
       με ρητό WHEAT feed reserve· όχι blanket floor, όχι ενεργοποίηση `dynamic_sell_floor`.
-- [ ] Isolated DEV vs `v1h_2c`. Αν μηδενίσει και overflow και escapes, **μην** αγγίξεις scheduler.
+- [x] Isolated DEV vs `v1h_2c`. Αν μηδενίσει και overflow και escapes, **μην** αγγίξεις scheduler.
       Αν μείνουν escapes, πρόσθεσε μόνο mechanism-based FEED deadline/slack fix και νέο isolated
-      DEV· καμία νέα herd σύνθεση.
-- [ ] Μετά από κάθε αποδεκτό isolated step: tests/guards, hard metrics καθαρά και verdict
+      DEV· καμία νέα herd σύνθεση. **Έγινε· το follow-up απέτυχε το hard gate.**
+- [ ] ⛔ Μετά από κάθε αποδεκτό isolated step: tests/guards, hard metrics καθαρά και verdict
       `NON_INFERIOR` ή `IMPROVED` vs `v1h_2c`. Μέγιστο επιτρεπτό οικονομικό spend = το ήδη
       καταγεγραμμένο DEV non-inferiority margin `$829,3/ep`, όχι όλο το +$2.888,5.
-- [ ] Συνολικό DEV `candidate vs v1h_1`: **IMPROVED** και πλήρες corrected hard gate καθαρό.
+- [ ] ⏹ Συνολικό DEV `candidate vs v1h_1`: **δεν έτρεξε** — isolated hard gate μη καθαρό.
       Μόνο τότε τρέχει μία φορά unpinned holdout-confirm με τα ίδια criteria.
-- [ ] Μόνο μετά από καθαρό holdout: immutable `v1h_2d` + fingerprint. Submission μόνο με νέα
+- [ ] ⏹ Μόνο μετά από καθαρό holdout: immutable `v1h_2d` + fingerprint. Submission μόνο με νέα
       ρητή εντολή.
 
 **Acceptance:** corrected weed semantics καλυμμένα από guards·
@@ -1193,7 +1199,7 @@ per-day RNG stream (§0ter, MASTERPLAN §2 #7).
 | Submission v1h | 08-09 | ✅ **ΕΓΙΝΕ** (`SUBMISSION_ID 55383610`· έριξε το v1e εκτός) |
 | v1h.1 engine bump 1.32.6 + 2 breakage fixes + re-baseline | 08-09 | ✅ **ΚΛΕΙΣΤΟ** — bump ουδέτερο (48/48 ties)· `checkpoints/v1h_1` |
 | v1h.2 a-c (D1 watering · D3 floor · D2 `{4C,6S}`) | 08-09 | ⏸ **STOP μετά το συνολικό DEV** — `IMPROVED +$2.888/ep`, 39 escapes + 1.510 overflow· κανένα holdout |
-| 🔴 **v1h.2d semantic weed gate + residual-loss logistics** (occupancy) | **08-10 → 08-13** | ⏭ **ΕΠΟΜΕΝΟ** — base candidate `v1h_2c`, accepted baseline `v1h_1`· DEV pinned basket, holdout μόνο αν corrected gate καθαρό |
+| **v1h.2d semantic weed gate + residual-loss logistics** (occupancy) | **08-09** | ⛔ **STOP isolated DEV** — semantic gate done· EOD overflow 0/escapes 54· FEED follow-up escapes 0 αλλά 34 weed losses + 84 overflow· κανένα total DEV/holdout/checkpoint |
 | **Β.2 clean-room meta-bench opponent** (εκτός `agent/`) | 08-13 → 08-15 | ⏸ προαπαιτούμενο του v1i |
 | v1i sell-ahead (+ exact per-unit sum, + online horizon inference) | 08-13 → 08-22 | ⏸ |
 | **v1j wheat+crew** (12 → ~31 wheat tiles μαζί με crew· occupancy ⇒ `--town-pin basket`) | 08-22 → 08-31 | ⏸ νέο, από MASTERPLAN §1 ενημ. 08-09 (β)/(γ) |

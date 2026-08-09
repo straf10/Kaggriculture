@@ -10,6 +10,63 @@
 
 ---
 
+## 2026-08-09 (ε) — Session: **v1h.2d semantic gate + logistics — isolated DEV STOP**
+
+**Εντολή:** υλοποίηση μόνο του `v1h.2d` πάνω στο frozen `v1h_2c`, με semantic weed gate,
+product-aware EOD headroom, και μόνο αν έμεναν escapes ένα FEED deadline/slack fix.
+
+**Αποτέλεσμα σε μία γραμμή:** το semantic gate διορθώθηκε και το EOD headroom μηδένισε το
+overflow, αλλά το μοναδικό FEED slack fix αντάλλαξε τα escapes με 34 πραγματικά weed losses και
+84 overflow units ⇒ **STOP χωρίς total DEV, holdout, checkpoint ή submission**.
+
+### 1. Semantic gate και diagnosis
+
+- Νέο `unexpected_weeds_lost`: το raw `weeds_lost` μένει diagnostic και μόνο
+  engine-confirmed successful ongoing-crop HARVEST retirement εξαιρείται από το hard gate.
+- Guards καλύπτουν successful retirement (`unexpected=0`), starvation/escape και unharvested
+  decay (`unexpected>0`, decay hard loss). Το `compare()` gates το corrected metric και κρατά
+  low-price ≤2%, no-op και market-abort checks.
+- Product/day/task traces σε failing seeds έδειξαν WHEAT/shed congestion και FEED delivery
+  contention με διαθέσιμο WHEAT, όχι supply shortage.
+
+### 2. Isolated EOD surplus gate — οικονομικά καλό, escapes μένουν
+
+`main.py` vs `checkpoints/v1h_2c/main.py`, DEV 0-47, both seats, pinned basket, metrics
+(`gates/gate_v1h2d_eod_surplus`):
+
+```
+mean_diff=+$1.529,8  CI=[+$1.018,8, +$2.040,8]  wins=40-8  verdict=IMPROVED
+water_weeds=0  decay=0  escapes=54  clipped=0  overflow=0  unexpected_weeds=0
+<=5=163/60.779 (0,268%)  unexplained_noops=0  market_sim_abort=False
+```
+
+Το headroom που μετρήθηκε: EOD πώληση μόνο sellable surplus, WHEAT reserve ίσο με πλήρη
+μερίδα του placed herd μετρημένο σε shed+carried cargo, και κοντινό production headroom·
+`dynamic_sell_floor`, herd `{4C,6S}` και liquidation floor `$5` δεν άλλαξαν.
+Fingerprint live arm:
+`b84370290b9bbdf9e0beac81654c3c1f3908d1dced60c047a4a12e364c10f151`
+(baseline `v1h_2c`: `29f0d4cfa0e4b836bf6d9162f3b10e77e075a33bf5cc5f2196532b5c67c25260`).
+
+### 3. Μοναδικό FEED slack fix — τελικό isolated STOP
+
+Το WHEAT PICKUP κληρονόμησε το escape-risk priority και deadline που αφαιρεί τη μηχανική
+απόσταση shed→farthest unfed animal. Νέο isolated DEV (`gates/gate_v1h2d_feed_slack`):
+
+```
+mean_diff=+$3.019,3  CI=[+$2.227,1, +$3.811,6]  wins=48-0  verdict=IMPROVED
+water_weeds=34  decay=0  escapes=0  clipped=0  overflow=84  unexpected_weeds=34
+<=5=171/61.349 (0,279%)  unexplained_noops=0  market_sim_abort=False
+```
+
+Fingerprint live arm:
+`daec4fecfe10883d005a4450d75b4bffa7d168b749d9e78de1b1dfa9cca1f3a1`.
+Το οικονομικό αποτέλεσμα είναι καθαρά πάνω από το `$829,3/ep` όριο, αλλά τα πραγματικά hard
+metrics δεν είναι μηδέν. `pytest`: **187 passed**. Σύμφωνα με το protocol δεν έγινε τρίτη
+αντισταθμιστική αλλαγή, συνολικό DEV vs `v1h_1`, one-shot holdout, `v1h_2d` checkpoint,
+engine bump ή Kaggle submission. **Τελικό verdict: STOP.**
+
+---
+
 ## 2026-08-09 (δ) — Session: **v1h.2 α→β→γ εκτελέστηκε — DEV IMPROVED, metric gate STOP**
 
 **Εντολή:** επιλογή (1) από το STOP του (γ): checkpoint του absolute D1, μετά D3 και D2,

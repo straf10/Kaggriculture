@@ -92,6 +92,13 @@ def _results_json_dict(result) -> dict:
         "plant_decay_units_lost_a": result.plant_decay_units_lost_a,
         "animals_escaped_a": result.animals_escaped_a,
         "clipped_production_ticks_a": result.clipped_production_ticks_a,
+        "shed_overflow_burnt_a": result.shed_overflow_burnt_a,
+        "weeds_lost_a": result.weeds_lost_a,
+        "unexpected_weeds_lost_a": result.unexpected_weeds_lost_a,
+        "units_sold_at_or_below_5_a": result.units_sold_at_or_below_5_a,
+        "sales_count_a": result.sales_count_a,
+        "unexplained_noops_a": result.unexplained_noops_a,
+        "market_sim_aborted_a": result.market_sim_aborted_a,
         "metric_gate_passed": result.metric_gate_passed,
         "min_effect_used": result.min_effect_used,
         "non_inferiority_margin_used": result.non_inferiority_margin_used,
@@ -115,6 +122,8 @@ def _cmd_compare(args):
                       steps=args.steps, run_dir=out_dir, record=args.record,
                       strict=not args.no_strict, resume=args.resume, workers=args.workers,
                       metrics=args.metrics, stage=stage, town_pin=args.town_pin,
+                      min_effect=args.min_effect,
+                      non_inferiority_margin=args.non_inferiority_margin,
                       accept_within_margin=args.accept_within_margin,
                       allow_repeat_confirm=args.allow_repeat_confirm,
                       confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None)
@@ -137,6 +146,13 @@ def _cmd_compare(args):
               f"plant_decay_units_lost_a={result.plant_decay_units_lost_a} "
               f"animals_escaped_a={result.animals_escaped_a} "
               f"clipped_production_ticks_a={result.clipped_production_ticks_a} "
+              f"shed_overflow_burnt_a={result.shed_overflow_burnt_a} "
+              f"weeds_lost_a={result.weeds_lost_a} "
+              f"unexpected_weeds_lost_a={result.unexpected_weeds_lost_a} "
+              f"units_sold_at_or_below_5_a={result.units_sold_at_or_below_5_a}/"
+              f"{result.sales_count_a} "
+              f"unexplained_noops_a={result.unexplained_noops_a} "
+              f"market_sim_aborted_a={result.market_sim_aborted_a} "
               f"metric_gate_passed={result.metric_gate_passed}")
     if result.env:
         print(f"env={result.env}")
@@ -250,6 +266,10 @@ def main():
                                  "animals_escaped/clipped_production_ticks for agent_a and "
                                  "require all four ==0 for the metric gate (plan.md §1.5.3, "
                                  "G5/G8); required (with --stage holdout-confirm) for GO=True")
+    p_compare.add_argument("--min-effect", type=float, default=0.0,
+                           help="practical improvement threshold in dollars per episode")
+    p_compare.add_argument("--non-inferiority-margin", type=float, default=0.0,
+                           help="maximum allowed lower-confidence regression in dollars per episode")
     p_compare.add_argument("--accept-within-margin", action="store_true",
                             help="allow GO=True when verdict=WITHIN_MARGIN (a statistically "
                                  "confirmed regression that's still inside the margin) or when "

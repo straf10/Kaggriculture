@@ -553,6 +553,40 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
 
 
 @pytestmark_small_seed_warning
+def test_v1h2d_compare_gates_unexpected_not_raw_weeds():
+    def fake_play_expected(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        rewards = (150.0, 100.0) if a == "A" else (100.0, 150.0)
+        clean = {
+            "water_weeds_lost": 0,
+            "plant_decay_units_lost": 0,
+            "animals_escaped": 0,
+            "clipped_production_ticks": 0,
+            "shed_overflow_burnt": 0,
+            "weeds_lost": 8,
+            "unexpected_weeds_lost": 0,
+        }
+        return SimpleNamespace(rewards=rewards, metrics={0: clean, 1: clean})
+
+    with patch("harness.compare.play", side_effect=fake_play_expected):
+        expected = compare("A", "B", [0], both_seats=False, record=False, metrics=True)
+
+    assert expected.weeds_lost_a == 8
+    assert expected.unexpected_weeds_lost_a == 0
+    assert expected.metric_gate_passed is True
+
+    def fake_play_unexpected(a, b, seed, **kwargs):
+        result = fake_play_expected(a, b, seed, **kwargs)
+        result.metrics[0] = {**result.metrics[0], "weeds_lost": 1, "unexpected_weeds_lost": 1}
+        return result
+
+    with patch("harness.compare.play", side_effect=fake_play_unexpected):
+        unexpected = compare("A", "B", [0], both_seats=False, record=False, metrics=True)
+
+    assert unexpected.metric_gate_passed is False
+
+
+@pytestmark_small_seed_warning
 def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate(tmp_path):
     """plan.md §1.5.3 acceptance criterion — a GO must never be readable off a dev-screen
     report, nor off a holdout report where the metric gate didn't run, nor when the metric

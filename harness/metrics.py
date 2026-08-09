@@ -17,6 +17,7 @@ def _apply_unit_actions(farms, privates, actions, configuration, day):
     turns_per_day = max(1, int(configuration.get("turnsPerDay", 24)))
     shed_capacity = int(configuration.get("shedCapacity", 100))
     overflow = [0, 0]
+    successful_ongoing_harvests = [set(), set()]
 
     for seat in (0, 1):
         action = actions[seat]
@@ -53,6 +54,24 @@ def _apply_unit_actions(farms, privates, actions, configuration, day):
                     room = max(0, shed_capacity - sum(privates[seat]["shed"].values()))
                     overflow[seat] += max(0, incoming - room)
 
+            harvest = None
+            if (
+                isinstance(unit_action, list)
+                and unit_action
+                and unit_action[0] == "HARVEST"
+            ):
+                pos = engine._farmer_position(farms[seat], unit_index)
+                if pos is not None:
+                    x, y = pos
+                    tile = farms[seat]["tiles"][y][x]
+                    if (
+                        isinstance(tile, dict)
+                        and tile.get("kind") == "PLANT"
+                        and tile.get("yield_units", 0) > 0
+                        and tile.get("max_lifespan_step", -1) >= 0
+                    ):
+                        harvest = (pos, (tile.get("crop"), tile.get("planted_day")))
+
             engine._apply_unit_action(
                 farms[seat],
                 privates[seat],
@@ -63,7 +82,16 @@ def _apply_unit_actions(farms, privates, actions, configuration, day):
                 turns_per_day,
                 shed_capacity,
             )
-    return overflow
+            if harvest is not None:
+                (x, y), crop_instance = harvest
+                tile = farms[seat]["tiles"][y][x]
+                if (
+                    isinstance(tile, dict)
+                    and tile.get("kind") == "PLANT"
+                    and tile.get("yield_units", 0) == 0
+                ):
+                    successful_ongoing_harvests[seat].add(((x, y), crop_instance))
+    return overflow, successful_ongoing_harvests
 
 
 def _simulate_market(farms, privates, market, actions, configuration):
@@ -164,7 +192,9 @@ def _transition_events(previous_step, current_step, configuration):
     actions = [_action(current_step, seat) for seat in (0, 1)]
     previous_day = int(previous_step[0]["observation"].get("day", 0))
 
-    overflow = _apply_unit_actions(farms, privates, actions, configuration, previous_day)
+    overflow, successful_ongoing_harvests = _apply_unit_actions(
+        farms, privates, actions, configuration, previous_day
+    )
     sales, market_sim_aborted = _simulate_market(farms, privates, market, actions, configuration)
 
     current_day = int(current_step[0]["observation"].get("day", previous_day))
@@ -174,7 +204,7 @@ def _transition_events(previous_step, current_step, configuration):
             incoming = sum(sum(inventory.values()) for inventory in privates[seat]["inventories"])
             room = max(0, shed_capacity - sum(privates[seat]["shed"].values()))
             overflow[seat] += max(0, incoming - room)
-    return actions, overflow, sales, market_sim_aborted
+    return actions, overflow, sales, market_sim_aborted, successful_ongoing_harvests
 
 
 def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) -> dict:
@@ -204,6 +234,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         outcome = "tie"
 
     weeds_lost = 0
+    unexpected_weeds_lost = 0
     water_weeds_lost = 0
     decay_weeds_lost = 0
     animals_escaped = 0
@@ -228,7 +259,6 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     # are incomplete for that transition, so this episode's metrics can't be trusted as gate
     # input even though every individual counter still returned a (silently partial) number.
     market_sim_aborted = False
-
     for index in range(1, len(steps)):
         previous_step, current_step = steps[index - 1], steps[index]
         previous_observation = previous_step[seat]["observation"]
@@ -242,7 +272,13 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             "clipped_production_ticks": 0, "animals_underfed_days": 0,
         })
 
-        actions, overflow, transition_sales, transition_aborted = _transition_events(
+        (
+            actions,
+            overflow,
+            transition_sales,
+            transition_aborted,
+            successful_ongoing_harvests,
+        ) = _transition_events(
             previous_step,
             current_step,
             configuration,
@@ -278,6 +314,20 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
                 if isinstance(previous_tile, dict) and previous_tile.get("kind") == "PLANT":
                     if isinstance(current_tile, dict) and current_tile.get("kind") == "WEED":
                         weeds_lost += 1
+                        lifespan = previous_tile.get("max_lifespan_step", -1)
+                        crop_instance = (
+                            previous_tile.get("crop"),
+                            previous_tile.get("planted_day"),
+                        )
+                        successful_harvest_retirement = (
+                            lifespan >= 0
+                            and previous_engine_step >= lifespan
+                            and (previous_engine_step - lifespan) % 2 == 0
+                            and ((x, y), crop_instance)
+                            in successful_ongoing_harvests[seat]
+                        )
+                        if not successful_harvest_retirement:
+                            unexpected_weeds_lost += 1
                         if (
                             current_observation.get("day") != previous_observation.get("day")
                             and not previous_tile.get("watered_today")
@@ -417,6 +467,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "bank_curve": bank_curve,
         "opponent_bank_curve": opp_bank_curve,
         "weeds_lost": weeds_lost,
+        "unexpected_weeds_lost": unexpected_weeds_lost,
         "water_weeds_lost": water_weeds_lost,
         "decay_weeds_lost": decay_weeds_lost,
         "animals_escaped": animals_escaped,

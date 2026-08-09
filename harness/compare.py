@@ -230,7 +230,8 @@ class CompareResult:
     clipped_production_ticks_a: Optional[int] = None  # plan.md G8/v1d
     # review.md M1: four more signals extract_metrics() already computes but the gate ignored.
     shed_overflow_burnt_a: Optional[int] = None  # hard gate, same as the four above
-    weeds_lost_a: Optional[int] = None  # broader than water_weeds_lost_a; hard gate
+    weeds_lost_a: Optional[int] = None  # raw diagnostic; includes successful retirement
+    unexpected_weeds_lost_a: Optional[int] = None  # corrected semantic hard gate
     units_sold_at_or_below_5_a: Optional[int] = None  # budget (<=2% of sales_count_a), not ==0
     sales_count_a: Optional[int] = None  # denominator for the units_sold_at_or_below_5_a budget
     unexplained_noops_a: Optional[int] = None  # None unless diagnostics were collected (KAGGRI_DEBUG)
@@ -576,6 +577,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             # review.md M1/M11: same summed-not-averaged pattern as the four counters above.
             shed_overflow_burnt_a = sum(o.get("shed_overflow_burnt_a", 0) for o in orientations)
             weeds_lost_a = sum(o.get("weeds_lost_a", 0) for o in orientations)
+            unexpected_weeds_lost_a = sum(
+                o.get("unexpected_weeds_lost_a", 0) for o in orientations
+            )
             units_sold_at_or_below_5_a = sum(o.get("units_sold_at_or_below_5_a", 0) for o in orientations)
             sales_count_a = sum(o.get("sales_count_a", 0) for o in orientations)
             noop_values = [o.get("unexplained_noops_a") for o in orientations]
@@ -584,7 +588,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         else:
             water_weeds_lost_a = plant_decay_units_lost_a = None
             animals_escaped_a = clipped_production_ticks_a = None
-            shed_overflow_burnt_a = weeds_lost_a = units_sold_at_or_below_5_a = None
+            shed_overflow_burnt_a = weeds_lost_a = unexpected_weeds_lost_a = None
+            units_sold_at_or_below_5_a = None
             sales_count_a = unexplained_noops_a = None
             market_sim_aborted_a = None
         return {
@@ -601,6 +606,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "clipped_production_ticks_a": clipped_production_ticks_a,
             "shed_overflow_burnt_a": shed_overflow_burnt_a,
             "weeds_lost_a": weeds_lost_a,
+            "unexpected_weeds_lost_a": unexpected_weeds_lost_a,
             "units_sold_at_or_below_5_a": units_sold_at_or_below_5_a,
             "sales_count_a": sales_count_a,
             "unexplained_noops_a": unexplained_noops_a,
@@ -682,6 +688,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                         orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
                         orientation0["shed_overflow_burnt_a"] = m0.get("shed_overflow_burnt", 0)
                         orientation0["weeds_lost_a"] = m0.get("weeds_lost", 0)
+                        orientation0["unexpected_weeds_lost_a"] = m0.get(
+                            "unexpected_weeds_lost", 0
+                        )
                         orientation0["units_sold_at_or_below_5_a"] = m0.get("units_sold_at_or_below_5", 0)
                         orientation0["sales_count_a"] = len(m0.get("market_sales", []))
                         orientation0["unexplained_noops_a"] = m0.get("unexplained_noops")
@@ -698,6 +707,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                             orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
                             orientation1["shed_overflow_burnt_a"] = m1.get("shed_overflow_burnt", 0)
                             orientation1["weeds_lost_a"] = m1.get("weeds_lost", 0)
+                            orientation1["unexpected_weeds_lost_a"] = m1.get(
+                                "unexpected_weeds_lost", 0
+                            )
                             orientation1["units_sold_at_or_below_5_a"] = m1.get("units_sold_at_or_below_5", 0)
                             orientation1["sales_count_a"] = len(m1.get("market_sales", []))
                             orientation1["unexplained_noops_a"] = m1.get("unexplained_noops")
@@ -750,6 +762,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
                     orientation0["shed_overflow_burnt_a"] = m0.get("shed_overflow_burnt", 0)
                     orientation0["weeds_lost_a"] = m0.get("weeds_lost", 0)
+                    orientation0["unexpected_weeds_lost_a"] = m0.get(
+                        "unexpected_weeds_lost", 0
+                    )
                     orientation0["units_sold_at_or_below_5_a"] = m0.get("units_sold_at_or_below_5", 0)
                     orientation0["sales_count_a"] = len(m0.get("market_sales", []))
                     orientation0["unexplained_noops_a"] = m0.get("unexplained_noops")
@@ -770,6 +785,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                         orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
                         orientation1["shed_overflow_burnt_a"] = m1.get("shed_overflow_burnt", 0)
                         orientation1["weeds_lost_a"] = m1.get("weeds_lost", 0)
+                        orientation1["unexpected_weeds_lost_a"] = m1.get(
+                            "unexpected_weeds_lost", 0
+                        )
                         orientation1["units_sold_at_or_below_5_a"] = m1.get("units_sold_at_or_below_5", 0)
                         orientation1["sales_count_a"] = len(m1.get("market_sales", []))
                         orientation1["unexplained_noops_a"] = m1.get("unexplained_noops")
@@ -887,6 +905,9 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         # these metrics themselves are incomplete for at least one episode — fail the gate.
         shed_overflow_burnt_a = sum(row.get("shed_overflow_burnt_a", 0) for row in per_seed)
         weeds_lost_a = sum(row.get("weeds_lost_a", 0) for row in per_seed)
+        unexpected_weeds_lost_a = sum(
+            row.get("unexpected_weeds_lost_a", 0) for row in per_seed
+        )
         units_sold_at_or_below_5_a = sum(row.get("units_sold_at_or_below_5_a", 0) for row in per_seed)
         sales_count_a = sum(row.get("sales_count_a", 0) for row in per_seed)
         noop_rows = [row.get("unexplained_noops_a") for row in per_seed]
@@ -898,7 +919,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         metric_gate_passed = (
             water_weeds_lost_a == 0 and plant_decay_units_lost_a == 0
             and animals_escaped_a == 0 and clipped_production_ticks_a == 0
-            and shed_overflow_burnt_a == 0 and weeds_lost_a == 0
+            and shed_overflow_burnt_a == 0 and unexpected_weeds_lost_a == 0
             and units_sold_budget_ok
             and (unexplained_noops_a is None or unexplained_noops_a == 0)
             and not market_sim_aborted_a
@@ -906,7 +927,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     else:
         water_weeds_lost_a = plant_decay_units_lost_a = None
         animals_escaped_a = clipped_production_ticks_a = None
-        shed_overflow_burnt_a = weeds_lost_a = units_sold_at_or_below_5_a = None
+        shed_overflow_burnt_a = weeds_lost_a = unexpected_weeds_lost_a = None
+        units_sold_at_or_below_5_a = None
         sales_count_a = unexplained_noops_a = None
         market_sim_aborted_a = None
         metric_gate_passed = None
@@ -970,6 +992,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         clipped_production_ticks_a=clipped_production_ticks_a,
         shed_overflow_burnt_a=shed_overflow_burnt_a,
         weeds_lost_a=weeds_lost_a,
+        unexpected_weeds_lost_a=unexpected_weeds_lost_a,
         units_sold_at_or_below_5_a=units_sold_at_or_below_5_a,
         sales_count_a=sales_count_a,
         unexplained_noops_a=unexplained_noops_a,

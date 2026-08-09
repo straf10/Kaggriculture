@@ -385,6 +385,28 @@ def test_v1h2_d1_hour0_hire_credits_same_turn_sell():
     assert sell_i < first_hire_i
 
 
+def test_v1h2d_eod_headroom_sells_only_wheat_beyond_feed_reserve():
+    from agent.executor import market_orders
+
+    observation = _minimal_observation(step=23)
+    observation["private"]["shed"]["WHEAT"] = 105
+    observation["private"]["inventories"][0]["WHEAT"] = 10
+    observation["market"]["inventory"]["WHEAT"] = 0
+    for x in range(10):
+        observation["farms"][0]["tiles"][0][x] = _animal_tile("SHEEP")
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, CONFIG)
+    orders = market_orders(snapshot, plan, make_ledger(snapshot), [["PASS"]], CONFIG)
+
+    assert ["SELL", "WHEAT", 105] in orders
+    assert all(order[1] == "WHEAT" for order in orders if order[0] == "SELL")
+    remaining_total = (
+        int(observation["private"]["shed"]["WHEAT"]) - 105
+        + int(observation["private"]["inventories"][0]["WHEAT"])
+    )
+    assert remaining_total == 10
+
+
 def test_g2_multi_unit_assignment_reserves_observed_seeds():
     # animals disabled: this is a G2 multi-unit seed-reservation test, not a v1g animal-mass
     # test — with animals on, the 13 always-free BUILD_PASTURE/BUILD_COOP tasks (priority 2,
@@ -512,6 +534,28 @@ def test_g5_feed_never_assigned_to_a_unit_without_wheat():
 
     assert farmer_action != ["FEED"]
     assert hand_actions[0][0] in ("NORTH", "SOUTH", "EAST", "WEST", "FEED")
+
+
+def test_v1h2d_feed_pickup_reserves_delivery_slack_and_inherits_escape_risk():
+    observation = _minimal_observation(step=0)
+    observation["farms"][0]["tiles"][0][0] = _animal_tile("SHEEP", fed_today=False)
+    observation["farms"][0]["tiles"][0][0]["consecutive_unfed"] = 1
+    observation["private"]["shed"]["WHEAT"] = 1
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, CONFIG)
+
+    pickups = [
+        task
+        for task in build_tasks(snapshot, plan, CONFIG)
+        if task.kind == "PICKUP" and task.item == "WHEAT"
+    ]
+
+    assert pickups
+    day_deadline = CONFIG["runtime"]["turns_per_day"] - 1
+    shed = engine._shed_access_tiles(10)[0]
+    delivery_distance = abs(shed[0]) + abs(shed[1])
+    assert all(task.deadline_step == day_deadline - delivery_distance - 1 for task in pickups)
+    assert all(task.priority == -1 for task in pickups)
 
 
 def test_g8_harvest_offered_every_turn_product_is_held_not_just_at_cap():

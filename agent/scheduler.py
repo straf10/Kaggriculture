@@ -328,6 +328,14 @@ def _build_animal_tasks(
     animal_needs = animals_needing(snapshot)
     unfed_positions = [pos for pos, needed in animal_needs.items() if "FEED" in needed]
     if unfed_positions:
+        at_risk_positions = {
+            (x, y)
+            for x, y in unfed_positions
+            if (
+                isinstance(snapshot.my_tiles[y][x], dict)
+                and snapshot.my_tiles[y][x].get("consecutive_unfed", 0) >= 1
+            )
+        }
         carried_wheat = sum(inv.get("WHEAT", 0) for inv in snapshot.inventories)
         wheat_needed = len(unfed_positions) - carried_wheat
         wheat_available = int(snapshot.shed.get("WHEAT", 0))
@@ -360,11 +368,22 @@ def _build_animal_tasks(
             # stock per unit (kaggriculture.py's PICKUP op), so multiple units "requesting"
             # more than what's left is a harmless no-op once the shed empties, not a bug.
             pickup_count = min(wheat_needed, wheat_available)
+            # v1h.2d: PICKUP is FEED's mandatory predecessor. Its old day_deadline ignored
+            # the post-pickup trip from the shed to the farthest unfed animal, so it could
+            # remain "comfortable" until there was no delivery slack left. Reserve that
+            # mechanical trip now; if any animal is already one miss from escape, promote
+            # the predecessor with the same priority as its at-risk FEED task.
+            delivery_distance = max(
+                abs(spawn[0] - x) + abs(spawn[1] - y)
+                for x, y in unfed_positions
+            )
+            pickup_deadline = day_deadline - delivery_distance - 1
             for unit_index in range(len(unit_positions)):
                 tasks.append(Task(
                     id=f"pickup:WHEAT:{unit_index}", kind="PICKUP", pos=spawn,
-                    priority=0, item="WHEAT", count=pickup_count,
-                    deadline_step=day_deadline, allowed_unit=unit_index,
+                    priority=-1 if at_risk_positions else 0,
+                    item="WHEAT", count=pickup_count,
+                    deadline_step=pickup_deadline, allowed_unit=unit_index,
                 ))
         for (x, y) in unfed_positions:
             # v1g: FEED tasks all shared day_deadline regardless of history, so assign()'s
