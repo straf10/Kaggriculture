@@ -169,6 +169,26 @@ def _append_confirm_ledger(path: Path, row: dict) -> None:
         f.write(json.dumps(row) + "\n")
 
 
+def _has_prior_dev_screen(root: Path, candidate_fingerprint: str) -> bool:
+    """Whether durable gate evidence shows this exact candidate was screened before confirm."""
+    if not root.exists():
+        return False
+    for results_path in root.rglob("results.json"):
+        try:
+            payload = json.loads(results_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        fingerprints = payload.get("code_fingerprints", ())
+        if (
+            payload.get("stage") == "dev-screen"
+            and fingerprints
+            and fingerprints[0] == candidate_fingerprint
+            and not payload.get("incomplete", False)
+        ):
+            return True
+    return False
+
+
 def _play_orientation(agent_first, agent_second, seed, steps, run_dir, record, strict, metrics,
                       town_pin=None, town_schedule=None):
     """Module-level (picklable) unit of work for the ProcessPoolExecutor path (plan.md
@@ -237,6 +257,7 @@ class CompareResult:
     unexplained_noops_a: Optional[int] = None  # None unless diagnostics were collected (KAGGRI_DEBUG)
     market_sim_aborted_a: Optional[bool] = None  # review.md M11: True fails the gate
     metric_gate_passed: Optional[bool] = None  # None unless metrics_checked
+    prior_dev_screen_found: bool = False
     min_effect_used: float = 0.0  # review.md H1: the actual $ floor this verdict was judged against
     non_inferiority_margin_used: float = 0.0
     go: bool = False  # True only for stage="holdout-confirm" + IMPROVED/NON_INFERIOR + metric gate passed
@@ -267,7 +288,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             town_pin: Optional[str] = None,
             accept_within_margin: bool = False,
             allow_repeat_confirm: bool = False,
-            confirm_ledger_path: Optional[Path] = None) -> CompareResult:
+            confirm_ledger_path: Optional[Path] = None,
+            screen_evidence_dir: Optional[Path] = None) -> CompareResult:
     """Paired-seed protocol: A and B play the same seeds. With both_seats=True (default),
     each seed is played twice — A@seat0/B@seat1 and B@seat0/A@seat1 — since the weed-RNG
     seat coupling (MASTERPLAN §2#6) means seat 0/1 are not interchangeable. A seed's diff is
@@ -300,19 +322,18 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     results.jsonl. As today, if any orientation for a seed errors, the whole seed is recorded
     as errored — a lone successful sibling orientation is discarded, not silently kept.
 
-    metrics=True (plan.md §1.5.3 / review_89d99f0_2026-08-05.md §5 check #5) additionally extracts
-    water_weeds_lost/plant_decay_units_lost/animals_escaped/clipped_production_ticks for
-    agent_a's seat in every orientation played, exposed as `water_weeds_lost_a`/
-    `plant_decay_units_lost_a`/`animals_escaped_a`/`clipped_production_ticks_a` (summed) and
-    `metric_gate_passed` (all four counters exactly 0 — plan.md G5/G8 for the latter two, v1d).
-    Off by default — extract_metrics() is not free (review.md L5) and most calls only need
-    `rewards`. When metrics=False these four fields are None, not 0 (review.md C3) — the
+    metrics=True additionally extracts every hard-loss counter, the semantic unexpected-weed
+    counter, low-price-sale budget, diagnostics no-ops, and market-simulation health for
+    agent_a's seat in every orientation. Hard losses must be zero, sales at <=$5 must stay
+    within 2%, and the market simulation must complete. Raw `weeds_lost` remains diagnostic
+    because successful ongoing-crop retirement also produces a PLANT->WEED transition. Off by
+    default — extract_metrics() is not free. When metrics=False gate fields are None, not 0:
     absence of measurement is not proof of zero loss.
 
     stage tags which decision this report may back: "dev-screen" (tuning/screening — never a
     GO by itself, seeds must be a subset of harness.seeds.DEV_SEEDS) or "holdout-confirm"
-    (the one-shot final check, seeds must be a subset of the union of
-    harness.seeds.CONFIRM_SEED_SETS) — any other seeds for either stage raises (review.md C2).
+    (the one-shot final check, seeds must exactly match one complete registered
+    harness.seeds.CONFIRM_SEED_SETS entry) — any other seeds for either stage raises.
     A stage="holdout-confirm" call also checks+appends a tracked confirm ledger
     (confirm_ledger_path, default harness.compare.DEFAULT_CONFIRM_LEDGER): a repeat confirm
     for the same (agent_b fingerprint, seed set) raises unless allow_repeat_confirm=True, in
@@ -332,21 +353,28 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     schedule samples one town n times instead of reducing noise. Three limits, all load-bearing:
     it reduces (~19% of noise sd) rather than removes noise, it does not touch the weed stream,
     and a pinned result only holds for the pinned towns — which is why a stage="holdout-confirm"
-    run with a pin warns: the GO must survive the real town distribution, not the pinned one.
+    run with a pin raises: the GO must survive the real town distribution, not the pinned one.
     The chosen mode and the exact per-seed schedules are recorded on the result and in
     results.jsonl's `_meta` row, and --resume refuses to mix a pinned run with an unpinned one.
 
     `go` is only ever True for stage="holdout-confirm" with verdict IMPROVED or NON_INFERIOR
-    (or WITHIN_MARGIN with accept_within_margin=True) *and* metrics_checked with the metric
-    gate passed *and* no sign-test-confirmed regression (review.md H2: wins_b > wins_a at
-    p<0.01 blocks go unless accept_within_margin=True) — a $-verdict computed without metrics
-    never counts as a GO (plan.md §1.5.3).
+    (or WITHIN_MARGIN with accept_within_margin=True) *and* both seats, metrics_checked with
+    the metric gate passed, an unpinned town distribution, and no sign-test-confirmed
+    regression (review.md H2: wins_b > wins_a at p<0.01 blocks go unless
+    accept_within_margin=True) — a $-verdict computed without metrics never counts as a GO
+    (plan.md §1.5.3).
     """
     if stage is not None and stage not in VALID_STAGES:
         raise ValueError(f"compare(): stage must be one of {VALID_STAGES} or None, got {stage!r}")
     if town_pin is not None and town_pin not in PIN_MODES:
         raise ValueError(
             f"compare(): town_pin must be one of {PIN_MODES} or None, got {town_pin!r}"
+        )
+    if stage == "holdout-confirm" and town_pin is not None:
+        raise ValueError(
+            "compare(): stage='holdout-confirm' must run with town_pin=None so the final "
+            "decision covers the engine's real town distribution. Use town_pin only with "
+            "stage='dev-screen'."
         )
 
     collected_warnings: list = []
@@ -358,6 +386,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         # compare()'s caller, not at this function.
         warnings.warn(message, stacklevel=3)
         collected_warnings.append(message)
+
+    if town_pin == "schedule":
+        _warn(
+            "compare(): town_pin='schedule' represents a no-replacement permutation that is "
+            "now rare under engine 1.32.6. Prefer town_pin='basket' for occupancy screens; "
+            "'schedule' is retained only for historical reproduction."
+        )
 
     seeds = list(seeds)
     deduped_seeds = list(dict.fromkeys(seeds))
@@ -372,16 +407,19 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
 
     # review.md C2(a): stage and seeds used to be entirely uncross-checked — a --seed-set dev
     # --stage holdout-confirm combination (or any ad-hoc seed list) could produce a GO from
-    # seeds that were just tuned on. Each stage now only accepts seeds actually drawn from the
-    # seed set(s) that stage means.
+    # seeds that were just tuned on. A final confirm must consume one complete registered set:
+    # accepting proper subsets enables repeated, overlapping looks at the holdout under distinct
+    # custom ledger labels.
     if stage == "holdout-confirm":
-        valid_confirm_seeds = set().union(*(set(s) for s in CONFIRM_SEED_SETS))
-        if not set(seeds) <= valid_confirm_seeds:
+        if not any(
+            len(seeds) == len(registered) and set(seeds) == set(registered)
+            for registered in CONFIRM_SEED_SETS
+        ):
             raise ValueError(
-                "compare(): stage='holdout-confirm' requires seeds drawn from a seed set "
-                "registered in harness.seeds.CONFIRM_SEED_SETS (HOLDOUT_SEEDS/CONFIRM2_SEEDS/"
-                "...) — got seeds outside all of them. A holdout-confirm gate must never run "
-                "on dev-screen or ad-hoc seeds (review.md C2)."
+                "compare(): stage='holdout-confirm' requires one complete seed set registered "
+                "in harness.seeds.CONFIRM_SEED_SETS (HOLDOUT_SEEDS/CONFIRM2_SEEDS/...). "
+                "Subsets, overlapping slices, dev seeds, and ad-hoc seeds cannot back a final "
+                "decision."
             )
     elif stage == "dev-screen":
         if not set(seeds) <= set(DEV_SEEDS):
@@ -396,6 +434,17 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         raise ValueError(
             "compare(): A and B have identical code fingerprints; use immutable checkpoints "
             "with unique package namespaces and compare genuinely different versions"
+        )
+    evidence_root = Path(screen_evidence_dir) if screen_evidence_dir is not None else GATES_DIR
+    prior_dev_screen_found = (
+        _has_prior_dev_screen(evidence_root, code_fingerprints[0])
+        if stage == "holdout-confirm"
+        else False
+    )
+    if stage == "holdout-confirm" and not prior_dev_screen_found:
+        _warn(
+            "compare(): no prior complete tracked dev-screen artefact was found for agent_a's "
+            "fingerprint. This confirm may run for diagnostics, but it cannot produce GO=True."
         )
     if len(seeds) < 24:
         _warn(
@@ -428,15 +477,6 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             )
             if message is not None
         )
-        if town_pin is not None:
-            # current_phase.md §Πρωτόκολλο rule 3: pinning is a *screening* tool. A GO has to
-            # survive the real distribution of towns, not the handful this run pinned.
-            _warn(
-                f"compare(): stage='holdout-confirm' with town_pin={town_pin!r} — a pinned "
-                "confirm only establishes the result for the pinned towns. The final confirm "
-                "for a GO must also run unpinned (current_phase.md §Πρωτόκολλο, rule 3)."
-            )
-
     # §Β.0′ point 1: the pin must be a function of the seed, so a run samples a *range* of
     # towns rather than one town n times — and both orientations of a seed get the same one.
     town_schedules = (
@@ -526,6 +566,17 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     f"{town_pin!r} — delete {jsonl_path} or use a different run_dir instead of "
                     "mixing pinned and unpinned towns (or two different pin modes) into one "
                     "verdict (current_phase.md §Β.0′)"
+                )
+            recorded_town_schedules = meta.get("town_schedules", {})
+            current_town_schedules = meta_row["town_schedules"]
+            if town_pin is not None and (
+                "town_schedules" not in meta
+                or recorded_town_schedules != current_town_schedules
+            ):
+                raise ValueError(
+                    f"compare(): --resume run_dir {run_dir_path} has different town_schedules "
+                    "for the same town_pin mode. The schedule generator or seed mapping "
+                    "changed; use a new run_dir instead of mixing town distributions."
                 )
             data_lines = lines[1:]
         elif lines:
@@ -944,18 +995,28 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     go = bool(
         stage == "holdout-confirm"
         and verdict_allows_go
+        and prior_dev_screen_found
+        and both_seats
+        and town_pin is None
         and metrics
         and metric_gate_passed
         and not sign_test_blocks_go
     )
 
-    if stage == "holdout-confirm":
+    # Only a measured, complete confirm consumes the one-shot ledger slot. An unmetered or
+    # incomplete diagnostic is not evidence for acceptance and must not block the real gate.
+    if stage == "holdout-confirm" and metrics and not incomplete:
         _append_confirm_ledger(ledger_path, {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "agent_a_fp": code_fingerprints[0],
             "agent_b_fp": code_fingerprints[1],
             "seed_set_name": seed_set_name,
             "town_pin": town_pin,  # §Β.0′: a pinned confirm must be legible as such in the ledger
+            "both_seats": both_seats,
+            "metrics": metrics,
+            "incomplete": incomplete,
+            "counted_look": True,
+            "prior_dev_screen_found": prior_dev_screen_found,
             "verdict": verdict,
             "go": go,
             "repeat_confirm_index": repeat_confirm_index,
@@ -998,6 +1059,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         unexplained_noops_a=unexplained_noops_a,
         market_sim_aborted_a=market_sim_aborted_a,
         metric_gate_passed=metric_gate_passed,
+        prior_dev_screen_found=prior_dev_screen_found,
         min_effect_used=effective_min_effect,
         non_inferiority_margin_used=effective_non_inferiority_margin,
         go=go,

@@ -168,7 +168,8 @@ def _dynamic_sell_floors(
       than the days before `liquidation_day` can move at the throttled rate, the throttle is
       relaxed to at least the rate that clears it — otherwise the whole stock lands on the
       market in one endgame dump, straight through the very cliff this is meant to avoid.
-      (`force_liquidation` ignores floors entirely, so day >= liquidation_day is already safe.)
+      (`force_liquidation` replaces product floors with the weak hard liquidation floor, so
+      day >= liquidation_day is already the final release valve.)
 
     Sized off the day-start shed, not the current hour's, because make_day_plan runs on the day
     boundary: the floor stays constant within the day, which is what keeps this a function of

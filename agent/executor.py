@@ -2,20 +2,28 @@
 from .constants import ANIMALS, CROPS, LAND_ORDER, LAND_PRICES, market_price
 from .debug import emit_receipt
 from .planner import DayPlan
-from .scheduler import ResourceLedger, animal_placed, open_animal_slots, placed_count
+from .scheduler import ResourceLedger, open_animal_slots, placed_count
 from .state import Snapshot
 
 
-# review.md H8: truncation used to keep construction order (SELL first, HIRE/BUY_LAND last),
-# so a budget-tight turn silently dropped HIRE and BUY_LAND — the two orders with the largest
-# measured ROI — in favor of a SELL FERTILIZER worth a few dollars. Lower number = kept first
-# when max_market_orders forces a cut. WHEAT is life-or-death for placed animals
-# (consecutive_unfed >= 2 escapes them); HIRE has the largest observed ROI of any order kind.
+# This rank decides which orders survive the cap, not their emitted engine order. Selected
+# SELLs must still execute before selected spends so same-turn proceeds are available.
 _ORDER_TIER = {"HIRE": 0, "BUY_PRODUCT": 1, "BUY_ANIMAL": 2, "BUY_SEED": 3, "BUY_LAND": 4, "SELL": 5}
 
 
 def _order_tier(order: list) -> int:
     return _ORDER_TIER.get(order[0], len(_ORDER_TIER))
+
+
+def _truncate_orders(orders: list[list], max_orders: int) -> tuple[list[list], list[list]]:
+    """Keep the highest-value orders while preserving SELL-before-spend engine semantics."""
+    ranked_indices = sorted(range(len(orders)), key=lambda index: _order_tier(orders[index]))
+    kept_indices = set(ranked_indices[:max_orders])
+    kept = [order for index, order in enumerate(orders) if index in kept_indices]
+    dropped = [order for index, order in enumerate(orders) if index not in kept_indices]
+    # Stable: product order and spend priority remain deterministic inside each side.
+    kept.sort(key=lambda order: order[0] != "SELL")
+    return kept, dropped
 
 
 def _hire_cost(n_already_today: int, mult: int = 1) -> int:
@@ -220,8 +228,9 @@ def market_orders(
     # marginal unit still obeys the existing $5 hard floor. This is product/reserve-aware and
     # EOD-only: neither a blanket floor nor the rejected dynamic sell throttle.
     turns_per_day = int(config["runtime"]["turns_per_day"])
-    if not plan.force_liquidation and snapshot.hour == turns_per_day - 1:
-        shed_capacity = 100  # pinned engine 1.32.6 configuration
+    is_eod = not plan.force_liquidation and snapshot.hour == turns_per_day - 1
+    if is_eod:
+        shed_capacity = int(config["runtime"]["shed_capacity"])
         projected_stock = _projected_eod_stock(snapshot, scheduled_unit_actions)
         placed_animals = sum(
             1
@@ -250,7 +259,7 @@ def market_orders(
             and market_price(
                 product,
                 inventory + already_selling + extra + safety_units,
-            ) >= hard_floor
+            ) > hard_floor
         ):
             extra += 1
         if extra:
@@ -265,7 +274,16 @@ def market_orders(
             projected_stock + near_term_incoming - shed_capacity - normal_sells,
         )
         if headroom_needed > 0:
-            for product in dict.fromkeys(sell_products):
+            headroom_products = sorted(
+                dict.fromkeys(sell_products),
+                key=lambda candidate: market_price(
+                    candidate,
+                    int(snapshot.market_inventory.get(candidate, 0))
+                    + sell_units_by_product.get(candidate, 0)
+                    + int(executor_config["opponent_price_safety_units"]),
+                ),
+            )
+            for product in headroom_products:
                 if headroom_needed <= 0:
                     break
                 product_in_shed = int(snapshot.shed.get(product, 0))
@@ -286,14 +304,27 @@ def market_orders(
                     and market_price(
                         product,
                         inventory + already_selling + extra + safety_units,
-                    ) >= hard_floor
+                    ) > hard_floor
                 ):
                     extra += 1
                 if extra:
                     sell_units_by_product[product] = already_selling + extra
                     headroom_needed -= extra
 
-    for product in dict.fromkeys((*sell_products, "WHEAT")):
+    emit_products = list(dict.fromkeys((*sell_products, "WHEAT")))
+    if is_eod:
+        # At capacity pressure, spend scarce SELL slots on the lowest marginal-value stock
+        # first; high-value products can wait for a later, less destructive sale.
+        safety_units = int(executor_config["opponent_price_safety_units"])
+        emit_products.sort(
+            key=lambda candidate: market_price(
+                candidate,
+                int(snapshot.market_inventory.get(candidate, 0))
+                + max(0, sell_units_by_product.get(candidate, 0) - 1)
+                + safety_units,
+            )
+        )
+    for product in emit_products:
         sell_units = sell_units_by_product.get(product, 0)
         if sell_units:
             orders.append(["SELL", product, sell_units])
@@ -438,16 +469,19 @@ def market_orders(
         and owned_extra < len(LAND_ORDER)
         and LAND_ORDER[owned_extra] == wanted_quadrants[owned_extra]
         and len(snapshot.hand_positions) >= plan.hands_target
-        and all(animal_placed(snapshot, name) for name in plan.animal_purchases)
+        and all(
+            placed_count(snapshot, name) >= target
+            for name, target in plan.animal_purchases.items()
+        )
     ):
         # plan.md §5 v1c / MASTERPLAN §3.2#7: only buy once hands_target hands are already
         # observed hired — land bought before a workforce exists to work it is dead capital.
-        # The animal_placed check is load-bearing, not decorative: BUY_LAND's own hands_target
+        # The full-herd check is load-bearing, not decorative: BUY_LAND's own hands_target
         # gate is satisfiable as early as day 0 hour ~2, well before COW/SHEEP are bought
         # (hour 4/6) and placed — a v1c+v1d smoke test showed land's cost grabbing the shed's
         # cash first left too little for the very next day's wheat purchase, starving both
-        # animals to death by day 2. Requiring animals already placed defers land until after
-        # that (much cheaper, ~$900 total) obligation is already paid for.
+        # animals to death by day 2. Requiring the complete target herd to be placed defers
+        # land until every planned animal and its near-term feed obligation are already paid.
         # BUY_LAND is atomic (like HIRE), so the engine no-ops it once every quadrant is owned.
         # v1h': the same reserve applies to each purchase. SW costs twice NE ($2000 vs $1000)
         # and therefore lands later on its own, without a second, separately-tuned threshold —
@@ -499,15 +533,13 @@ def market_orders(
     if len(orders) > max_orders:
         # review_89d99f0_2026-08-05.md M7: raising here would turn one budget slip into a submission ERROR and a
         # lost episode. Truncate defensively instead and leave a receipt to catch it in dev.
-        # review.md H8: truncate by priority (_ORDER_TIER), not construction order — a stable
-        # sort keeps each tier's own relative order (e.g. SELL products stay in their existing
-        # order among themselves), only reordering across tiers.
+        truncated, dropped = _truncate_orders(orders, max_orders)
         emit_receipt({
             "kind": "market_order_budget_truncated",
             "step": snapshot.step,
             "requested": len(orders),
             "max_orders": max_orders,
-            "dropped": sorted(orders, key=_order_tier)[max_orders:],
+            "dropped": dropped,
         })
-        orders = sorted(orders, key=_order_tier)[:max_orders]
+        orders = truncated
     return orders

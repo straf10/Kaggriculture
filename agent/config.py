@@ -190,24 +190,23 @@ CONFIG = {
         # plan.md §5.1 v1d / v1g: reserved structure tiles for animal placement, carved up
         # per-name by agent.animal_slots.animal_slot_ranges in config["animals"]["targets"]
         # dict order — the first `targets["COW"]` PASTURE tiles below are COW's, the next
-        # `targets["SHEEP"]` are SHEEP's. All 13 PASTURE tiles are NW (owned from day 0):
+        # `targets["SHEEP"]` are SHEEP's. v1h.2 D2 therefore uses the first 4 for COW and the
+        # next 6 for SHEEP; the 3 trailing v1g-era reserve positions are currently unused.
+        # All PASTURE candidates are NW (owned from day 0):
         # current_phase.md v1g deliberately never places a structure on not-yet-purchased
         # land — BUY_LAND's gate (executor.py) requires every planned animal already placed,
         # so a structure sitting on NE-locked land would deadlock it (the same reasoning that
         # already put GOOSE's COOP on NW in v1e — see its comment below). Ordered nearest-
-        # shed-first within each animal's own block (FEED/CARE is a recurring daily commute
-        # cost ×13 now, review_89d99f0_2026-08-05.md C1 §1.3) — COW (8, more numerous) gets
-        # the nearer half, SHEEP (5) the farther half.
+        # shed-first because FEED/CARE is a recurring daily commute.
         "animal_structure_tiles": {
             "PASTURE": (
-                # COW block (8): distances 2,2,2,3,3,4,4,5 from the (4,4) shed spawn.
+                # Active 4C/6S carve consumes the first ten positions in this order.
                 (4, 2), (3, 3), (2, 4), (3, 2), (2, 3), (4, 0), (0, 4), (0, 3),
-                # SHEEP block (5): distances 6,6,7,7,8.
                 (0, 2), (2, 0), (0, 1), (1, 0), (0, 0),
             ),
             # plan.md §5 v1e: GOOSE's COOP, placed on the reclaimed NW STRAWBERRY tile (3, 0)
             # rather than NE — see strawberry_tiles comment in config["planner"] for why NE
-            # would deadlock BUY_LAND's animal_placed gate.
+            # would deadlock BUY_LAND's full-herd gate.
             "COOP": ((3, 0),),
         },
     },
@@ -335,5 +334,6 @@ CONFIG = {
     "runtime": {
         "turns_per_day": 24,
         "episode_steps": 720,
+        "shed_capacity": 100,
     },
 }

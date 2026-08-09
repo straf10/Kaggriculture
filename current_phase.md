@@ -1126,8 +1126,15 @@ max».
 
 - **Seeds**: `DEV_SEEDS` 0-47 (screening) · `HOLDOUT_SEEDS` 100-147 (μόνο confirm, καμία
   tuning απόφαση) · `SMOKE_SEEDS` 0-11 (ποτέ GO) · `CONFIRM2_SEEDS` 200-247 **καμένο** για το
-  v1c ερώτημα ([harness/seeds.py](harness/seeds.py)). GO **μόνο** από `stage=holdout-confirm`
-  με `metrics_checked` και καθαρό metric gate.
+  v1c ερώτημα ([harness/seeds.py](harness/seeds.py)). Το `stage=holdout-confirm` δέχεται μόνο
+  ένα **πλήρες** named confirm set — όχι subsets/overlapping looks — και γράφει ledger μόνο
+  όταν το run είναι measured και complete. GO απαιτεί επιπλέον prior tracked DEV artefact για
+  το ίδιο candidate fingerprint, both seats, `town_pin=None`, `metrics_checked` και καθαρό
+  metric gate. Καμία αποδοχή/submission χωρίς `GO=True`.
+- **Γνωστό land debt**: το v1c confirm2 μέτρησε `WITHIN_MARGIN` −$299/episode και δεν
+  δικαιολόγησε οριακά το land increment, παρότι η συνολική αλυσίδα παραμένει ισχυρά θετική.
+  Κάθε νέο land/crew ερώτημα χρειάζεται νέο, ανέγγιχτο confirm set· δεν επαναχρησιμοποιούμε
+  100–147/200–247 για να «ξαναδικάσουμε» το ίδιο fingerprint.
 - **Metric gates πριν το $-verdict**: `water_weeds_lost == 0` ∧
   `plant_decay_units_lost == 0` ∧ `animals_escaped == 0` ∧
   `clipped_production_ticks == 0` ∧ `shed_overflow_burnt == 0` ∧

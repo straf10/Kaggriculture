@@ -83,6 +83,7 @@ def _results_json_dict(result) -> dict:
         "practical": result.practical,
         "sign_test_p": result.sign_test_p,
         "verdict": result.verdict,
+        "incomplete": result.incomplete,
         "code_fingerprints": result.code_fingerprints,
         "stage": result.stage,
         "town_pin": result.town_pin,
@@ -100,6 +101,7 @@ def _results_json_dict(result) -> dict:
         "unexplained_noops_a": result.unexplained_noops_a,
         "market_sim_aborted_a": result.market_sim_aborted_a,
         "metric_gate_passed": result.metric_gate_passed,
+        "prior_dev_screen_found": result.prior_dev_screen_found,
         "min_effect_used": result.min_effect_used,
         "non_inferiority_margin_used": result.non_inferiority_margin_used,
         "go": result.go,
@@ -111,6 +113,7 @@ def _results_json_dict(result) -> dict:
         "platform": result.platform,
         "python_version": result.python_version,
         "env": result.env,
+        "warnings": result.warnings,
     }
 
 
@@ -126,11 +129,13 @@ def _cmd_compare(args):
                       non_inferiority_margin=args.non_inferiority_margin,
                       accept_within_margin=args.accept_within_margin,
                       allow_repeat_confirm=args.allow_repeat_confirm,
-                      confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None)
+                      confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None,
+                      screen_evidence_dir=Path(args.gates_dir))
     print(f"seeds={len(seeds)} ({result.seed_set_name}) both_seats={not args.single_seat} "
           f"workers={args.workers}")
     print(f"stage={result.stage} metrics_checked={result.metrics_checked} "
-          f"town_pin={result.town_pin} repeat_confirm_index={result.repeat_confirm_index}")
+          f"town_pin={result.town_pin} prior_dev_screen_found={result.prior_dev_screen_found} "
+          f"repeat_confirm_index={result.repeat_confirm_index}")
     print(f"wins_a={result.wins_a} wins_b={result.wins_b} ties={result.ties} "
           f"sign_test_p={result.sign_test_p} errors={len(result.errors)}")
     print(f"episode_wins_a={result.episode_wins_a} episode_wins_b={result.episode_wins_b} "
@@ -224,7 +229,7 @@ def _cmd_checkpoint(args):
     print(f"checkpoint written to {main_path}")
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m harness.cli")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -262,14 +267,15 @@ def main():
     p_compare.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1),
                             help="ProcessPoolExecutor workers; 1 = sequential (default: cpu_count-1)")
     p_compare.add_argument("--metrics", action="store_true",
-                            help="extract water_weeds_lost/plant_decay_units_lost/"
-                                 "animals_escaped/clipped_production_ticks for agent_a and "
-                                 "require all four ==0 for the metric gate (plan.md §1.5.3, "
-                                 "G5/G8); required (with --stage holdout-confirm) for GO=True")
-    p_compare.add_argument("--min-effect", type=float, default=0.0,
-                           help="practical improvement threshold in dollars per episode")
-    p_compare.add_argument("--non-inferiority-margin", type=float, default=0.0,
-                           help="maximum allowed lower-confidence regression in dollars per episode")
+                            help="extract all hard-loss, low-price-sale, no-op, and market-"
+                                 "simulation metrics for agent_a; required (with an unpinned, "
+                                 "both-seats --stage holdout-confirm) for GO=True")
+    p_compare.add_argument("--min-effect", type=float, default=None,
+                           help="practical improvement threshold in dollars per episode "
+                                "(default: max($200, 2%% of mean bank_b))")
+    p_compare.add_argument("--non-inferiority-margin", type=float, default=None,
+                           help="maximum allowed lower-confidence regression in dollars per "
+                                "episode (default: the effective --min-effect)")
     p_compare.add_argument("--accept-within-margin", action="store_true",
                             help="allow GO=True when verdict=WITHIN_MARGIN (a statistically "
                                  "confirmed regression that's still inside the margin) or when "
@@ -326,7 +332,7 @@ def main():
     p_checkpoint.add_argument("--out", default=DEFAULT_CHECKPOINT_ROOT)
     p_checkpoint.set_defaults(func=_cmd_checkpoint)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     # review.md C2(c): --stage silently overrode --seed-set's implied stage with no warning,
     # so `--seed-set dev --stage holdout-confirm` could produce a GO from seeds that were just
     # tuned on. A mismatched explicit pair is now a usage error, not a silent override.
