@@ -1,0 +1,332 @@
+{
+  "n": 29,
+  "wins": 15,
+  "our_final_median": 47091.0,
+  "opp_final_median": 44841.0,
+  "bank_median": {
+    "0": 36.0,
+    "1": 1.0,
+    "2": 150.0,
+    "3": 4.0,
+    "4": 582.0,
+    "5": 509.0,
+    "6": 648.0,
+    "7": 849.0,
+    "8": 877.0,
+    "9": 1751.0,
+    "10": 2610.0,
+    "11": 2890.0,
+    "12": 4316.0,
+    "13": 5895.0,
+    "14": 7822.0,
+    "15": 11018.0,
+    "16": 13149.0,
+    "17": 16924.0,
+    "18": 23432.0,
+    "19": 25111.0,
+    "20": 27324.0,
+    "21": 29501.0,
+    "22": 30353.0,
+    "23": 32062.0,
+    "24": 34473.0,
+    "25": 36493.0,
+    "26": 41759.0,
+    "27": 43920.0,
+    "28": 45095.0,
+    "29": 47091.0
+  },
+  "opp_bank_median": {
+    "0": 249.0,
+    "1": 162.0,
+    "2": 239.0,
+    "3": 434.0,
+    "4": 373.0,
+    "5": 381.0,
+    "6": 656.0,
+    "7": 590.0,
+    "8": 738.0,
+    "9": 1014.0,
+    "10": 1820.0,
+    "11": 3584.0,
+    "12": 5542.0,
+    "13": 7522.0,
+    "14": 7873.0,
+    "15": 10306.0,
+    "16": 12354.0,
+    "17": 13999.0,
+    "18": 17290.0,
+    "19": 19504.0,
+    "20": 21578.0,
+    "21": 23851.0,
+    "22": 25223.0,
+    "23": 25567.0,
+    "24": 31957.0,
+    "25": 36084.0,
+    "26": 37431.0,
+    "27": 39413.0,
+    "28": 40127.0,
+    "29": 44841.0
+  },
+  "elite": {
+    "5": 299,
+    "10": 2212,
+    "15": 21272,
+    "20": 45689
+  },
+  "farm_d5": {
+    "hands": 6,
+    "tiles_planted": 11,
+    "animals_total": 6,
+    "plants_wheat": 0,
+    "plants_strawberry": 8
+  },
+  "farm_d20": {
+    "hands": 10,
+    "tiles_planted": 19,
+    "animals_total": 10,
+    "unlocked_quadrants": 3,
+    "plants_wheat": 12,
+    "plants_strawberry": 1,
+    "plants_carrot": 6
+  },
+  "silent": {
+    "non_done": [],
+    "none_action_median": 0,
+    "none_action_max": 0,
+    "bad_status_eps": []
+  },
+  "scoreboard": [
+    {
+      "episode_id": 91374952,
+      "win": true,
+      "our": 70210.0,
+      "opp": 41208.0,
+      "opp_name": "Zafer Liu",
+      "seat": 0
+    },
+    {
+      "episode_id": 91366686,
+      "win": true,
+      "our": 68528.0,
+      "opp": 41756.0,
+      "opp_name": "Play Code",
+      "seat": 1
+    },
+    {
+      "episode_id": 91428155,
+      "win": true,
+      "our": 68509.0,
+      "opp": 45772.0,
+      "opp_name": "Satish ",
+      "seat": 0
+    },
+    {
+      "episode_id": 91367575,
+      "win": true,
+      "our": 67546.0,
+      "opp": 66460.0,
+      "opp_name": "Junbeom Lee23",
+      "seat": 1
+    },
+    {
+      "episode_id": 91390511,
+      "win": true,
+      "our": 66286.0,
+      "opp": 56246.0,
+      "opp_name": "CHCHENTW",
+      "seat": 0
+    },
+    {
+      "episode_id": 91382243,
+      "win": false,
+      "our": 62263.0,
+      "opp": 99183.0,
+      "opp_name": "primal",
+      "seat": 0
+    },
+    {
+      "episode_id": 91376783,
+      "win": false,
+      "our": 61053.0,
+      "opp": 75520.0,
+      "opp_name": "Aditya Dube",
+      "seat": 1
+    },
+    {
+      "episode_id": 91381341,
+      "win": true,
+      "our": 58445.0,
+      "opp": 38840.0,
+      "opp_name": "Yuelin Bai",
+      "seat": 1
+    },
+    {
+      "episode_id": 91371266,
+      "win": false,
+      "our": 58408.0,
+      "opp": 68491.0,
+      "opp_name": "Micah Fernando",
+      "seat": 1
+    },
+    {
+      "episode_id": 91404720,
+      "win": false,
+      "our": 58263.0,
+      "opp": 69121.0,
+      "opp_name": "arman1o1",
+      "seat": 1
+    },
+    {
+      "episode_id": 91374037,
+      "win": false,
+      "our": 56631.0,
+      "opp": 74622.0,
+      "opp_name": "djschmit",
+      "seat": 0
+    },
+    {
+      "episode_id": 91372188,
+      "win": true,
+      "our": 54135.0,
+      "opp": 34079.0,
+      "opp_name": "Harpal Gujral",
+      "seat": 0
+    },
+    {
+      "episode_id": 91394052,
+      "win": true,
+      "our": 50562.0,
+      "opp": 30423.0,
+      "opp_name": "Earth",
+      "seat": 0
+    },
+    {
+      "episode_id": 91375859,
+      "win": true,
+      "our": 50355.0,
+      "opp": 50028.0,
+      "opp_name": "not today",
+      "seat": 1
+    },
+    {
+      "episode_id": 91379514,
+      "win": true,
+      "our": 47091.0,
+      "opp": 44298.0,
+      "opp_name": "Riki Garcia",
+      "seat": 0
+    },
+    {
+      "episode_id": 91412775,
+      "win": false,
+      "our": 43655.0,
+      "opp": 159769.0,
+      "opp_name": "Aaweg Bhaladhare",
+      "seat": 0
+    },
+    {
+      "episode_id": 91373112,
+      "win": false,
+      "our": 39489.0,
+      "opp": 70627.0,
+      "opp_name": "Abdullah M. Haque",
+      "seat": 0
+    },
+    {
+      "episode_id": 91384076,
+      "win": false,
+      "our": 38283.0,
+      "opp": 40448.0,
+      "opp_name": "Rintaro Moriwaki",
+      "seat": 1
+    },
+    {
+      "episode_id": 91385027,
+      "win": false,
+      "our": 37352.0,
+      "opp": 45478.0,
+      "opp_name": "quantcrypto3",
+      "seat": 0
+    },
+    {
+      "episode_id": 91404862,
+      "win": true,
+      "our": 36046.0,
+      "opp": 32383.0,
+      "opp_name": "coolin666",
+      "seat": 1
+    },
+    {
+      "episode_id": 91380435,
+      "win": true,
+      "our": 35953.0,
+      "opp": 33169.0,
+      "opp_name": "VicD",
+      "seat": 0
+    },
+    {
+      "episode_id": 91370341,
+      "win": false,
+      "our": 35253.0,
+      "opp": 54180.0,
+      "opp_name": "Special_octo20",
+      "seat": 1
+    },
+    {
+      "episode_id": 91378601,
+      "win": true,
+      "our": 31429.0,
+      "opp": 27435.0,
+      "opp_name": "ponsuk",
+      "seat": 0
+    },
+    {
+      "episode_id": 91383166,
+      "win": false,
+      "our": 30585.0,
+      "opp": 40946.0,
+      "opp_name": "Saravana Thiagarajan K",
+      "seat": 1
+    },
+    {
+      "episode_id": 91377700,
+      "win": true,
+      "our": 29646.0,
+      "opp": 28158.0,
+      "opp_name": "Muhammad Rafzan",
+      "seat": 1
+    },
+    {
+      "episode_id": 91385948,
+      "win": false,
+      "our": 25268.0,
+      "opp": 54792.0,
+      "opp_name": "Rakhansyah",
+      "seat": 0
+    },
+    {
+      "episode_id": 91400344,
+      "win": false,
+      "our": 24980.0,
+      "opp": 44841.0,
+      "opp_name": "jazivxt",
+      "seat": 1
+    },
+    {
+      "episode_id": 91369415,
+      "win": true,
+      "our": 23666.0,
+      "opp": 3033.0,
+      "opp_name": "Teja Madala",
+      "seat": 1
+    },
+    {
+      "episode_id": 91368474,
+      "win": false,
+      "our": 15429.0,
+      "opp": 24019.0,
+      "opp_name": "vladee",
+      "seat": 0
+    }
+  ]
+}

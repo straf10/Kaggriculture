@@ -1,0 +1,62 @@
+[
+  {
+    "wheat": 12,
+    "hands": 10,
+    "plants": 3,
+    "verdict": "INCONCLUSIVE",
+    "mean_diff": 0.0,
+    "median_bank_a": 60850.5,
+    "shed_overflow_burnt_a": 0,
+    "water_weeds_lost_a": 10,
+    "animals_escaped_a": 0,
+    "priced_loss_per_episode": 125.0,
+    "metric_gate_passed": false,
+    "wins_a": 0,
+    "wins_b": 0
+  },
+  {
+    "wheat": 12,
+    "hands": 12,
+    "plants": 3,
+    "verdict": "INCONCLUSIVE",
+    "mean_diff": 0.0,
+    "median_bank_a": 60850.5,
+    "shed_overflow_burnt_a": 0,
+    "water_weeds_lost_a": 10,
+    "animals_escaped_a": 0,
+    "priced_loss_per_episode": 125.0,
+    "metric_gate_passed": false,
+    "wins_a": 0,
+    "wins_b": 0
+  },
+  {
+    "wheat": 24,
+    "hands": 10,
+    "plants": 6,
+    "verdict": "INCONCLUSIVE",
+    "mean_diff": -759.0416666666666,
+    "median_bank_a": 57214.5,
+    "shed_overflow_burnt_a": 0,
+    "water_weeds_lost_a": 10,
+    "animals_escaped_a": 8,
+    "priced_loss_per_episode": 458.3333333333333,
+    "metric_gate_passed": false,
+    "wins_a": 6,
+    "wins_b": 6
+  },
+  {
+    "wheat": 24,
+    "hands": 12,
+    "plants": 6,
+    "verdict": "INCONCLUSIVE",
+    "mean_diff": -759.0416666666666,
+    "median_bank_a": 57214.5,
+    "shed_overflow_burnt_a": 0,
+    "water_weeds_lost_a": 10,
+    "animals_escaped_a": 8,
+    "priced_loss_per_episode": 458.3333333333333,
+    "metric_gate_passed": false,
+    "wins_a": 6,
+    "wins_b": 6
+  }
+]

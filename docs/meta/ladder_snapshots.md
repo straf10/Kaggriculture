@@ -33,6 +33,76 @@ ladder έναντι του μέσου όρου της κορυφής.
 
 ---
 
+## 2026-08-10 — L1: live v1h (`55383610`) cash-curve diagnostic <a id="l1-v1h"></a>
+
+**Πηγή:** δικά μας ladder replays του submission **`55383610`** (v1h, engine 1.32.6) —
+29 `EPISODE_TYPE_PUBLIC` + 1 VALIDATION. Replays:
+`baselines/2026-08-10/replays_v1h/` · aggregate:
+`baselines/2026-08-10/l1_v1h_curves.json` · script: `analysis/l1_v1h_ladder.py`
+(επαναχρησιμοποιεί `analysis.replay_profile.extract_profile` — μόνο aggregate per-day state,
+MASTERPLAN §3.4). Το community `episode_features.csv` δεν έχει per-day bank· τα fingerprints
+του (peak_crew / tiles_planted) επιβεβαιώνουν την ίδια κλίμακα αλλά **δεν** απαντούν το
+ερώτημα opening-vs-elbow.
+
+**Ομάδα μας:** `STRAF`. W/L στα 29 public: **15–14**. Final median bank **$47.091** (εμείς) /
+$44.841 (αντίπαλοι) — ίδιο ταβάνι με το τοπικό `median_bank ≈ $46,5k` του `v1h_2d`.
+
+### Ερώτημα-κλειδί: πού ανοίγει η ψαλίδα;
+
+Elite cash curve (on-hand, Live Meta 8.5): **d5 $299 · d10 $2.212 · d15 $21.272 · d20 $45.689**.
+
+| Day | Εμείς (median) | Elite | Εμείς/elite | Διάβασμα |
+|---|---:|---:|---:|---|
+| 5 | **$509** | $299 | **1,70×** | opening: **μπροστά** |
+| 10 | **$2.610** | $2.212 | **1,18×** | ακόμα μπροστά / κοντά |
+| 15 | **$11.018** | $21.272 | **0,52×** | **ψαλίδα ανοίγει εδώ** |
+| 20 | **$27.324** | $45.689 | **0,60×** | elbow: παραμένει πίσω |
+
+Απόλυτα Δ bank ανά παράθυρο:
+
+| Παράθυρο | Εμείς | Elite |
+|---|---:|---:|
+| d5→d10 | +$2.101 | +$1.913 |
+| **d10→d15** | **+$8.408** | **+$19.060** |
+| d15→d20 | +$16.306 | +$24.417 |
+
+**Απάντηση: η ψαλίδα ανοίγει στο elbow (μέρες 14–20), όχι στο opening (0–5).** Στο opening
+είμαστε *μπροστά* από την elite cash curve· το χάσμα γεννιέται όταν η ελίτ εκρήγνυται σε
+παραγωγή στο δεύτερο δεκαήμερο και εμείς μένουμε στο ταβάνι των ~$47k.
+
+### Farm state (median, τέλος ημέρας)
+
+| | d5 | d20 (εμείς) | d20 (αντίπαλος) |
+|---|---:|---:|---:|
+| hands | 6 | 10 | 11 |
+| tiles_planted | 11 | **19** | **27** |
+| animals | 6 | 10 | 12 |
+| plants_wheat (ζωντανά) | 0 | **12** | 5 |
+| plants_strawberry | 8 | 1 | 4 |
+| quadrants | 1 | 3 | 3 |
+
+Cum sales (median units): WHEAT 69 · STRAWBERRY 32 · MILK 167 · WOOL 54 · CARROT 126 ·
+FERTILIZER 212. Μέσες τιμές (volume-weighted, median επ.): WHEAT $49,5 · STRAWBERRY $219 ·
+MILK $121 · WOOL $197.
+
+### Σιωπηλή αποτυχία — αποκλείστηκε
+
+- Episode statuses: όλα `DONE`/`DONE` (κανένα ERROR/TIMEOUT/INVALID).
+- Turns με `action=None` στο seat μας: **0/720** σε όλα τα 29 episodes.
+- Sample agent logs (7 αρχεία, δικό μας seat + validation mirror): **stderr κενό**,
+  `max_duration ≤ 81 ms` — κανένα timeout, κανένα traceback. Το χαμηλό rating **δεν**
+  εξηγείται από crash/timeout στη ζωντανή εκτέλεση.
+
+### Δέσμευση scope για το v1j
+
+Το εύρημα **επιβεβαιώνει** ότι το χάσμα είναι κλίμακα παραγωγής στο elbow, όχι opening
+cash-flow — **καμία μετατόπιση** προτεραιότητας προς early-game monetization. Το d20
+`tiles_planted=19` έναντι αντιπάλου 27 και το σταθερό `plants_wheat=12` είναι ακριβώς το
+κενό του §2. (Το συγκεκριμένο κουμπί `{24,12}` απέτυχε αργότερα στο smoke επειδή τα +2
+hands δεν προσλαμβάνονται — βλ. current_phase.md §v1j· το *πρόβλημα* παραμένει.)
+
+---
+
 ## 2026-08-07 — *Live Meta Report* 8.5 (δεδομένα 2026-08-06) <a id="meta0807"></a>
 
 **Πηγή:** *8.5 Daily Meta Report — 2026-08-06*, ζώνη Elo 2700–all· **683 episodes / 1.366 seats**,

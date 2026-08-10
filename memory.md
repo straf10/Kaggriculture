@@ -1,4 +1,4 @@
-# memory.md — Session Log
+﻿# memory.md — Session Log
 
 > Internal project memory, updated at the end of each working session. Newest entry on top.
 > Purpose: let a fresh session (human or assistant) pick up context fast — what changed, why,
@@ -9,6 +9,58 @@
 > This file only records **what happened**, not decisions that belong in those two.
 
 ---
+
+## 2026-08-10 (γ) — Session: **L1 ✅ · v1j smoke 2×2 ⛔ STOP**
+
+**Εντολή:** L1 (docs-only) μετά v1j κατά current_phase.md ΜΕΡΟΣ Β.
+
+### L1 — πού ανοίγει η ψαλίδα (κλειστό)
+
+Κατέβηκαν 29 public + 1 validation episodes του `v1h` (`55383610`) →
+`baselines/2026-08-10/replays_v1h/`. Ανάλυση με `analysis/l1_v1h_ladder.py`
+(`extract_profile` — aggregate only).
+
+| Day | Εμείς median | Elite | ratio |
+|---|---:|---:|---:|
+| 5 | $509 | $299 | **1,70×** |
+| 10 | $2.610 | $2.212 | **1,18×** |
+| 15 | $11.018 | $21.272 | **0,52×** |
+| 20 | $27.324 | $45.689 | **0,60×** |
+
+**Η ψαλίδα ανοίγει στο elbow (d10→d15: +$8,4k δικά μας vs +$19,1k elite), όχι στο opening** —
+στο opening είμαστε μπροστά. W/L 15–14, final median $47.091. d20: wheat tiles=12,
+tiles_planted=19 vs opp 27, hands=10. Σιωπηλή αποτυχία **αποκλείστηκε** (0 None-actions,
+DONE/DONE, sample logs stderr=0, max_dur≤81ms).
+
+**Δέσμευση:** το πρόβλημα είναι κλίμακα/elbow — **όχι** opening cash-flow. Docs:
+`docs/meta/ladder_snapshots.md#l1-v1h`, current_phase.md L1 ✅.
+
+### v1j — 2×2 smoke STOP (υπόθεση `{24,12}` καταρρίφθηκε)
+
+OCCUPANCY, SMOKE 0-11 both seats, `--town-pin basket`, vs `checkpoints/v1h_2d`
+(`analysis/v1j_smoke_sweep.py` → `gates/v1j_smoke_2x2/`).
+
+| Κελί | mean_diff | median_bank | escapes | overflow | weeds |
+|---|---:|---:|---:|---:|---:|
+| `{12,10}` | +$0,0 | $60.850 | 0 | 0 | 10 |
+| `{12,12}` | +$0,0 | $60.850 | 0 | 0 | 10 |
+| `{24,10}` | −$759 | $57.214 | 8 | 0 | 10 |
+| **`{24,12}`** | **−$759** | $57.214 | 8 | 0 | 10 |
+
+**Root cause:** `sw_hands_target=12` είναι **νεκρό κουμπί** — `{12,12}≡{12,10}` και
+`{24,12}≡{24,10}` ακριβώς. Τα hands 11-12 δεν προσλαμβάνονται (fib(10)/fib(11) πρωί). Χωρίς
+πραγματικό crew, 24 tiles = land-only ⇒ 8 escapes, −$3,6k median. Overflow έμεινε 0 (EOD
+surplus κρατάει). Κατά πρωτόκολλο: **STOP**, κανένα DEV/holdout/checkpoint/submission.
+Agent reverted (`sw_wheat_tiles=12`, `sw_hands_target=10`, WHEAT list όπως `v1h_2d`).
+
+**Next session should:** μην ξανατρέξεις `{24,12}` όπως είναι. Δύο υποψήφια follow-ups
+(διαλέγεις με φθηνό smoke πρώτα): (1) **hire-path** ώστε 11-12 hands να προσλαμβάνονται
+πραγματικά στο SW window, μετά ξανα-sweep tiles×hands· (2) ενδιάμεσο tile count με τα
+υπάρχοντα 10 hands (π.χ. 16) τώρα που υπάρχει EOD surplus — το παλιό 16-tile FAIL ήταν
+overflow, που σήμερα μέτρησε 0 στα 24.
+
+---
+
 
 ## 2026-08-10 (β) — Session: **v1h.2d priced gate υλοποιήθηκε, νέο harness bug βρέθηκε, `checkpoints/v1h_2d` έκλεισε holdout, 4ο submission**
 
