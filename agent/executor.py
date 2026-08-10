@@ -159,6 +159,78 @@ def _projected_near_term_incoming(
     return incoming
 
 
+def _sell_batch_size(
+    product: str,
+    stock: int,
+    inventory: int,
+    safety_units: int,
+    floor: int,
+    hard_floor: int,
+    average_rule: bool,
+) -> int:
+    """How many units of `product` to put in this turn's SELL order.
+
+    The pre-v1i rule is the `average_rule=False` branch: stop at the first unit whose quoted
+    price falls to `floor`. current_phase.md §v1i (1) points out that this judges the batch by
+    its **marginal** unit while the engine actually pays `Σ p(inventory + i)` — the batch's
+    realized average is strictly above the unit the loop tests, so the check is conservative
+    and leaves revenue behind.
+
+    The `average_rule=True` branch judges the batch by what it will actually realize: keep
+    taking units while the running mean stays at or above `floor`. Two properties make this
+    safe rather than merely looser:
+
+    * `hard_floor` (`liquidation_floor_price`) is a per-unit veto that the average can never
+      override, so the rule structurally cannot manufacture the <=$5 sales the structural
+      metric gate hard-zeroes (current_phase.md §1 Απόφαση Α).
+    * whenever `floor <= hard_floor` — every product during liquidation, and CARROT/EGG always
+      — the two branches are identical by construction, so this cannot move the endgame.
+
+    `safety_units` stays in the quoted index in both branches, unchanged: it models the
+    opponent's simultaneous SELL at the same per-unit lockstep index, which is a different
+    correction from the marginal/average one and current_phase.md §v1i is explicit that both
+    are needed together.
+    """
+    sell_units = 0
+    batch_total = 0
+    while sell_units < stock:
+        unit_price = market_price(product, inventory + sell_units + safety_units)
+        if unit_price <= hard_floor:
+            break
+        if unit_price <= floor:
+            if not average_rule:
+                break
+            if (batch_total + unit_price) / (sell_units + 1) < floor:
+                break
+        sell_units += 1
+        batch_total += unit_price
+    return sell_units
+
+
+def _safety_units(
+    snapshot: Snapshot,
+    executor_config: dict,
+    product: str,
+    supply_tracker=None,
+) -> int:
+    """Units of opponent supply to assume at our own quoted index (current_phase.md §v1i Η2).
+
+    Falls back to the configured constant whenever the controller is off or has no evidence
+    yet — which is the whole of day 0 and every product the opponent has not touched, i.e.
+    the "empty prior" case §v1i requires the design to work under.
+    """
+    constant = int(executor_config["opponent_price_safety_units"])
+    sell_ahead = executor_config.get("sell_ahead", {})
+    if supply_tracker is None or not sell_ahead.get("predict_safety_units", False):
+        return constant
+    predicted = supply_tracker.predicted_units(snapshot, product)
+    if predicted is None:
+        return constant
+    low = int(sell_ahead.get("min_safety_units", constant))
+    high = int(sell_ahead.get("max_safety_units", constant))
+    return max(low, min(high, int(predicted)))
+
+
 def market_orders(
     snapshot: Snapshot,
     plan: DayPlan,
@@ -166,6 +238,7 @@ def market_orders(
     scheduled_unit_actions: list[list[str]],
     config: dict,
     farm_hand_cost_mult: int = 1,
+    supply_tracker=None,
 ) -> list[list]:
     """Allocate the v1a SELL/BUY_SEED orders within all hard budgets."""
     executor_config = config["executor"]
@@ -174,6 +247,7 @@ def market_orders(
 
     orders = []
     available_money = ledger.money
+    average_rule = bool(executor_config.get("sell_ahead", {}).get("average_rule", False))
     # plan.md §5.1 v1d: animal products (EGG/MILK/WOOL) and byproduct FERTILIZER sell through
     # the same conservative marginal-price loop as the two crops — v1e is where a real
     # per-product marginal-threshold allocator belongs (plan.md §5), this just keeps v1d from
@@ -203,14 +277,17 @@ def market_orders(
             if plan.force_liquidation
             else int(plan.sell_floor_price.get(product, 5))
         )
-        safety_units = int(executor_config["opponent_price_safety_units"])
+        safety_units = _safety_units(snapshot, executor_config, product, supply_tracker)
         inventory = int(snapshot.market_inventory.get(product, 0))
-        sell_units = 0
-        while (
-            sell_units < product_in_shed
-            and market_price(product, inventory + sell_units + safety_units) > floor
-        ):
-            sell_units += 1
+        sell_units = _sell_batch_size(
+            product,
+            product_in_shed,
+            inventory,
+            safety_units,
+            floor,
+            int(executor_config["liquidation_floor_price"]),
+            average_rule,
+        )
         if sell_units:
             sell_units_by_product[product] = sell_units
 
@@ -242,6 +319,11 @@ def market_orders(
             product_in_shed - already_selling - reserve_needed_in_shed,
         )
         inventory = int(snapshot.market_inventory.get(product, 0))
+        # v1i deliberately does NOT route the two EOD branches through the Η2 controller. They
+        # already test against `hard_floor`, where a +-4 shift of the quoted index is worth
+        # cents on WHEAT's flat curve, and they are the layer that took `animals_escaped`
+        # 85 -> 0 and cleared the overflow (§v1h.2d). Keeping them on the constant leaves the
+        # increment attributable to the main sell loop alone.
         safety_units = int(executor_config["opponent_price_safety_units"])
         hard_floor = int(executor_config["liquidation_floor_price"])
         extra = 0

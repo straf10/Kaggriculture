@@ -116,6 +116,34 @@ def npc_daily_demand(unlocked_shops, day: int, env_config=None) -> dict[str, int
     return demand
 
 
+def npc_step_demand(unlocked_shops, step: int, env_config=None) -> dict[str, int]:
+    """Units of each product the town removes **at engine step `step`**.
+
+    `npc_daily_demand` answers "how much can the town absorb today", which is the right
+    quantity for sizing a floor. current_phase.md §v1i needs the other one: the engine calls
+    `_town_consume(env, state, step)` once per turn (kaggriculture.py:714-736), so isolating
+    the opponent's sales out of an observed inventory move needs the drain for *that one
+    turn*, not a daily average. Same rule, same intervals, evaluated at a single step —
+    both readers stay pinned to the engine through `_config_value`.
+    """
+    shop_interval = _config_value(env_config, "townShopSellInterval")
+    center_interval = _config_value(env_config, "townCenterSellInterval")
+
+    demand: dict[str, int] = {}
+    if step % shop_interval == 0:
+        for shop_name in unlocked_shops:
+            products = SHOPS.get(shop_name)
+            if not products:
+                continue
+            multiplier = 2 if len(products) == 1 else 1
+            for item in products:
+                demand[item] = demand.get(item, 0) + multiplier
+    if step % center_interval == 0:
+        for item in TOWN_CENTER_PRODUCTS:
+            demand[item] = demand.get(item, 0) + 1
+    return demand
+
+
 def shop_buyer_counts(unlocked_shops) -> dict[str, int]:
     """How many unlocked **shop instances** buy each product (town centre excluded).
 

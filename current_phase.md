@@ -440,6 +440,41 @@ Auth λυμένο (`KAGGLE_API_TOKEN` στο `.env`). Format: `tar -czf submissi
 κοπαδιού, επιθετικότητα sell-side), όχι σε version number: *«two near-identical active submits →
 meta shift kills both»*. Τελευταία εβδομάδα πριν τις 30/09: κατεψυγμένο champion/challenger.
 
+#### ⛔ Α.3 — το χρέος διαφοροποίησης ΠΑΡΑΜΕΝΕΙ ΑΝΟΙΧΤΟ (μετρημένο 2026-08-10, Θ1)
+
+**Το ερώτημα απαντήθηκε με μέτρηση, όχι με επιχείρημα** — 34 υπάρχοντα ladder replays του
+`55390611`, καμία αλλαγή `agent/`, μηδέν νέα επεισόδια:
+[`analysis/v1i_theta1_exposure.py`](analysis/v1i_theta1_exposure.py) ·
+`gates/v1i_theta1_exposure/exposure.md`.
+
+Αποσύνθεση του ελλείμματος: `price_gap = δικές_μας_μονάδες × (δικό_τους $/u − δικό_μας $/u)`
+έναντι `volume_gap = (δικές_τους − δικές_μας) × δικό_τους $/u`.
+
+| Bucket αντιπάλου | Επεισόδια | Record | crop tile-days εμείς/αυτοί | **price gap** | **volume gap** |
+|---|---:|---|---:|---:|---:|
+| <$40k | 8 | 7-1 | 415 / 793 | $878 | $22.728 |
+| $40-70k | 15 | 9-6 | 415 / 409 | $1.488 | $22.956 |
+| **>$70k** | **11** | **0-11** | **415 / 968** | **$2.661 — 4,3%** | **$59.370 — 95,7%** |
+
+**Πουλάμε ήδη στην ίδια τιμή με τους αντιπάλους που μας νικούν** (CARROT $39,06 vs $39,00 ·
+WHEAT $44,72 vs $44,20 · FERTILIZER $63,31 vs $59,49 **μπροστά** · MILK $210,62 vs $214,71 ·
+WOOL $196,81 vs $205,90 με **1,7×** τον όγκο τους). Το έλλειμμα είναι **MELON 0 vs 132 μονάδες**
+και **STRAWBERRY 32 vs 118**.
+
+**Τρεις δεσμευτικές συνέπειες:**
+
+1. **Καμία sell-side αλλαγή δεν μπορεί να διαφοροποιήσει το ζεύγος.** Δεν υπάρχει price gap να
+   κλείσει. Αυτό **ακυρώνει το §Θ2 sell-side σκέλος** πριν καν δοκιμαστεί, και εξηγεί γιατί το
+   v1i — παρότι πέρασε `GO=True` — **δεν** υποβλήθηκε.
+2. **Η διαφοροποίηση πρέπει να είναι παραγωγική** (crop mix / tile-days / melon), δηλαδή περνά
+   υποχρεωτικά από τα ήδη μετρημένα STOP: v1k (window ουδέτερο), v1l (WHEAT δεν μειώνεται),
+   v1m Δ3 (melon → 28 escapes), ⚠️ε (κοπάδι), §v1j (idle 27,8%). **Κανένα από αυτά δεν
+   ξαναδοκιμάζεται χωρίς νέα δεδομένα** — άρα το χρέος μένει ανοιχτό, όπως προβλέπει το KILL
+   clause του §Θ.
+3. Ανεξάρτητη επιβεβαίωση του §0α σημείου 3 από άλλη οπτική (τιμή έναντι όγκου, όχι καμπύλη ανά
+   μέρα) — **και** ότι το sell-side στρώμα των v1h.2d/v1m_d2/v1i **δουλεύει**: με 415 tile-days
+   βγάζουμε το ίδιο $/u με αντιπάλους που έχουν 968.
+
 ---
 
 ## ΜΕΡΟΣ Β — Τι πρέπει να υλοποιηθεί
@@ -453,13 +488,18 @@ meta shift kills both»*. Τελευταία εβδομάδα πριν τις 30
 ~~`v1m.2` retry~~ ⛔ STOP στο Ε1 DEV →
 ~~`Δ`-implementation + `v1m.2` Ε1 re-scoring~~ ✅ **ΚΛΕΙΣΤΟ** (`checkpoints/v1m_d2`, submitted) →
 ~~`v1n` fertilizer capture~~ ⛔ **ΚΛΕΙΣΤΟ ως μετρημένο στο Ρ1** (δομικό 62,7%) →
-**`v1i` sell-ahead (υπόλοιπο)** → BBO / Φάση 3.
+~~`v1i` sell-ahead (υπόλοιπο)~~ ✅ **ΚΛΕΙΣΤΟ** (`checkpoints/v1i`, `GO=True`, **αχρησιμοποίητο
+προς υποβολή**) → ~~`§Α.3` Θ διαφοροποίηση~~ ⛔ **ΑΝΟΙΧΤΟ ΧΡΕΟΣ** (Θ1 μέτρησε 95,7% όγκος) →
+BBO / Φάση 3.
 
-**Baseline από εδώ και πέρα: `checkpoints/v1m_d2`** (όχι `v1h_2d`) — είναι το πιο πρόσφατο
-αποδεκτό state, με fingerprint-verified checkpoint και GO από unpinned holdout.
+**Baseline από εδώ και πέρα: `checkpoints/v1i`** (όχι `v1m_d2`) — πιο πρόσφατο αποδεκτό state,
+fingerprint-verified, `GO=True` από unpinned holdout, δεσπόζει του `v1m_d2` κατά **+$369,9/ep**
+(31-6-11) με byte-ίδιο occupancy. ⚠️ **Δεν είναι το ζωντανό submission** — το ζωντανό ζεύγος
+παραμένει `55409945` (`v1m_d2`) + `55390611` (`v1h_2d`).
 
-⚠️ **Πρώτη προτεραιότητα στο επόμενο increment: διαφοροποίηση έκθεσης** (§Α ανοιχτό χρέος). Τα
-δύο ενεργά slots είναι σήμερα σχεδόν ταυτόσημα (`v1h_2d` και `v1h_2d`+emission-order).
+⚠️ **Η «πρώτη προτεραιότητα: διαφοροποίηση έκθεσης» έχει πλέον μετρημένη απάντηση ως προς το τι
+ΔΕΝ πιάνει** (§Α.3 παραπάνω): **όχι sell-side**. Ό,τι απομένει είναι παραγωγικό και περνά από
+ήδη μετρημένα STOP — δηλαδή απαιτεί **νέα δεδομένα**, όχι νέα προσπάθεια στους ίδιους μοχλούς.
 
 ### ⚠️ Τι έμαθαν **μαζί** τα v1k + v1l (2026-08-10) — δεσμευτικό για κάθε επόμενο crop increment
 
@@ -911,7 +951,63 @@ occupancy** και θέλει `--town-pin basket`.
 
 ---
 
-### v1i — Sell-ahead arbitrage («πούλα πριν το κύμα»)
+### v1i — Sell-ahead arbitrage [✅ **ΚΛΕΙΣΤΟ 2026-08-10** — `checkpoints/v1i`, `GO=True`, **χωρίς υποβολή**]
+
+> **Αποτέλεσμα:** και τα δύο υπόλοιπα σκέλη υλοποιήθηκαν και πέρασαν το gate.
+> **DEV 0-47 vs `meta_route` (`--arm-role acceptance`): IMPROVED +$1.764,9/ep**
+> (CI [925,7· 2.604,2], W/L **34-14**, p=0,0055, `median_bank_a $52.645,5`,
+> `priced_loss` $159,4/$974,5/**delta $0** ≤ budget $176,5).
+> **Holdout-confirm 100-147 UNPINNED, both seats, `--arm-role regression` vs `checkpoints/v1m_d2`:
+> NON_INFERIOR +$369,9/ep** (CI **[171,1· 568,7]**, seed **31-6-11** p=4,1e-5, episode 63-13-20,
+> `median_bank_a $46.102,5`, `metric_gate_passed=True`, **`GO=True`**).
+> Fingerprint **`5d2d28c4…` parity 5/5** (live `main.py` · `checkpoints/v1i` · dev-meta ·
+> dev-mirror · holdout). §Α.2 πλήρως πράσινο· `pytest 226/226`.
+> Πλήρη νούμερα: **memory.md 2026-08-10 (λ)**.
+>
+> **Οριακή συνεισφορά έναντι του `v1m_d2`, ίδιο arm/seeds/bench:** **+$197,5/ep**
+> (+$1.764,9 vs +$1.567,4), `shed_overflow_burnt` 102 vs 112, `priced_loss_a` $159,4 vs $175,0,
+> ≤$5 sales 43 vs 48 — **περισσότερες μονάδες, λιγότερες φθηνές**.
+>
+> **MARKET-ONLY αποδεδειγμένο, όχι δηλωμένο:** `crop_tile_days_a` **39.648 = 39.648**,
+> `worker_turns_total_a` **585.304 = 585.304**, `worker_turns_idle_a` **164.597 = 164.597**,
+> `animals_underfed_days_a` **3.986 = 3.986** — byte-ίσα με το `v1m_d2` στο ίδιο acceptance arm.
+>
+> ⛔ **ΔΕΝ ΥΠΟΒΛΗΘΗΚΕ, για δύο μετρημένους λόγους:** (1) **Απόφαση Β (1)** — `median_bank`
+> στάσιμο (+$101,0)· (2) **§Α.3** — μηδενική διαφοροποίηση έκθεσης (ίδιο κοπάδι, ίδια tiles,
+> byte-ίδιο occupancy), και το §Α.3 Θ1 μόλις μέτρησε ότι το sell-side **δεν μπορεί** να
+> διαφοροποιήσει. Το `checkpoints/v1i` είναι **έτοιμο** και δεσπόζει του `v1m_d2`· αν γίνει
+> υποβολή στοχεύει την αντικατάσταση του **`55409945`**, όχι του `55390611`.
+>
+> **Τι έδειξε το Η0 διαγνωστικό πριν τον κώδικα** (`gates/v1i_h0_diagnostic/diagnosis.md`,
+> 48 τοπικά επεισόδια): ο executor **δεν περιμένει ποτέ** (μη-floor-bound απούλητο stock
+> 5,5 unit-turns/ep), και ο engine κοτάρει **και τους δύο παίκτες στο ίδιο pre-commit inventory**
+> μέσα σε ένα turn ⇒ **δεν υπάρχει «περίμενε και πρόλαβέ τον» να υλοποιηθεί**. Το μόνο εκτελέσιμο
+> σκέλος του controller είναι το **κατώφλι** — η σταθερά `opponent_price_safety_units`.
+> Άνω φράγματα: Η1 $116,8 (mirror) / $271,0 (vs meta)· Η2 front-run oracle $2,8-179,3 / $198,5-317,5.
+>
+> **Τι υλοποιήθηκε:** `agent/executor.py::_sell_batch_size` (batch average με per-unit veto στο
+> `liquidation_floor_price`· ταυτόσημο με τον παλιό κανόνα όπου `floor <= hard_floor`, άρα το
+> endgame του §v1h.2 D3 μένει ανέγγιχτο· το `safety_units` **παρέμεινε** στο quoted index) ·
+> `agent/sell_ahead.py::OpponentSupplyTracker` (c68: `Δinventory + town drain − δικές μας
+> πωλήσεις`, median σε horizon 6, ένα turn μπροστά· **καμία ημερολογιακή πηγή** — δουλεύει με
+> κενό prior εξ ορισμού) · `agent/demand.npc_step_demand` · `executor.sell_ahead` config με τα
+> δύο σκέλη ανεξάρτητα σβηστά. Τα δύο EOD branches έμειναν **σκόπιμα** στη σταθερά.
+>
+> **`animals_escaped_a = 4` στο mirror DEV — εξηγήθηκε και εκκαθαρίστηκε**
+> (`gates/v1i_escape_diagnostic/diagnosis.md`): ένας control `v1m_d2` vs `v1m_d2`, **χωρίς καμία
+> γραμμή v1i**, αναπαράγει τις ίδιες αποδράσεις στις ίδιες μέρες/tiles/ζώα. Ο μηχανισμός είναι
+> **παράδοση, όχι προμήθεια**: 3 FEED actions σε μια μέρα για 10 ζώα ενώ το πλήρωμα κρατά
+> 7 αδιάθετες μονάδες WHEAT στις 23:00, με bank $17k και **0** `wheat_shortfall` receipts.
+> Στο holdout ο counter είναι **0**. Το υποκείμενο **FEED clustering** είναι scheduler/labour,
+> εκτός scope v1i — **ανοιχτό μετρημένο εύρημα**.
+>
+> ⚠️ **Δύο holdout runs, λάθος flag όχι δεύτερο look:** το `--gates-dir` είναι ταυτόχρονα το
+> `screen_evidence_dir` ([harness/cli.py:188](harness/cli.py#L188)), οπότε το πρώτο run βρήκε
+> `prior_dev_screen_found=False` ⇒ `GO=False`. Το δεύτερο (`--allow-repeat-confirm --gates-dir gates`)
+> έδωσε `GO=True` και **αποδείχθηκε ταυτόσημο**: diff 48 seeds × 2 orientations ⇒ **καμία διαφορά
+> σε κανένα πεδίο**, μόνο τα τρία provenance πεδία. Και οι δύο στο `gates/confirm_log.jsonl`.
+
+_Η αρχική περιγραφή διατηρείται παρακάτω ως τεκμηρίωση του πώς τέθηκε το ερώτημα._
 
 **Pre-gate κατάταξη: MARKET-ONLY** ⇒ σταθερό seed αρκεί, δεν απαιτείται pin — εκτός αν η
 υλοποίηση αγγίξει planner/scheduler.
@@ -1067,7 +1163,8 @@ exploit και δεν το χειριζόμαστε ως τέτοιο — το �
 | **Απόφαση Δ** — priced gate σε **διαφορά** + μόνο στο acceptance arm | 08-10 | ✅ **ΥΛΟΠΟΙΗΘΗΚΕ** — `harness/compare.py` (`priced_loss_b/_delta`, `--arm-role`), 3 ερμηνείες στο §1 Δ.i, tests 221/221 |
 | **v1m.2 Ε1 re-scoring** υπό Απόφαση Δ (**χωρίς νέο DEV**) | 08-10 | ✅ **ΚΛΕΙΣΤΟ** — delta **$0,0** ≤ $156,7· holdout 100-147 unpinned **NON_INFERIOR +$81,3/ep, 25-0-23, GO=True** → `checkpoints/v1m_d2` → **`55409945`** |
 | **v1n fertilizer capture** — Ρ1 διαγνωστικό (χωρίς νέα episodes) | 08-10 | ⛔ **ΚΛΕΙΣΤΟ ως μετρημένο** — δομικό **62,7%**, διορθώσιμο 28 μον. ≈ **+$720/ep** άνω φράγμα· Ρ2 δεν ξεκίνησε |
-| v1i sell-ahead, υπόλοιπο (per-unit sum, prediction controller) | 08-11 → 08-31 | 🔵 **ΕΠΟΜΕΝΟ** — το order-emission σκέλος (§v1i σημείο 2) **έκλεισε** στο v1m.2 Ε1· μένει το per-unit sum + prediction controller |
+| **v1i sell-ahead, υπόλοιπο** (per-unit sum + prediction controller) | 08-10 | ✅ **ΚΛΕΙΣΤΟ** — DEV vs meta **IMPROVED +$1.764,9/ep** (34-14), holdout 100-147 unpinned **NON_INFERIOR +$369,9/ep, 31-6-11, GO=True** → **`checkpoints/v1i`** · **χωρίς υποβολή** (Απόφαση Β: `median_bank` στάσιμο· §Α.3: μηδενική διαφοροποίηση) — memory.md 2026-08-10 (λ) |
+| **§Α.3 Θ διαφοροποίηση ενεργού ζεύγους** (docs/data only, 34 replays) | 08-10 | ⛔ **ΑΝΟΙΧΤΟ ΧΡΕΟΣ ως μετρημένο** — έναντι των >$70k αντιπάλων το κενό είναι **95,7% όγκος / 4,3% τιμή** ⇒ **κανένας sell-side λεβιές δεν διαφοροποιεί**· το Θ2 δεν ξεκίνησε (κάθε υπόλοιπος λεβιές συγκρούεται με μετρημένο STOP) |
 | BBO sweeps (pinned baskets) + Φάση 3 robustness | Σεπτέμβριος → ~09-20 | ⏸ |
 | Champion/challenger κλείδωμα 2 slots | 09-23 → 09-30 | ⏸ |
 

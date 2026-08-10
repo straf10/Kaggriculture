@@ -10,6 +10,200 @@
 
 ---
 
+## 2026-08-10 (λ) — Session: **v1i sell-ahead ✅ ΚΛΕΙΣΤΟ (`checkpoints/v1i`, GO=True, ΧΩΡΙΣ υποβολή)· §Α.3 Θ ⛔ το v1i δεν μπορεί να είναι η διαφοροποίηση**
+
+**Εντολή:** δύο work-streams — **Η** (ολοκλήρωση v1i: Η1 per-unit sum, Η2 prediction controller)
+και **Θ** (επανεξέταση της §Α.3 διαφοροποίησης ενεργού ζεύγους), σειρά στην κρίση μου.
+
+**Σειρά που επιλέχθηκε:** Θ1 διαγνωστικό → Η0 διαγνωστικό → Η1+Η2 υλοποίηση → gate. Το Θ1
+εκτελέστηκε **πρώτο** γιατί η απάντησή του («μπορεί ένα sell-side increment να διαφοροποιήσει
+έκθεση;») είναι προϋπόθεση, όχι επακόλουθο, του Η — και βγήκε **ΟΧΙ**, οπότε το Η κρίθηκε
+αποκλειστικά ως χρηματικό increment, χωρίς να του φορτωθεί ο ρόλος του challenger.
+
+**Αποτέλεσμα σε μία γραμμή:** το v1i υλοποιήθηκε, πέρασε DEV και **unpinned holdout-confirm με
+`GO=True`**, δημιουργήθηκε το `checkpoints/v1i` με **fingerprint parity 5/5** — αλλά **δεν
+υποβλήθηκε**: το `median_bank` είναι στάσιμο (Απόφαση Β 1) και το Θ1 μέτρησε ότι το κενό
+απέναντι στους αντιπάλους που χάνουμε είναι **95,7% όγκος / 4,3% τιμή**, άρα το §Α.3 χρέος
+**παραμένει ανοιχτό**.
+
+**Engine `kaggle-environments==1.32.6` επαληθευμένο πριν από κάθε play/compare. Both seats παντού.**
+
+### Θ1 — §Α.3: το κενό είναι **όγκος**, όχι τιμή (docs/data only, 34 υπάρχοντα replays)
+
+`analysis/v1i_theta1_exposure.py` → `gates/v1i_theta1_exposure/{exposure.md,exposure.json}`.
+Καμία αλλαγή `agent/`, μηδέν νέα επεισόδια. Αποσύνθεση ανά προϊόν:
+`price_gap = δικές_μας_μονάδες × (δικό_τους $/u − δικό_μας $/u)` έναντι
+`volume_gap = (δικές_τους − δικές_μας) × δικό_τους $/u`.
+
+| Bucket | Επεισόδια | Record | Median bank εμείς/αυτοί | crop tile-days | **price gap** | **volume gap** |
+|---|---:|---|---:|---:|---:|---:|
+| <$40k | 8 | 7-1 | $47.626 / $36.353 | 415 / 793 | $878 | $22.728 |
+| $40-70k | 15 | 9-6 | $62.549 / $53.390 | 415 / 409 | $1.488 | $22.956 |
+| **>$70k** | **11** | **0-11** | **$61.544 / $87.584** | **415 / 968** | **$2.661 (4,3%)** | **$59.370 (95,7%)** |
+
+**Πουλάμε ήδη στην ίδια τιμή με αυτούς**: CARROT $39,06 vs $39,00 · WHEAT $44,72 vs $44,20 ·
+FERTILIZER $63,31 vs $59,49 (μπροστά) · MILK $210,62 vs $214,71 · WOOL $196,81 vs $205,90 (και
+1,7× τον όγκο τους) · STRAWBERRY $218,94 vs $254,36. Το έλλειμμα είναι MELON **0 vs 132 μονάδες**
+και STRAWBERRY **32 vs 118**.
+
+⇒ **Το v1i ΔΕΝ μπορεί να είναι η διαφοροποίηση του §Α.3** — δεν υπάρχει price gap να κλείσει.
+Το Θ2 **δεν ξεκίνησε**: κάθε υποψήφιος λεβιές του (sell-side conservatism, crop mix, replant
+timing) είτε είναι sell-side (μόλις μετρήθηκε αδιάφορος) είτε συγκρούεται με ήδη κλειστό εύρημα
+(v1l WHEAT, v1k window, ⚠️ε κοπάδι, v1m melon/escapes). Το Θ3 ⇒ **καμία υποβολή**.
+
+### Η0 — διαγνωστικό πριν από κώδικα (48 τοπικά επεισόδια, καμία αλλαγή `agent/`)
+
+`analysis/v1i_h0_sell_diagnostic.py` → `gates/v1i_h0_diagnostic/{diagnosis.md,diagnosis.json}`.
+12 seeds × 2 seats × 2 αντιπάλους (mirror + `meta_route`).
+
+**Επαλήθευση εργαλείου:** ταυτόσημο με το `harness.metrics.extract_metrics` σε κάθε προϊόν
+(FERTILIZER 217/$12.326 · CARROT 135/$3.875 · MILK 120/$31.330 · WOOL 111/$17.136 ·
+WHEAT 60/$2.747 · STRAWBERRY 32/$7.852). ⚠️ Πρώτο draft που διάβαζε το shed από την observation
+αντί να εφαρμόσει πρώτα τα unit actions έδωσε **59/705** committed units — ο engine εφαρμόζει τα
+unit actions **πριν** το `_process_market` (kaggriculture.py:900-928).
+
+**Το εύρημα που ξαναόρισε το Η2:** ο executor **δεν περιμένει ποτέ** — πουλά κάθε turn ό,τι
+επιτρέπει το floor· μη-floor-bound απούλητο stock = **5,5 unit-turns/ep** σε 24 mirror επεισόδια.
+Και ο engine κοτάρει **και τους δύο παίκτες στο ίδιο pre-commit inventory** μέσα σε ένα turn
+(kaggriculture.py:599-608), άρα ταυτόχρονη πώληση του αντιπάλου **δεν κοστίζει τίποτα**.
+⇒ Δεν υπάρχει «περίμενε και πρόλαβέ τον» να υλοποιηθεί· το μόνο εκτελέσιμο σκέλος είναι το
+**κατώφλι** — η σταθερά `opponent_price_safety_units = 4` που μοντελοποιεί ακριβώς αυτό.
+
+| Μέγεθος | mirror | vs `meta_route` |
+|---|---:|---:|
+| Η1 batch-average: μονάδες/ep · έσοδο/ep | 4,3 · **$116,8** | 11,5 · **$271,0** |
+| Η2 front-run oracle, ένα turn μπροστά | **$2,8** | **$198,5** |
+| Η2 front-run oracle, όλο το ημερήσιο κύμα | **$179,3** | **$317,5** |
+| stranded shed στο τέλος | 40,6 μον. | 28,2 μον. |
+
+⚠️ **Καταγράφηκε ρητά ΠΡΙΝ το SMOKE** ότι το άθροισμα (~$390-590/ep, oracle) είναι **οριακό**
+έναντι του κανόνα «καμία συνεδρία κάτω από $500/ep». Ο αντίπαλος έχει **ένα** κύμα, MELON
+118,3/ep — προϊόν όπου πουλάμε **0**.
+
+### Η1 + Η2 — υλοποίηση (market-only)
+
+**Pre-gate κατάταξη, δηλωμένη πριν τον κώδικα: MARKET-ONLY.** Και τα δύο είναι **κατώφλια
+market orders** (§⭐ πίνακας, γραμμή 1) ⇒ σταθερό seed αρκεί, **χωρίς `--town-pin`**.
+Επαληθεύτηκε **εμπειρικά**, δεν υποτέθηκε — βλ. byte-ισότητα occupancy παρακάτω.
+
+- **Η1** — `agent/executor.py::_sell_batch_size`: ο βρόχος κρίνει το batch από τον **μέσο όρο**
+  που θα πραγματοποιήσει (`Σ p(s+i)/n ≥ floor`) αντί από την **οριακή** μονάδα, με per-unit veto
+  στο `liquidation_floor_price` που ο μέσος όρος **δεν** μπορεί να παρακάμψει. Όπου
+  `floor <= hard_floor` (CARROT/EGG πάντα, **κάθε** προϊόν στο liquidation) οι δύο κλάδοι είναι
+  **ταυτόσημοι εξ ορισμού** ⇒ το endgame του §v1h.2 D3 μένει ανέγγιχτο. Το `safety_units`
+  **παρέμεινε** στο quoted index, όπως ρητά απαιτεί το §v1i.
+- **Η2** — νέο `agent/sell_ahead.py::OpponentSupplyTracker` (c68): ανακτά τις παρτίδες του
+  αντιπάλου ως `Δinventory + town drain − δικές μας πωλήσεις`, **median** σε horizon 6, ένα turn
+  μπροστά· τροφοδοτεί το `opponent_price_safety_units` αντί για τη σταθερά, με clamp [1, 8].
+  Νέο `agent/demand.npc_step_demand` (engine-pinned) για τον όρο town drain — το
+  `agent/demand.py` επαναχρησιμοποιήθηκε όπως προβλεπόταν. **Καμία ημερολογιακή πηγή**: ο
+  controller δουλεύει με **κενό prior** εξ ορισμού και επιστρέφει τη σταθερά όσο δεν έχει
+  στοιχεία. Πηγή (iii) ορατά ώριμα tiles του αντιπάλου μόνο για να **ανεβάσει** πρόβλεψη που το
+  observed rate δεν έχει προλάβει.
+- Τα **δύο EOD branches** (`wheat surplus`, `headroom`) έμειναν **σκόπιμα στη σταθερά** — ήδη
+  κρίνονται στο `hard_floor` και είναι το στρώμα που πήγε τα escapes 85→0· η αλλαγή μένει
+  αποδοτέα στον κύριο sell loop.
+- Ο tracker ζει στο `RuntimeContext` (seat-local, reset σε episode boundary), **όχι** module-global.
+- **Config:** `executor.sell_ahead = {average_rule, predict_safety_units, predict_horizon_turns 6,
+  min_safety_units 1, max_safety_units 8}` — κάθε σκέλος ανεξάρτητα σβηστό, ώστε το KILL clause
+  του §v1i («δοκίμασε το άλλο μόνο») να κοστίζει config edit, όχι patch.
+
+**Tests 226/226** (+5 νέα v1i). ⚠️ Ένα υπάρχον test άλλαξε **μετρημένα**:
+`test_v1g2_throttle_cannot_add_a_market_order` — ο average rule κρατά ζωντανό ένα υπόλειμμα
+2 μονάδων WOOL εκεί που ο marginal rule μηδένιζε το order, οπότε το slot δεν ελευθερώνεται και
+το FERTILIZER μένει κομμένο: **122 μονάδες έναντι 160** του baseline. Ο throttle παραμένει
+**OFF** (§v1g.2 γ) και αυτό είναι ένας ακόμη μετρημένος λόγος — αλλά η αλληλεπίδραση
+«υπόλειμμα order κοστίζει slot στο cap των 10» καρφώθηκε ρητά στο test.
+
+### Gate — SMOKE → DEV → holdout-confirm
+
+| Στάδιο | Arm | `arm_role` | mean_diff | W/L(/T) | median_bank_a | priced a/b/delta | gate |
+|---|---|---|---:|---|---:|---|---|
+| SMOKE 0-11 | vs `meta_route` | acceptance | +$1.289,0 | 8-4 | $49.681 | $50,0 / $750,0 / **$0** | ✅ |
+| SMOKE 0-11 | mirror vs `v1m_d2` | regression | +$380,2 | 6-2-4 | $47.918,5 | $1.612,5 / $4.470,8 / **$0** | ✅ |
+| **DEV 0-47** | vs `meta_route` | acceptance | **+$1.764,9** CI [925,7· 2.604,2] | **34-14** (p=0,0055) | **$52.645,5** | $159,4 / $974,5 / **$0** ≤ budget $176,5 | ✅ **IMPROVED** |
+| DEV 0-47 | mirror vs `v1m_d2` | regression | +$369,9 CI [154,8· 584,9] | 27-5-16 (p=1,1e-4) | $48.663,0 | $938,5 / $2.187,5 / **$0** | ✅ NON_INFERIOR |
+| **HOLDOUT 100-147 unpinned** | mirror vs `v1m_d2` | regression | **+$369,9** CI **[171,1· 568,7]** | **31-6-11** (p=4,1e-5) · episode **63-13-20** | **$46.102,5** | $268,8 / $1.118,8 / **$0** | ✅ **NON_INFERIOR, `GO=True`** |
+
+**Η οριακή συνεισφορά, μετρημένη στο ίδιο acceptance arm, ίδια seeds, ίδιος bench, έναντι του
+`v1m_d2` (E1 rescore):** mean_diff **+$1.764,9 vs +$1.567,4 = +$197,5/ep** · W/L 34-14 vs 33-15 ·
+`median_bank_a` $52.645,5 vs $52.544,5 (**+$101,0**) · `shed_overflow_burnt_a` **102 vs 112** ·
+`priced_loss_a` **$159,4 vs $175,0** · `units_sold_at_or_below_5` **43 vs 48** — δηλαδή πουλά
+**περισσότερες** μονάδες με **λιγότερες** φθηνές. Ακριβώς μέσα στη ζώνη που προέβλεψε το Η0.
+
+**MARKET-ONLY αποδεδειγμένο, όχι δηλωμένο** — byte-ισότητα με το `v1m_d2` στο ίδιο acceptance
+arm: `crop_tile_days_a` **39.648 = 39.648** · `worker_turns_total_a` **585.304 = 585.304** ·
+`worker_turns_idle_a` **164.597 = 164.597** · `animals_underfed_days_a` **3.986 = 3.986**.
+Στο holdout: `crop_tile_days` **39.608 / 39.608**, `worker_turns_total` **585.856** και στα δύο arms.
+
+**Δομικά στο holdout:** `clipped_production_ticks` 0 · `plant_decay_units_lost` 0 ·
+`animals_escaped` **0** · no-ops 0 · market abort False · ≤$5 **207/61.204 = 0,34%** ·
+`unexplained_metrics` **[]** · `metric_gate_passed=True`. `shed_overflow_burnt` **108** έναντι
+**652** του baseline στο ίδιο run (**−83%**).
+
+### Διάγνωση του `animals_escaped_a = 4` (mirror DEV) — Απόφαση Δ (2)
+
+`analysis/v1i_escape_diagnostic.py` → `gates/v1i_escape_diagnostic/{diagnosis.md,diagnosis.json}`,
+`KAGGRI_DEBUG=1`. Ο counter ήταν μη μηδενικός σε **2 από 48 seeds** (40 στη θέση 0, 45 στη θέση 1).
+
+**Ο έλεγχος που κρίνει — `v1m_d2` vs `v1m_d2`, καμία γραμμή v1i στο επεισόδιο — αναπαράγει τις
+ΙΔΙΕΣ αποδράσεις**: seed 40 d18 (0,2) SHEEP + d26 (2,3) SHEEP· seed 45 d18 + d22 (0,2) SHEEP·
+ίδιο `animals_underfed_days` (51 / 55). ⇒ **Το v1i δεν εισάγει καμία απόδραση** — κληρονομημένο,
+όπως το overflow (4 στον candidate έναντι **24** στο `v1m_d2` στο ίδιο mirror DEV).
+
+**Ο μηχανισμός είναι παράδοση, όχι προμήθεια.** Ίχνος seed 40/seat 0: μέρα 17 → **6 FEED
+actions**, μέρα 18 → **3 FEED actions** για 10 ζώα· στις 23:00 της μέρας 18 το πλήρωμα **κρατά
+ακόμη 7 μονάδες WHEAT στα χέρια του**, το bank έχει **$17.190**, και τα `wheat_shortfall`
+receipts είναι **0**. Είναι το **FEED clustering** του §v1m.2 και η ίδια αδράνεια που το L2
+μέτρησε ως 27,8% idle. Το υποκείμενο ερώτημα (γιατί 3 FEED/μέρα με σιτάρι στα χέρια) είναι
+scheduler/labour, **ρητά εκτός scope** του v1i — καταγράφεται ανοιχτό.
+
+### ⚠️ Δύο holdout-confirm runs — λάθος flag, όχι δεύτερο look
+
+Το πρώτο holdout (`gates/v1i_holdout_mirror`) βγήκε `GO=False` **αποκλειστικά** επειδή πέρασα
+`--gates-dir gates/v1i_holdout_mirror_tracked`: το `--gates-dir` είναι **ταυτόχρονα** το
+`screen_evidence_dir` που ψάχνει το prior dev-screen ([harness/cli.py:188](harness/cli.py#L188)),
+οπότε η αναζήτηση περιορίστηκε σε άδειο υποδέντρο ⇒ `prior_dev_screen_found=False`. Κάθε
+μετρημένο μέγεθος είχε περάσει.
+
+Το δεύτερο (`gates/v1i_holdout_mirror_r2`, `--allow-repeat-confirm --gates-dir gates`,
+`repeat_confirm_index=1`) έδωσε **`GO=True`**. **Αποδείχθηκε ότι δεν είναι δεύτερο look:**
+diff και των **48 seeds × 2 orientations** ⇒ **καμία διαφορά σε κανένα πεδίο**, και όλα τα
+summary πεδία ταυτόσημα· διαφέρουν **μόνο** τα τρία provenance πεδία
+(`prior_dev_screen_found` False→True, `go` False→True, `repeat_confirm_index` 0→1). Ντετερμινιστική
+επανεκτέλεση, καμία tuning απόφαση ανάμεσα. Και οι δύο εγγραφές μένουν στο `gates/confirm_log.jsonl`.
+
+### Checkpoint + §Α.2
+
+**`checkpoints/v1i`, fingerprint `5d2d28c4bece7ec4…` — parity 5/5:** live `main.py` ·
+`checkpoints/v1i` (manifest ✓) · `v1i_dev_meta` · `v1i_dev_mirror` · `v1i_holdout_mirror_r2`.
+(Ισχυρότερο από το Ε1, που δεν μπόρεσε να πετύχει hash parity.)
+
+§Α.2 πλήρως πράσινο: G12 loader + vendored parity (pytest) · timing seat0 `max 50,7ms` /
+seat1 `49,5ms`, `max×3 < 1s` **PASS** και στα δύο, turn1 12,1/12,5ms · G13 τρία fresh processes
+(`PYTHONHASHSEED` 0 / 12345 / 999 + seat swap) → **ταυτόσημα rewards** · mirror smoke 720 steps
+`DONE/DONE clean=True` · πακέτο **48.683 bytes** · `pytest` **226/226** · `KAGGRI_*` env **κενό**.
+
+### ⛔ ΓΙΑΤΙ ΔΕΝ ΥΠΟΒΛΗΘΗΚΕ
+
+Δύο ανεξάρτητοι λόγοι, και οι δύο μετρημένοι:
+
+1. **Απόφαση Β (1) — `median_bank` στάσιμο.** $52.645,5 vs $52.544,5 στο acceptance DEV
+   (**+$101,0**). Ο κανόνας το λέει ρητά: «increment με `mean_diff` θετικό αλλά `median_bank`
+   στάσιμο … **δεν δικαιολογεί submission από μόνο του**».
+2. **§Α.3 — μηδενική διαφοροποίηση.** Το v1i είναι `v1m_d2` + δύο κατώφλια αγοράς: **ίδιο
+   κοπάδι (4C/6S), ίδια tiles, byte-ίδιο occupancy**. Θα έκανε το ενεργό ζεύγος ακόμη πιο
+   ταυτόσημο, και το Θ1 μόλις μέτρησε ότι το sell-side **δεν** μπορεί να το διαφοροποιήσει.
+
+Το `checkpoints/v1i` είναι **έτοιμο προς υποβολή** και δεσπόζει του `v1m_d2` (+$369,9/ep unpinned
+holdout, 31-6-11, overflow −83%). Η υποβολή είναι **απόφαση του χρήστη** (καίει 1 από 5 uploads
+και αλλάζει το ζωντανό ζεύγος) — αν γίνει, στοχεύει την αντικατάσταση του **`55409945`
+(`v1m_d2`)**, όχι του `55390611`, γιατί το v1i το δεσπόζει με ταυτόσημη έκθεση.
+
+**Ενεργό ζεύγος αμετάβλητο: `55409945` (v1m_d2) + `55390611` (v1h_2d).**
+
+---
+
 ## 2026-08-10 (κ) — Session: **Υλοποίηση Απόφασης Δ → v1m.2 Ε1 ΞΕΚΛΕΙΔΩΘΗΚΕ, `checkpoints/v1m_d2`, submission `55409945`· v1n Ρ1 ⛔ KILL**
 
 **Εντολή:** τέσσερα στάδια σε αυστηρή σειρά — Ζ1 υλοποίηση Απόφασης Δ στο harness (harness-only,

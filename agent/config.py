@@ -271,6 +271,27 @@ CONFIG = {
         # DEV_SEEDS 0-7 against checkpoints/v1g_1 at every headroom that bound at all.
         "shop_evidence_min_unlocks": 5,
         "opponent_price_safety_units": 4,
+        # current_phase.md §v1i — the two remaining sell-ahead levers, each independently
+        # switchable so the §v1i KILL clause ("try the other one alone before dropping both")
+        # costs a config edit, not a patch.
+        "sell_ahead": {
+            # Η1: judge a SELL batch by the average it will realize (Σ p(s+i) / n) instead of
+            # by its marginal unit, with `liquidation_floor_price` as an un-overridable
+            # per-unit veto. Identical to the pre-v1i rule whenever floor <= that veto, i.e.
+            # for CARROT/EGG always and for every product during liquidation.
+            "average_rule": True,
+            # Η2: replace the `opponent_price_safety_units` constant in the main sell loop
+            # with the c68 controller's one-turn-ahead estimate of the opponent's supply
+            # (agent/sell_ahead.py). Off => the constant, which is also what every product
+            # with no observed history gets.
+            "predict_safety_units": True,
+            "predict_horizon_turns": 6,
+            # Clamp on the controller's output. The low end is 1, not 0: even a silent
+            # opponent can open a SELL on the turn we do, and one unit of headroom is the
+            # cheapest insurance against quoting at exactly the pre-commit index.
+            "min_safety_units": 1,
+            "max_safety_units": 8,
+        },
     },
     "land": {
         # plan.md §5 v1c / MASTERPLAN §3.2#7: buy NE as soon as money allows AND a workforce

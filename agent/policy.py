@@ -7,7 +7,14 @@ from .executor import market_orders
 from .planner import DayPlan, make_day_plan
 from .receipts import expected_transition, reconcile
 from .scheduler import assign, build_tasks, make_ledger
+from .sell_ahead import OpponentSupplyTracker
 from .state import Snapshot, parse
+
+
+def _new_supply_tracker() -> OpponentSupplyTracker:
+    return OpponentSupplyTracker(
+        CONFIG["executor"].get("sell_ahead", {}).get("predict_horizon_turns", 6)
+    )
 
 
 @dataclass
@@ -19,6 +26,10 @@ class RuntimeContext:
     last_hand_count: int = 0
     committed_tasks: dict = field(default_factory=dict)
     pending_receipts: list = field(default_factory=list)
+    # current_phase.md §v1i Η2. Lives here, not module-global, for the same reason the rest of
+    # RuntimeContext does: the tracker is seat-local and must reset at an episode boundary,
+    # or a second episode in the same process would start with the first one's history (G13).
+    supply_tracker: OpponentSupplyTracker = field(default_factory=_new_supply_tracker)
 
 
 _RUNTIME_BY_PLAYER: dict[int, RuntimeContext] = {}
@@ -62,6 +73,9 @@ def agent(obs, configuration=None):
     snapshot = parse(obs)
     runtime = reset_or_get_runtime(snapshot)
     farm_hand_cost_mult = int((configuration or {}).get("farmHandCostMult", 1))
+    # §v1i Η2: fold this turn's inventory move into the opponent-supply history *before*
+    # anything reads a prediction, so the estimate always includes the freshest observation.
+    runtime.supply_tracker.observe(snapshot, configuration)
 
     if CONFIG["guards"].get("debug", False) and runtime.pending_receipts:
         reconcile(runtime.pending_receipts, snapshot)
@@ -85,7 +99,9 @@ def agent(obs, configuration=None):
     orders = market_orders(
         snapshot, runtime.plan, ledger, unit_actions, CONFIG,
         farm_hand_cost_mult=farm_hand_cost_mult,
+        supply_tracker=runtime.supply_tracker,
     )
+    runtime.supply_tracker.record_our_orders(orders)
 
     if CONFIG["guards"].get("debug", False):
         unit_positions = (snapshot.farmer_pos, *snapshot.hand_positions)

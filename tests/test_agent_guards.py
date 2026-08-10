@@ -1099,24 +1099,30 @@ def test_v1g2_throttle_cannot_add_a_market_order():
         assert units <= baseline_sells.get(product, units)
 
     # ...and the throttle is actually doing something in this town, so the above is not
-    # vacuously true. Under 1.32.6 WOOL is throttled all the way out of the order list.
+    # vacuously true. Under 1.32.6 WOOL is throttled down to a 2-unit residue.
     assert throttled_sells.get("WOOL", 0) < baseline_sells["WOOL"]
 
-    # v1h.1: the cap displacement, pinned deliberately. `baseline` is truncated at exactly
-    # `max_market_orders`, so anything the throttle removes is immediately backfilled by the
-    # order the cut had been dropping. A product appearing only in `throttled` is therefore
-    # expected — but only ever one the executor already wanted to sell.
+    # v1h.1: the cap displacement, pinned deliberately. When the throttle removes an order
+    # outright, the cut immediately backfills it with the order it had been dropping — so a
+    # product appearing only in `throttled` is expected, but only ever one the executor
+    # already wanted to sell.
     displaced_in = set(throttled_sells) - set(baseline_sells)
     assert len(baseline) == int(CONFIG["executor"]["max_market_orders"])
     assert displaced_in <= {"FERTILIZER"}, (
         "throttle backfilled an unexpected product at the order cap; the (δ) crowd-out risk "
         "is order-position-sensitive, so any change here needs its own measurement"
     )
-    # The sharpest way to state what the throttle bought here: **nothing**. Total units sold is
-    # identical (40 WOOL swapped for 40 FERTILIZER); all the throttle did was choose a different
-    # product to spend the same capped slot on. That is the §v1g.2 (γ) result — "no price to
-    # win, only volume to lose" — reproduced at the order-cap level.
-    assert sum(throttled_sells.values()) == sum(baseline_sells.values())
+    # The sharpest way to state what the throttle bought here: **nothing, and now less than
+    # nothing**. Before §v1i the throttled arm sold the same 160 units as the baseline (40 WOOL
+    # swapped for 40 FERTILIZER at the cap) — the §v1g.2 (γ) result, "no price to win, only
+    # volume to lose", reproduced at the order-cap level. §v1i's batch-average rule keeps a
+    # 2-unit WOOL order alive where the marginal rule dropped WOOL to zero, so the freed slot
+    # is never freed and FERTILIZER stays cut: 122 units against the baseline's 160. The
+    # throttle stays off (§v1g.2 γ) and this is one more measured reason, but the interaction
+    # is real and worth pinning — a residual order still costs a slot at the 10-order cap.
+    assert sum(throttled_sells.values()) == 122
+    assert sum(baseline_sells.values()) == 160
+    assert throttled_sells["WOOL"] == 2
 
 
 # --------------------------------------------------------------------------- v1h' (SW quadrant)
@@ -1295,3 +1301,130 @@ def test_v1h_wheat_is_watered_inside_its_yield_window_not_only_every_other_day()
     assert not water_tasks_at(0)
 
 
+
+def test_v1i_h1_average_rule_releases_units_the_marginal_rule_refuses():
+    """current_phase.md §v1i (1) — the sell loop tested the batch's *marginal* unit against
+    the floor while the engine pays `Σ p(inventory + i)`. The batch-average rule judges what
+    the batch actually realizes, so it takes strictly more units — but never a unit at or
+    below `liquidation_floor_price`, which is what keeps the structural <=$5 gate intact."""
+    from agent.executor import _sell_batch_size
+
+    hard_floor = int(CONFIG["executor"]["liquidation_floor_price"])
+    equilibrium = int(_vendored.MARKET_PARAMS["MILK"]["I0"])
+    kwargs = dict(
+        product="MILK", stock=200, inventory=equilibrium + 60, safety_units=4,
+        floor=15, hard_floor=hard_floor,
+    )
+    marginal = _sell_batch_size(average_rule=False, **kwargs)
+    averaged = _sell_batch_size(average_rule=True, **kwargs)
+    assert averaged > marginal
+
+    # Every unit the average rule adds is still worth more than the hard floor: the average
+    # can relax `floor`, it can never override the per-unit veto.
+    for index in range(averaged):
+        assert _vendored.market_price("MILK", equilibrium + 60 + index + 4) > hard_floor
+
+    # ...and the batch it chose really does average at or above the floor it relaxed.
+    realized = [
+        _vendored.market_price("MILK", equilibrium + 60 + index + 4)
+        for index in range(averaged)
+    ]
+    assert sum(realized) / len(realized) >= 15
+
+
+def test_v1i_h1_average_rule_is_identical_when_the_floor_is_the_hard_floor():
+    """The two branches must coincide wherever `floor <= liquidation_floor_price` — that is
+    every product once `force_liquidation` is on, and CARROT/EGG in every phase. §v1i must not
+    be able to move the endgame that §v1h.2 D3 tuned."""
+    from agent.executor import _sell_batch_size
+
+    hard_floor = int(CONFIG["executor"]["liquidation_floor_price"])
+    for product in ("MILK", "WOOL", "STRAWBERRY", "CARROT", "FERTILIZER"):
+        equilibrium = int(_vendored.MARKET_PARAMS[product]["I0"])
+        for offset in (0, 30, 60, 120, 400):
+            kwargs = dict(
+                product=product, stock=150, inventory=equilibrium + offset,
+                safety_units=4, floor=hard_floor, hard_floor=hard_floor,
+            )
+            assert (
+                _sell_batch_size(average_rule=True, **kwargs)
+                == _sell_batch_size(average_rule=False, **kwargs)
+            ), f"{product} @ +{offset}"
+
+
+def test_v1i_h2_controller_recovers_the_opponents_batch_from_inventory():
+    """§v1i Η2 / the c68 controller: `Δinventory + town drain - our own sales` is the
+    opponent's batch. Two turns of a hand-built inventory path must recover the planted
+    number exactly, with no calendar and no prior."""
+    from agent.sell_ahead import OpponentSupplyTracker
+
+    tracker = OpponentSupplyTracker(horizon_turns=6)
+    equilibrium = int(_vendored.MARKET_PARAMS["MILK"]["I0"])
+
+    # Turn 0: no history yet, so no prediction exists and the executor keeps the constant.
+    first = _minimal_observation(step=0, shops=("ICE_CREAM_SHOP",))
+    first["market"]["inventory"] = {"MILK": equilibrium}
+    tracker.observe(parse(first))
+    assert tracker.predicted_units(parse(first), "MILK") is None
+
+    # We asked to sell 5; inventory then rose by 12 while the town drained 2 (ICE_CREAM_SHOP
+    # is a 3-product shop -> 1/tick, plus 1 town-centre tick at step 0). Opponent sold 12 + 2
+    # - 5 = 9.
+    tracker.record_our_orders([["SELL", "MILK", 5]])
+    second = _minimal_observation(step=1, shops=("ICE_CREAM_SHOP",))
+    second["market"]["inventory"] = {"MILK": equilibrium + 12}
+    tracker.observe(parse(second))
+    assert tracker.predicted_units(parse(second), "MILK") == 9
+
+
+def test_v1i_h2_safety_units_clamp_and_fall_back_to_the_constant():
+    """The controller may only move `opponent_price_safety_units` inside its configured
+    clamp, and must return the constant whenever it has no evidence — the "empty prior"
+    case §v1i names as the design requirement."""
+    from agent.executor import _safety_units
+    from agent.sell_ahead import OpponentSupplyTracker
+
+    executor_config = copy.deepcopy(CONFIG["executor"])
+    constant = int(executor_config["opponent_price_safety_units"])
+    sell_ahead = executor_config["sell_ahead"]
+    observation = _minimal_observation(step=5)
+    observation["market"]["inventory"] = {"MILK": 10_000}
+    snapshot = parse(observation)
+
+    class _Fixed(OpponentSupplyTracker):
+        def __init__(self, value):
+            super().__init__()
+            self.value = value
+
+        def predicted_units(self, snapshot, product):
+            return self.value
+
+    assert _safety_units(snapshot, executor_config, "MILK", None) == constant
+    assert _safety_units(snapshot, executor_config, "MILK", _Fixed(None)) == constant
+    assert _safety_units(snapshot, executor_config, "MILK", _Fixed(0)) == int(
+        sell_ahead["min_safety_units"]
+    )
+    assert _safety_units(snapshot, executor_config, "MILK", _Fixed(10_000)) == int(
+        sell_ahead["max_safety_units"]
+    )
+
+    off = copy.deepcopy(executor_config)
+    off["sell_ahead"]["predict_safety_units"] = False
+    assert _safety_units(snapshot, off, "MILK", _Fixed(10_000)) == constant
+
+
+def test_v1i_h2_tracker_is_seat_local_and_resets_between_episodes():
+    """G13: the tracker carries per-episode history, so a second episode in the same worker
+    process must not inherit the first one's — and seat 0's must never reach seat 1."""
+    from agent.policy import _RUNTIME_BY_PLAYER as runtimes
+
+    runtimes.clear()
+    agent(_minimal_observation(player=0, step=0))
+    agent(_minimal_observation(player=0, step=1))
+    agent(_minimal_observation(player=1, step=1))
+    assert runtimes[0].supply_tracker is not runtimes[1].supply_tracker
+    seat_zero = runtimes[0].supply_tracker
+
+    agent(_minimal_observation(player=0, step=0))  # new episode in the same process
+    assert runtimes[0].supply_tracker is not seat_zero
+    assert runtimes[0].supply_tracker._previous_step == 0
