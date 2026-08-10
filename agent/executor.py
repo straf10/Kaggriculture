@@ -509,5 +509,13 @@ def market_orders(
             "max_orders": max_orders,
             "dropped": sorted(orders, key=_order_tier)[max_orders:],
         })
-        orders = sorted(orders, key=_order_tier)[:max_orders]
+        kept = sorted(orders, key=_order_tier)[:max_orders]
+        # current_phase.md §v1m Δ2 / §v1m.2 Ε1: *which* orders survive the cut is still decided
+        # by tier (HIRE first, SELL last) — H8 above is unchanged. What changes is the order the
+        # survivors are *emitted* in. The engine executes a turn's market orders in emission
+        # order, so a kept SELL sitting at index 6-9 prices against inventory that the same
+        # turn's earlier orders have already moved. Truncation only fires on the busiest days
+        # (~56 turns/ep at the cap), i.e. exactly the days with the most to sell. Stable sort:
+        # SELLs keep their existing relative order, and so do the rest among themselves.
+        orders = sorted(kept, key=lambda order: order[0] != "SELL")
     return orders

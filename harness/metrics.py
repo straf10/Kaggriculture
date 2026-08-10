@@ -443,11 +443,44 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         item: statistics.mean(prices)
         for item, prices in prices_by_item.items()
     }
+    # current_phase.md §v1k: occupancy is an acceptance dimension, not just a replay-profile
+    # visualization. Match analysis.replay_profile's end-of-day definition exactly so the
+    # local gate is directly comparable with the ladder baseline (415 crop tile-days/ep).
+    turns_per_day = int(configuration.get("turnsPerDay", 24))
+    crop_tile_days = 0
+    for day in range(len(steps) // turns_per_day):
+        step_index = min(day * turns_per_day + turns_per_day - 1, len(steps) - 1)
+        tiles = steps[step_index][0]["observation"]["farms"][seat]["tiles"]
+        crop_tile_days += sum(
+            1
+            for row in tiles
+            for tile in row
+            if isinstance(tile, dict) and tile.get("kind") == "PLANT"
+        )
+    # current_phase.md §v1l: gross market revenue from plant products only (not animals /
+    # fertilizer). Acceptance requires this to move positively when the crop mix changes.
+    _CROP_REVENUE_ITEMS = ("WHEAT", "CARROT", "STRAWBERRY", "TOMATO", "MELON")
+    crop_revenue = sum(
+        int(sale["price"])
+        for sale in sales
+        if sale.get("item") in _CROP_REVENUE_ITEMS
+    )
     # Β.0 (current_phase.md): per-product avg realized price alone doesn't say whether the
     # elite-ceiling herd size actually saturates a product's cliff — need units sold alongside it.
     units_sold_by_product = {
         item: len(prices)
         for item, prices in prices_by_item.items()
+    }
+    # current_phase.md §v1m: realized $/u per product (crop_revenue is only the sum). Same
+    # sale stream as average_sell_price; revenue_by_product makes the gate's MELON $/u
+    # = revenue/units checkable without re-scanning market_sales.
+    revenue_by_product = {
+        item: int(sum(prices))
+        for item, prices in prices_by_item.items()
+    }
+    realized_price_per_unit = {
+        item: (revenue_by_product[item] / units_sold_by_product[item])
+        for item in revenue_by_product
     }
 
     if diagnostics is None:
@@ -487,10 +520,17 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "units_sold_at_or_below_5": sum(1 for sale in sales if sale["price"] <= 5),
         "average_sell_price": average_sell_price,
         "units_sold_by_product": units_sold_by_product,
+        "revenue_by_product": revenue_by_product,
+        "realized_price_per_unit": realized_price_per_unit,
         "market_sales": sales,
         "worker_turns_moving": worker_turns_moving,
         "worker_turns_working": worker_turns_working,
         "worker_turns_idle": worker_turns_idle,
+        "worker_turns_total": (
+            worker_turns_moving + worker_turns_working + worker_turns_idle
+        ),
+        "crop_tile_days": crop_tile_days,
+        "crop_revenue": crop_revenue,
         "unexplained_noops": unexplained_noops,
         "daily": daily,
         "loss_events": loss_events,

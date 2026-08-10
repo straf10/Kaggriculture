@@ -16,6 +16,7 @@ from harness.compare import (
     VALID_STAGES,
     compare,
     priced_loss_budget,
+    priced_loss_delta,
     priced_metric_loss,
 )
 from harness.play import play, resolve_agent
@@ -735,10 +736,30 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
         assert kwargs.get("metrics") is True
         if a == "A":  # agent_a plays seat 0 this call
             rewards = (150.0, 100.0)
-            metrics = {0: {"water_weeds_lost": 1, "plant_decay_units_lost": 2}, 1: {}}
+            metrics = {
+                0: {
+                    "water_weeds_lost": 1, "plant_decay_units_lost": 2,
+                    "crop_tile_days": 100, "worker_turns_idle": 10,
+                    "worker_turns_total": 100, "animals_underfed_days": 2,
+                },
+                1: {
+                    "crop_tile_days": 80, "worker_turns_idle": 20,
+                    "worker_turns_total": 100, "animals_underfed_days": 3,
+                },
+            }
         else:  # agent_a ("A") plays seat 1 this call
             rewards = (100.0, 150.0)
-            metrics = {0: {}, 1: {"water_weeds_lost": 3, "plant_decay_units_lost": 4}}
+            metrics = {
+                0: {
+                    "crop_tile_days": 81, "worker_turns_idle": 21,
+                    "worker_turns_total": 101, "animals_underfed_days": 4,
+                },
+                1: {
+                    "water_weeds_lost": 3, "plant_decay_units_lost": 4,
+                    "crop_tile_days": 101, "worker_turns_idle": 11,
+                    "worker_turns_total": 101, "animals_underfed_days": 5,
+                },
+            }
         return SimpleNamespace(rewards=rewards, metrics=metrics)
 
     with patch("harness.compare.play", side_effect=fake_play):
@@ -747,6 +768,11 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
     assert result.metrics_checked is True
     assert result.water_weeds_lost_a == 1 + 3
     assert result.plant_decay_units_lost_a == 2 + 4
+    assert result.crop_tile_days_a == 100 + 101
+    assert result.crop_tile_days_b == 80 + 81
+    assert result.worker_turns_idle_a == 10 + 11
+    assert result.worker_turns_total_a == 100 + 101
+    assert result.animals_underfed_days_a == 2 + 5
     assert result.metric_gate_passed is False
 
 
@@ -784,17 +810,21 @@ def test_v1h2d_compare_gates_unexpected_not_raw_weeds():
     assert unexpected.metric_gate_passed is False
 
 
-# ------------------------------------------------- current_phase.md §1 Απόφαση Α (priced gate)
+# --------------------------------------- current_phase.md §1 Απόφαση Α + Δ (priced gate)
 
-def _gate_counts(gate_name):
+def _gate_counts(gate_name, arm="a"):
     """Real measured counters from a tracked gate artifact — the whole point of pinning the
     new gate to these three is that they are not hypotheticals: they are the three decisions
-    the old hard-zero gate got wrong (or right) in memory.md 2026-08-09 (δ)/(ε)."""
+    the old hard-zero gate got wrong (or right) in memory.md 2026-08-09 (δ)/(ε).
+
+    `arm="b"` returns the opponent-side counters Απόφαση Δ added; artefacts written before Δ
+    have none, which is exactly the case the callers below assert on.
+    """
     payload = json.loads(
         (REPO_ROOT / "gates" / gate_name / "results.json").read_text(encoding="utf-8")
     )
     counts = {
-        metric: payload.get(f"{metric}_a")
+        metric: payload.get(f"{metric}_{arm}")
         for metric in ("animals_escaped", "shed_overflow_burnt",
                        "unexpected_weeds_lost", "water_weeds_lost")
     }
@@ -816,15 +846,39 @@ def _gate_counts(gate_name):
     ("gate_v1h2d_feed_slack", True, 237.5),
 ])
 def test_v1h2d_priced_gate_decides_the_three_measured_arms(gate_name, accepted, expected_loss):
+    """Απόφαση Δ moved the priced leg onto the *difference* between the arms. These three
+    artefacts predate Δ and carry no B-side counters, so priced_loss_b is 0 and the delta is
+    the absolute loss — which is why all three verdicts are unchanged. Δ re-scores what a
+    baseline already loses; it does not re-score arms measured against a clean opponent."""
     counts, episodes, mean_diff = _gate_counts(gate_name)
-    loss, breakdown = priced_metric_loss(counts, episodes)
+    counts_b, _, _ = _gate_counts(gate_name, arm="b")
+    assert all(count is None for count in counts_b.values())  # pre-Δ artefact, by construction
+
+    loss_a, breakdown = priced_metric_loss(counts, episodes)
+    loss_b, _ = priced_metric_loss({}, episodes)
+    delta = priced_loss_delta(loss_a, loss_b)
     budget = priced_loss_budget(mean_diff)
 
     assert episodes == 96  # 48 dev seeds x both seats; a changed denominator changes every price
-    assert loss == pytest.approx(expected_loss)
-    assert (loss <= budget) is accepted
+    assert loss_a == pytest.approx(expected_loss)
+    assert loss_b == 0.0
+    assert delta == pytest.approx(expected_loss)
+    assert (delta <= budget) is accepted
     # The breakdown has to explain the total, or the number in the ledger is not auditable.
-    assert loss == pytest.approx(sum(breakdown.values()))
+    assert loss_a == pytest.approx(sum(breakdown.values()))
+
+
+def test_decision_d_prices_the_difference_not_the_inherited_loss():
+    """current_phase.md §1 Απόφαση Δ, the measurement that forced it: the same candidate code
+    measured 112 burnt units vs the meta bench and 754 vs the mirror, so the counter describes
+    market conditions, not candidate quality. Whatever an arm's own opponent also burns is not
+    something the increment introduced, and the clamp stops a tidier candidate from banking the
+    surplus as budget for breaking something else."""
+    assert priced_loss_delta(175.0, 154.0) == pytest.approx(21.0)
+    assert priced_loss_delta(1_322.9, 1_300.0) == pytest.approx(22.9)
+    # A candidate that breaks *less* than its arm B earns 0, never a negative loss.
+    assert priced_loss_delta(10.0, 900.0) == 0.0
+    assert priced_loss_delta(0.0, 0.0) == 0.0
 
 
 def test_v1h2d_priced_gate_does_not_charge_a_lost_tile_twice():
@@ -904,6 +958,169 @@ def test_v1h2d_structural_faults_stay_hard_zero_at_any_price():
     assert result.priced_loss_per_episode == 0.0
     assert result.unexplained_metrics == ()
     assert result.metric_gate_passed is False
+
+
+def _fake_play_with_counters(counters_a, counters_b, *, bank_a, bank_b):
+    """A play() double where agent_a's seat reports `counters_a` and agent_b's `counters_b`,
+    in both orientations. Απόφαση Δ reads two seats, so a double that fills only one is no
+    longer enough to exercise the gate."""
+    base = {
+        "water_weeds_lost": 0, "plant_decay_units_lost": 0, "animals_escaped": 0,
+        "clipped_production_ticks": 0, "shed_overflow_burnt": 0,
+        "weeds_lost": 0, "unexpected_weeds_lost": 0,
+    }
+    seat_a = {**base, **counters_a}
+    seat_b = {**base, **counters_b}
+
+    def fake_play(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        if a == "A":  # agent_a plays seat 0
+            return SimpleNamespace(rewards=(bank_a, bank_b), metrics={0: seat_a, 1: seat_b})
+        return SimpleNamespace(rewards=(bank_b, bank_a), metrics={0: seat_b, 1: seat_a})
+
+    return fake_play
+
+
+@pytestmark_small_seed_warning
+def test_decision_d_still_rejects_v1m_d3_unexplained_escapes():
+    """current_phase.md §1 Απόφαση Δ is explicitly not a loosening. v1m Δ3 won the melon race
+    economically (+$3,421/ep, W/L 11-1) and was stopped because `animals_escaped` went 0 -> 28
+    with no written mechanism. Under Δ the opponent burns far more than the candidate, so the
+    priced delta is 0 and the priced leg is satisfied — and the run must *still* fail, on the
+    written-mechanism rule alone. 'I don't know why' stays a STOP at any price or difference."""
+    fake_play = _fake_play_with_counters(
+        {"animals_escaped": 28}, {"animals_escaped": 200, "shed_overflow_burnt": 400},
+        bank_a=100_000.0, bank_b=0.0,
+    )
+    with patch("harness.compare.play", side_effect=fake_play):
+        undeclared = compare("A", "B", [0], both_seats=True, record=False, metrics=True)
+        declared = compare("A", "B", [0], both_seats=True, record=False, metrics=True,
+                            metric_mechanisms={"animals_escaped": "measured FEED clustering"})
+
+    assert undeclared.animals_escaped_a == 56  # 28 per episode x both orientations
+    assert undeclared.animals_escaped_b == 400
+    # The priced leg alone would wave this through: the opponent loses more than we do.
+    assert undeclared.priced_loss_delta == 0.0
+    assert undeclared.priced_loss_delta <= undeclared.priced_loss_budget_used
+    assert undeclared.unexplained_metrics == ("animals_escaped",)
+    assert undeclared.metric_gate_passed is False
+    # ...and the mechanism rule is the only thing standing between the two runs.
+    assert declared.metric_gate_passed is True
+
+
+@pytestmark_small_seed_warning
+def test_decision_d_mirror_regression_arm_ignores_the_priced_budget():
+    """Απόφαση Δ point 3, the v1m.2 Ε1 mirror: a correct market-only fix measures mean_diff ~0
+    against our own baseline, which under Απόφαση Α made the budget 10% x ~0 = a few dollars
+    against $1,322.9/ep of *inherited* loss — a gate no candidate could ever pass. As a
+    regression detector (Απόφαση Β) the mirror keeps the $-verdict and the structural and
+    mechanism legs, and drops the priced budget entirely."""
+    mechanisms = {
+        "shed_overflow_burnt": "pre-existing EOD surplus residual; emit-order changes no occupancy",
+        "water_weeds_lost": "background weed RNG",
+        "unexpected_weeds_lost": "same background weed mechanism as water_weeds_lost",
+    }
+    # +$65/ep on $48k banks, against 754 burnt units and 33 lost tiles the baseline also has.
+    fake_play = _fake_play_with_counters(
+        {"shed_overflow_burnt": 754, "water_weeds_lost": 33, "unexpected_weeds_lost": 33},
+        {},
+        bank_a=48_065.0, bank_b=48_000.0,
+    )
+    with patch("harness.compare.play", side_effect=fake_play):
+        acceptance = compare("A", "B", [0], both_seats=True, record=False, metrics=True,
+                              metric_mechanisms=mechanisms, arm_role="acceptance")
+        regression = compare("A", "B", [0], both_seats=True, record=False, metrics=True,
+                              metric_mechanisms=mechanisms, arm_role="regression")
+
+    # Identical measurement, identical reporting — only the criterion differs.
+    for result in (acceptance, regression):
+        assert result.priced_loss_per_episode == pytest.approx(754 * 150.0 + 33 * 300.0)
+        assert result.priced_loss_b == 0.0
+        assert result.priced_loss_delta == pytest.approx(result.priced_loss_per_episode)
+        assert result.priced_loss_budget_used == pytest.approx(6.5)
+        assert result.unexplained_metrics == ()
+    assert acceptance.arm_role == "acceptance"
+    assert acceptance.metric_gate_passed is False  # $1,323/ep against a $6.50 budget
+    assert regression.arm_role == "regression"
+    assert regression.metric_gate_passed is True   # passes as a regression detector
+
+    # The structural leg is *not* relaxed by the regression role.
+    broken = _fake_play_with_counters({"clipped_production_ticks": 1}, {},
+                                       bank_a=48_065.0, bank_b=48_000.0)
+    with patch("harness.compare.play", side_effect=broken):
+        structural = compare("A", "B", [0], both_seats=True, record=False, metrics=True,
+                              arm_role="regression")
+    assert structural.metric_gate_passed is False
+
+
+@pytestmark_small_seed_warning
+def test_decision_d_rejects_candidate_that_loses_more_than_its_arm_b():
+    """The other half of 'Δ is not a loosening': differencing only forgives loss the arm B also
+    has. A candidate that burns far more than what it is measured against pays for the excess,
+    and the two bounds of priced_loss_budget still apply to that excess."""
+    mechanisms = {"shed_overflow_burnt": "declared, so only the priced leg is under test"}
+    # 100 burnt units/episode against the bench's 4, on a +$1,000/ep gain: the delta is
+    # 96 x $150 = $14,400/ep against a $100/ep budget.
+    fake_play = _fake_play_with_counters(
+        {"shed_overflow_burnt": 100}, {"shed_overflow_burnt": 4},
+        bank_a=51_000.0, bank_b=50_000.0,
+    )
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=True, record=False, metrics=True,
+                          metric_mechanisms=mechanisms, arm_role="acceptance")
+
+    assert result.shed_overflow_burnt_a == 200  # both orientations
+    assert result.shed_overflow_burnt_b == 8
+    assert result.priced_loss_per_episode == pytest.approx(100 * 150.0)
+    assert result.priced_loss_b == pytest.approx(4 * 150.0)
+    assert result.priced_loss_delta == pytest.approx(96 * 150.0)
+    assert result.priced_loss_budget_used == pytest.approx(100.0)
+    assert result.unexplained_metrics == ()
+    assert result.metric_gate_passed is False
+
+
+@pytestmark_small_seed_warning
+def test_compare_rejects_invalid_arm_role():
+    with pytest.raises(ValueError, match="arm_role"):
+        compare("A", "B", [0], record=False, arm_role="mirror")
+
+
+@pytestmark_small_seed_warning
+def test_compare_reads_arm_b_counters_from_agent_b_seat_in_each_orientation():
+    """Απόφαση Δ point 4 — the B-side counters must follow agent_b's seat the same way the
+    _a counters follow agent_a's, or the delta silently subtracts our own losses from
+    themselves in the swapped orientation."""
+    def fake_play(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        seat_a = {"shed_overflow_burnt": 10, "animals_escaped": 1, "weeds_lost": 5}
+        seat_b = {"shed_overflow_burnt": 70, "animals_escaped": 2, "weeds_lost": 9}
+        if a == "A":
+            return SimpleNamespace(rewards=(150.0, 100.0), metrics={0: seat_a, 1: seat_b})
+        return SimpleNamespace(rewards=(100.0, 150.0), metrics={0: seat_b, 1: seat_a})
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=True, record=False, metrics=True)
+
+    assert result.shed_overflow_burnt_a == 20 and result.shed_overflow_burnt_b == 140
+    assert result.animals_escaped_a == 2 and result.animals_escaped_b == 4
+    assert result.weeds_lost_a == 10 and result.weeds_lost_b == 18
+
+
+@pytestmark_small_seed_warning
+def test_compare_metrics_off_leaves_arm_b_counters_unmeasured():
+    """review.md C3, extended to the B side: 'not measured' and 'measured, zero' must stay
+    distinguishable, or a delta computed from a missing B side reads as an absolute loss."""
+    def fake_play(a, b, seed, **kwargs):
+        del b, seed, kwargs
+        return SimpleNamespace(rewards=(150.0, 100.0) if a == "A" else (100.0, 150.0))
+
+    with patch("harness.compare.play", side_effect=fake_play):
+        result = compare("A", "B", [0], both_seats=False, record=False)
+
+    assert result.shed_overflow_burnt_b is None
+    assert result.animals_escaped_b is None
+    assert result.priced_loss_b is None
+    assert result.priced_loss_delta is None
 
 
 @pytestmark_small_seed_warning

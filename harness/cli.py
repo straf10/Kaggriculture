@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from harness.checkpoint import DEFAULT_CHECKPOINT_ROOT, create_checkpoint
-from harness.compare import PRICED_SOURCE_METRICS, VALID_STAGES, compare
+from harness.compare import ARM_ROLES, PRICED_SOURCE_METRICS, VALID_STAGES, compare
 from harness.play import play
 from harness.profile import report
 from harness.report import load_receipts, load_replay, write_report
@@ -100,9 +100,36 @@ def _results_json_dict(result) -> dict:
         "sales_count_a": result.sales_count_a,
         "unexplained_noops_a": result.unexplained_noops_a,
         "market_sim_aborted_a": result.market_sim_aborted_a,
+        "crop_tile_days_a": result.crop_tile_days_a,
+        "crop_tile_days_b": result.crop_tile_days_b,
+        "worker_turns_idle_a": result.worker_turns_idle_a,
+        "worker_turns_idle_b": result.worker_turns_idle_b,
+        "worker_turns_total_a": result.worker_turns_total_a,
+        "worker_turns_total_b": result.worker_turns_total_b,
+        "animals_underfed_days_a": result.animals_underfed_days_a,
+        "animals_underfed_days_b": result.animals_underfed_days_b,
+        "crop_revenue_a": result.crop_revenue_a,
+        "crop_revenue_b": result.crop_revenue_b,
+        "melon_units_a": result.melon_units_a,
+        "melon_units_b": result.melon_units_b,
+        "melon_revenue_a": result.melon_revenue_a,
+        "melon_revenue_b": result.melon_revenue_b,
+        "animals_escaped_b": result.animals_escaped_b,
+        "shed_overflow_burnt_b": result.shed_overflow_burnt_b,
+        "unexpected_weeds_lost_b": result.unexpected_weeds_lost_b,
+        "water_weeds_lost_b": result.water_weeds_lost_b,
+        "weeds_lost_b": result.weeds_lost_b,
+        "arm_role": result.arm_role,
+        # `priced_loss_per_episode` is agent_a's absolute loss and keeps its pre-Δ name so every
+        # gate artefact written before 2026-08-10 still parses; `priced_loss_a` is the same
+        # number under the name that reads as a pair with `priced_loss_b`.
         "priced_loss_per_episode": result.priced_loss_per_episode,
+        "priced_loss_a": result.priced_loss_per_episode,
+        "priced_loss_b": result.priced_loss_b,
+        "priced_loss_delta": result.priced_loss_delta,
         "priced_loss_budget_used": result.priced_loss_budget_used,
         "priced_loss_breakdown": result.priced_loss_breakdown,
+        "priced_loss_breakdown_b": result.priced_loss_breakdown_b,
         "metric_mechanisms": result.metric_mechanisms,
         "unexplained_metrics": list(result.unexplained_metrics),
         "metric_gate_passed": result.metric_gate_passed,
@@ -157,10 +184,12 @@ def _cmd_compare(args):
                       allow_repeat_confirm=args.allow_repeat_confirm,
                       confirm_ledger_path=Path(args.confirm_ledger) if args.confirm_ledger else None,
                       metric_mechanisms=_parse_metric_mechanisms(args.metric_mechanism),
+                      arm_role=args.arm_role,
                       screen_evidence_dir=Path(args.gates_dir))
     print(f"seeds={len(seeds)} ({result.seed_set_name}) both_seats={not args.single_seat} "
           f"workers={args.workers}")
-    print(f"stage={result.stage} metrics_checked={result.metrics_checked} "
+    print(f"stage={result.stage} arm_role={result.arm_role} "
+          f"metrics_checked={result.metrics_checked} "
           f"town_pin={result.town_pin} prior_dev_screen_found={result.prior_dev_screen_found} "
           f"repeat_confirm_index={result.repeat_confirm_index}")
     print(f"wins_a={result.wins_a} wins_b={result.wins_b} ties={result.ties} "
@@ -185,11 +214,40 @@ def _cmd_compare(args):
               f"{result.sales_count_a} "
               f"unexplained_noops_a={result.unexplained_noops_a} "
               f"market_sim_aborted_a={result.market_sim_aborted_a}")
-        print(f"priced_loss={result.priced_loss_per_episode:.1f}/ep "
+        # current_phase.md §1 Απόφαση Δ: both arms' raw priced counters, then the differenced
+        # criterion the acceptance decision is actually made on.
+        print(f"arm_b_counters: animals_escaped_b={result.animals_escaped_b} "
+              f"shed_overflow_burnt_b={result.shed_overflow_burnt_b} "
+              f"unexpected_weeds_lost_b={result.unexpected_weeds_lost_b} "
+              f"water_weeds_lost_b={result.water_weeds_lost_b} "
+              f"weeds_lost_b={result.weeds_lost_b}")
+        print(f"priced_loss_a={result.priced_loss_per_episode:.1f}/ep "
+              f"priced_loss_b={result.priced_loss_b:.1f}/ep "
+              f"priced_loss_delta={result.priced_loss_delta:.1f}/ep "
               f"budget={result.priced_loss_budget_used:.1f}/ep "
-              f"breakdown={ {k: round(v, 1) for k, v in result.priced_loss_breakdown.items() if v} } "
+              f"(applies={result.arm_role == 'acceptance'}) "
+              f"breakdown_a={ {k: round(v, 1) for k, v in result.priced_loss_breakdown.items() if v} } "
+              f"breakdown_b={ {k: round(v, 1) for k, v in result.priced_loss_breakdown_b.items() if v} } "
               f"unexplained_metrics={list(result.unexplained_metrics)} "
               f"metric_gate_passed={result.metric_gate_passed}")
+        episodes = max(1, len(result.per_seed) * (1 if args.single_seat else 2))
+        print(
+            "v1k_diagnostics="
+            f"crop_tile_days/ep A={result.crop_tile_days_a / episodes:.1f} "
+            f"B={result.crop_tile_days_b / episodes:.1f}; "
+            f"worker_idle A={result.worker_turns_idle_a}/{result.worker_turns_total_a} "
+            f"({100.0 * result.worker_turns_idle_a / max(1, result.worker_turns_total_a):.1f}%) "
+            f"B={result.worker_turns_idle_b}/{result.worker_turns_total_b} "
+            f"({100.0 * result.worker_turns_idle_b / max(1, result.worker_turns_total_b):.1f}%); "
+            f"animals_underfed_days/ep A={result.animals_underfed_days_a / episodes:.1f} "
+            f"B={result.animals_underfed_days_b / episodes:.1f}; "
+            f"crop_revenue/ep A={result.crop_revenue_a / episodes:.1f} "
+            f"B={result.crop_revenue_b / episodes:.1f}; "
+            f"melon_units A={result.melon_units_a} "
+            f"($/u={((result.melon_revenue_a or 0) / (result.melon_units_a or 1)):.2f}) "
+            f"B={result.melon_units_b} "
+            f"($/u={((result.melon_revenue_b or 0) / (result.melon_units_b or 1)):.2f})"
+        )
     if result.env:
         print(f"env={result.env}")
     print(f"GO={result.go}")
@@ -306,6 +364,14 @@ def main(argv=None):
                                  "--metric-mechanism shed_overflow_burnt='peak-production days'. "
                                  "current_phase.md §1 Απόφαση Α: any non-zero priced counter "
                                  "without one fails the metric gate (repeatable)")
+    p_compare.add_argument("--arm-role", choices=ARM_ROLES, default="acceptance",
+                            help="which question this comparison asks (current_phase.md §1 "
+                                 "Απόφαση Δ): acceptance = vs the meta bench, the arm that "
+                                 "decides whether an increment is taken, priced leg applies to "
+                                 "priced_loss_a-priced_loss_b | regression = mirror vs our own "
+                                 "baseline, a regression detector where only the $-verdict and "
+                                 "the structural/mechanism legs apply. Default acceptance (the "
+                                 "stricter regime), so the looser one is always explicit")
     p_compare.add_argument("--min-effect", type=float, default=None,
                            help="practical improvement threshold in dollars per episode "
                                 "(default: max($200, 2%% of mean bank_b))")

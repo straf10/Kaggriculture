@@ -10,6 +10,687 @@
 
 ---
 
+## 2026-08-10 (κ) — Session: **Υλοποίηση Απόφασης Δ → v1m.2 Ε1 ΞΕΚΛΕΙΔΩΘΗΚΕ, `checkpoints/v1m_d2`, submission `55409945`· v1n Ρ1 ⛔ KILL**
+
+**Εντολή:** τέσσερα στάδια σε αυστηρή σειρά — Ζ1 υλοποίηση Απόφασης Δ στο harness (harness-only,
+καμία αλλαγή `agent/`) → Ζ2 re-scoring του Ε1 χωρίς νέο DEV → Ζ3 ολοκλήρωση Ε1 (patch, holdout,
+checkpoint, submission) → Ζ4 v1n Ρ1 fertilizer διαγνωστικό χωρίς νέα episodes.
+
+**Αποτέλεσμα σε μία γραμμή:** και τα τέσσερα στάδια ολοκληρώθηκαν — η Δ μπήκε στο
+`harness/compare.py` με `--arm-role`, το Ε1 πέρασε το re-scoring με **`priced_loss_delta $0,0/ep`
+έναντι budget $156,7**, το holdout-confirm 100-147 unpinned βγήκε **NON_INFERIOR +$81,3/ep,
+W/L 25-0-23, `GO=True`**, δημιουργήθηκε το `checkpoints/v1m_d2` και υποβλήθηκε
+(**`SUBMISSION_ID 55409945`**, αντικατέστησε το ανεξήγητο `55387820`)· το v1n Ρ1 πυροδότησε
+**KILL** (δομικό σκέλος **62,7%**) και το §v1n κλείνει ως μετρημένο.
+
+**Engine `kaggle-environments==1.32.6` επαληθευμένο πριν από κάθε play/compare. Both seats παντού.**
+
+### Ζ1 — Απόφαση Δ στο harness (καμία αλλαγή `agent/` σε αυτό το στάδιο)
+
+`harness/compare.py`:
+- Νέα `priced_loss_delta(a, b) = max(0, a − b)` και **B-side counters** από το seat του `agent_b`:
+  `animals_escaped_b` · `shed_overflow_burnt_b` · `unexpected_weeds_lost_b` · `water_weeds_lost_b`
+  · `weeds_lost_b` (μοτίβο `crop_tile_days_a/_b`).
+- Νέο **`arm_role`** (`acceptance` | `regression`, **default `acceptance`** = ο αυστηρότερος).
+  Το τιμολογημένο σκέλος εφαρμόζεται **μόνο** σε `acceptance`.
+- `priced_loss_per_episode` **κρατήθηκε** (συμβατότητα με ~60 προ-Δ artefacts)· γράφεται και ως
+  `priced_loss_a` δίπλα στα `priced_loss_b` / `priced_loss_delta` / `priced_loss_breakdown_b`.
+- Δομικό σκέλος + κανόνας γραπτού μηχανισμού: **αμετάβλητα, counters του candidate, και στους
+  δύο ρόλους**. `arm_role` καταγράφεται και στο confirm ledger.
+- Refactor: τα τέσσερα inline αντίγραφα εξαγωγής metrics ενοποιήθηκαν σε `_attach_metric_fields()`.
+
+`harness/cli.py`: `--arm-role`, νέα γραμμή `arm_b_counters:` και
+`priced_loss_a/_b/_delta/budget (applies=…)` στο CLI output, όλα τα νέα πεδία στο `results.json`.
+
+**Τρεις διφορούμενες πτυχές του κανόνα** γράφτηκαν ρητά στο `current_phase.md` §1 **Δ.i**:
+(1) το `priced_loss_b` είναι του **arm B αυτής της σύγκρισης** (στο acceptance = ο **bench**, όχι
+το δικό μας baseline) — ερμηνεία ανά-arm, όπως ορίζει ο κανόνας (1)· ⚠️ βρώμικος bench χαλαρώνει
+το gate ⇒ το νούμερο αναφέρεται πάντα ρητά· (2) «και στα δύο arms» = **και στους δύο ρόλους**,
+πάντα στους counters του candidate (η λέξη «ΑΜΕΤΑΒΛΗΤΟ» το κρίνει)· (3) στο `role=regression` το
+«`mean_diff ≥ 0`» **δεν** έγινε νέο hard gate — ισχύει το υπάρχον $-verdict.
+
+**Tests: 221/221 πράσινα** (+8 νέα): τα τρία v1h.2d arms ξαναγράφτηκαν να εκφράζουν τη Δ (προ-Δ
+artefacts ⇒ `priced_loss_b = 0` ⇒ delta = absolute ⇒ **ίδια** verdicts) και προστέθηκαν
+`test_decision_d_still_rejects_v1m_d3_unexplained_escapes` (28 escapes, delta $0, **FAIL** στον
+μηχανισμό), `test_decision_d_mirror_regression_arm_ignores_the_priced_budget`
+($1.322,9/ep έναντι $6,50 budget ⇒ acceptance FAIL / regression PASS, δομικό **όχι** χαλαρωμένο),
+`test_decision_d_rejects_candidate_that_loses_more_than_its_arm_b` (100 vs 4 units ⇒ delta
+$14.400 έναντι $100 ⇒ FAIL), + arm-role validation, B-seat parity, metrics-off = `None`.
+
+### Ζ2 — Re-scoring του Ε1
+
+**Το `gates/v1m2_e1_dev_meta/results.json` ΔΕΝ περιείχε κανέναν B-side τιμολογημένο counter**
+(μόνο `crop_tile_days_b`/`worker_turns_*_b`/`animals_underfed_days_b`/`crop_revenue_b`/`melon_*_b`).
+Χωρίς αυτά το `priced_loss_b` θα ήταν εξ ορισμού 0 και η Δ δεν θα εφαρμοζόταν καθόλου. **Δηλώθηκε
+ρητά πριν** και το DEV **επανα-ενοργανώθηκε** → `gates/v1m2_e1_rescore_dev_meta`.
+
+**Δεν είναι νέο πείραμα:** και τα 48 seeds × 2 seats έδωσαν **byte-ίσα banks** με το αρχικό
+artefact — **0 ασυμφωνίες**. `mean_diff +$1.567,4166667`, W/L **33-15-0**, episode **62-34**,
+`median_bank_a $52.544,5` (B: $51.528,5), `shed_overflow_burnt_a 112`, `crop_tile_days_a 39.648`,
+`worker_turns_total_a 585.304`, `animals_underfed_days_a 3.986` — **όλα ταυτόσημα**.
+
+⚠️ Το candidate **fingerprint διαφέρει** (`536076bf…` → `d980549a…`) και **δεν μπορούσε** να
+ταυτιστεί: το patch είχε γίνει revert χωρίς commit (2026-08-10 (θ)) και ξαναγράφτηκε, και το
+`agent/config.py` πήρε τη διόρθωση stale comment **μετά** τα αρχικά runs. Το fingerprint είναι
+hash **πηγαίου κειμένου**. **Η ισχύουσα επαλήθευση είναι 96/96 ταυτόσημες τροχιές** — ισχυρότερη
+απόδειξη από hash parity. Το bench fingerprint (`d8c04dd0…`) είναι ταυτόσημο.
+
+| Ποσότητα | Τιμή |
+|---|---:|
+| `priced_loss_a` (candidate) | **$175,0/ep** |
+| `priced_loss_b` (`meta_route`) | **$855,7/ep** (escapes 16 · overflow 141 · tiles 150/146) |
+| **`priced_loss_delta`** | **$0,0/ep** |
+| budget (10% × mean_diff, cap $500) | **$156,7/ep** |
+| `unexplained_metrics` | `[]` · δομικά 0/0/0/False · low-price 48/61.671 = **0,078%** |
+| **`metric_gate_passed`** | **True** |
+
+| Κανόνας | Υπολογισμός | Verdict |
+|---|---|---|
+| **Απόφαση Α** | $175,0 > $156,7 (11,2%) | ⛔ FAIL |
+| **Απόφαση Δ** | $0,0 ≤ $156,7 **και** ≤ $500 | ✅ **PASS** |
+
+⚠️ Καταγράφηκε ρητά στο `gates/v1m2_e1_rescore/rescore.md` §3: **το delta $0 σημαίνει ότι ο bench
+χάνει περισσότερα, όχι ότι ο candidate είναι καθαρός.** Το συμπέρασμα στέκει ανεξάρτητα γιατί
+(α) candidate−baseline = **$175 − $154 (L2 live) ≈ $21/ep = 1,3%** του κέρδους, εντός budget
+ούτως ή άλλως· (β) ο **ίδιος** κώδικας δίνει 112 ή 754 units ανάλογα με τον αντίπαλο· (γ) το fix
+είναι αποδεδειγμένα MARKET-ONLY.
+
+### Ζ3 — Ολοκλήρωση του Ε1
+
+**Patch:** επαναφέρθηκε **μόνο** στο `if len(orders) > max_orders` του `agent/executor.py`:
+`kept = sorted(orders, key=_order_tier)[:max_orders]` και έπειτα
+`sorted(kept, key=lambda o: o[0] != "SELL")` (stable). Η διαδρομή `len <= max` **ανέγγιχτη**.
+Guard test `test_e1_market_truncation_emits_kept_sells_first`: cap 8 (χωρίς κοπή) → αμετάβλητο,
+cap 7 → `[SELL] + HIRE×6` (keep-by-tier κρατά, emission βάζει το SELL πρώτο), cap 6 → `HIRE×6`
+(η αναδιάταξη ποτέ δεν ανασταίνει order που κόπηκε).
+
+**Holdout-confirm 100-147, UNPINNED, both seats, `--arm-role regression`, vs `checkpoints/v1h_2d`
+— ένα και μόνο ένα, `repeat_confirm_index=0`:**
+
+| Μέγεθος | Τιμή |
+|---|---:|
+| verdict | **NON_INFERIOR**, `mean_diff` **+$81,3/ep**, CI **[$19,1, $143,5]** |
+| seed W/L/T · episode W/L/T | **25-0-23** · **47-3-46** |
+| `median_bank` A / B | **$46.063,5** / $45.903,5 |
+| `crop_tile_days`/ep A / B | **412,6 / 412,6** (ταυτόσημα) |
+| `worker_turns_idle/total` A / B | **165.253 / 585.856 (28,2%)** — **ταυτόσημα και τα δύο arms** |
+| `animals_underfed_days`/ep A / B | **40,4 / 40,4** |
+| `animals_escaped` A / B | **0 / 0** |
+| `shed_overflow_burnt` A / B | **240 / 240** · weeds **32/32** · `weeds_lost` 800/800 |
+| `priced_loss_a` / `_b` / delta | **$475,0 / $475,0 / $0,0** (budget $8,1, **applies=False**) |
+| δομικά · `unexplained_metrics` | 0/0/0/False · **`[]`** |
+| `prior_dev_screen_found` · `metric_gate_passed` · **`GO`** | True · True · **True** |
+
+**Οι δηλωμένοι μηχανισμοί επαληθεύτηκαν εμπειρικά από τους ίδιους τους B-side counters** που
+πρόσθεσε η Δ: overflow **240 = 240**, weeds **32 = 32**, escapes **0 = 0** ⇒ οι απώλειες είναι
+**byte-ίσα κληρονομημένες** από το `v1h_2d`, όχι εισαγόμενες. Το occupancy είναι ταυτόσημο και
+στα holdout seeds ⇒ MARKET-ONLY επιβεβαιωμένο εκτός DEV.
+
+**Fingerprint parity — και τα τέσσερα ταυτόσημα** `d980549a5638d9f1…`: dev-screen artefact ·
+holdout-confirm artefact · live `main.py` · **`checkpoints/v1m_d2`** (immutable, manifest ✓).
+
+**§Α.2 checklist (όλα πράσινα):** G12 loader + vendored parity **5/5** · timing seat0
+`max 12,1ms` / seat1 `11,8ms` (`max×3 < 1s` **PASS** και στα δύο) · G13 δύο fresh processes με
+`PYTHONHASHSEED` 0 vs 12345 → **ταυτόσημα rewards** · mirror smoke 720 steps `DONE/DONE clean=True`
+· πακέτο **94.916 bytes** · `pytest` **221/221** · `KAGGRI_*` env **κενό**.
+
+**Realized $/u ανά προϊόν** (diagnostic, seeds 100-103, **χωρίς `--stage`**, εκτός ledger):
+
+| | CARROT | FERTILIZER | MILK | STRAWBERRY | WHEAT | WOOL |
+|---|---:|---:|---:|---:|---:|---:|
+| A $/u (units) | 27,6 (133,5) | 58,8 (207,5) | 123,8 (100,2) | 220,7 (32,0) | 48,0 (52,5) | 145,4 (89,8) |
+| B $/u (units) | 27,6 (133,5) | 58,7 (207,0) | 123,5 (98,5) | 220,7 (32,0) | 47,9 (53,5) | 144,7 (89,5) |
+
+**ΥΠΟΒΟΛΗ — `SUBMISSION_ID 55409945`, `SubmissionStatus.PENDING`** (2026-08-10 14:58 UTC).
+Πριν την υποβολή ελέγχθηκε το §Α.3 ζωντανά: ενεργό ζεύγος ήταν **{55390611 · 608,3}** και
+**{55387820 · 613,0}** (⚠️ **οι δύο τιμές είναι ανεστραμμένες σε σχέση με ό,τι κατέγραφε το
+`current_phase.md` §Α** — 613,6/608,2 — διορθώθηκε). Το upload έσπρωξε εκτός το **παλαιότερο**,
+δηλαδή το ανεξήγητο `55387820`, **ακριβώς όπως ζητήθηκε**· το `55390611` (v1h.2d, το μόνο με
+μετρημένο +22% bank) παραμένει ενεργό.
+**Νέο ενεργό ζεύγος: `55409945` (v1m_d2) + `55390611` (v1h.2d).** 4 uploads απομένουν σήμερα.
+
+⚠️ **Ανοιχτό σημείο §Α.3 που καταγράφεται ρητά:** τα δύο ενεργά slots οφείλουν να είναι
+**champion + διαφοροποιημένος challenger σε έκθεση**. Το `v1m_d2` είναι `v1h_2d` + market-order
+emission ordering: **ίδιο κοπάδι (4C/6S), ίδια tiles, ίδια sell-side κατώφλια** ⇒ **σχεδόν
+ταυτόσημη έκθεση**. Δεν αποκλείει την υποβολή (αντικαταστάθηκε ένα submission **άγνωστης**
+έκθεσης, όχι ο champion, και η Απόφαση Γ επιβάλλει να μην καθόμαστε πάνω σε μετρημένη νίκη), αλλά
+**η διαφοροποίηση μένει χρέος για το επόμενο increment**.
+
+### Ζ4 — v1n Ρ1 fertilizer διαγνωστικό (34 υπάρχοντα replays, μηδέν νέα επεισόδια)
+
+`analysis/v1n_r1_fertilizer.py` → `gates/v1n_r1_diagnostic/{diagnosis.md,diagnosis.json}`.
+
+| Ποσότητα (median/ep) | Τιμή |
+|---|---:|
+| Naive οροφή (10 ζώα × 29 μέρες) | 290,0 |
+| **Προσφερόμενες animal-days (όντως στημένες)** | **243,0** |
+| `COLLECT_FERTILIZER` actions | **215,0** |
+| Μονάδες πουλημένες · έσοδα · realized $/u | **209,5** · **$13.685** · **$65,32** |
+| **ΔΟΜΙΚΟ κενό** (κοπάδι στήνεται σταδιακά) | **47,0 — 62,7%** |
+| **ΔΙΟΡΘΩΣΙΜΟ κενό** (προσφέρθηκαν, δεν συλλέχθηκαν) | **28,0 — 37,3%** |
+| sell-side κενό (συλλέχθηκαν, δεν πουλήθηκαν) | 5,5 |
+
+Πλήρες κοπάδι στέκεται τη **μέρα 10** (όχι d8). **24 από τις 28 χαμένες μονάδες σε τέσσερις
+μέρες: 14, 15, 27, 28.**
+
+**Sell-side αποκλείστηκε:** `sell_floor_price["FERTILIZER"]=10` δεσμεύει στο **Δ=450**· peak κοινό
+market delta **358** (χειρότερο 493), αδιάθετο FERTILIZER στο shed στο τέλος **0**, realized
+$65,32/u. Η χειρότερη τιμή $6 είναι το `liquidation_floor_price=5` του τέλους σεζόν, όχι το sell floor.
+
+⚠️ **Δύο νούμερα του §v1n διορθώθηκαν από τη μέτρηση:** (α) πουλάμε **209,5** μονάδες, όχι ~163 —
+η αντιστροφή της καμπύλης στο (ι) υποεκτίμησε κατά **28%** επειδή αγνοούσε την προσφορά του
+αντιπάλου· (β) άρα το «+$3.279/ep» καταρρέει: το πραγματικό διορθώσιμο σκέλος είναι **28 μονάδες
+στην ουρά της καμπύλης (Δ=358 ⇒ $28,40/u και πέφτει) ≈ +$720/ep άνω φράγμα**, και χάνεται ακριβώς
+τις πιο φορτωμένες μέρες ⇒ πραγματικός κίνδυνος εκτόπισης του FEED.
+
+⛔ **KILL: το δομικό σκέλος κυριαρχεί (62,7%) και είναι ρητά εκτός scope** (μειώνεται μόνο με
+αλλαγή κοπαδιού/targets — ⚠️ε: 13-14 ζώα → 660-885 escapes). **Το §v1n κλείνει ως μετρημένο, το
+Ρ2 δεν ξεκινά.** Τι επιβιώνει ως γνώση: συλλέγουμε ήδη το **88,5%** των υπαρκτών animal-days και
+πουλάμε το **97,4%** όσων συλλέγουμε — σωστή ερώτηση, λάθος προϋπολογισμένη απάντηση, μηδενικό
+κόστος σε επεισόδια.
+
+### Απόφαση και τελικό state
+
+**v1m.2 ✅ ΚΛΕΙΣΤΟ.** `checkpoints/v1m_d2` (fingerprint `d980549a…`, verified) ·
+`SUBMISSION_ID 55409945` PENDING · ενεργό ζεύγος `55409945` + `55390611`.
+**v1n ⛔ ΚΛΕΙΣΤΟ ως μετρημένο στο Ρ1.** `agent/` περιέχει **μόνο** το Ε1 order-emission patch
+(+ τη διόρθωση stale comment του (θ) στο `config.py`). Suite **221/221**.
+
+### Τι ΔΕΝ έγινε
+
+Ε2/Ε3 του v1m.2 (escape diagnosis + melon re-size) — παραμένουν ακυρωμένα, τώρα χωρίς εκκρεμότητα
+Ε1 να τα μπλοκάρει· v1n Ρ2· δεύτερο confirm στα ίδια seeds (CONFIRM2 200-247 παραμένει **καμένο**)·
+mirror DEV re-run με το νέο fingerprint (δεν απαιτείται: το tracked dev-screen του acceptance arm
+καλύπτει το `prior_dev_screen_found`)· hands/crew· κοπάδι· WHEAT/FEED sizing· γη· κανένα commit.
+
+---
+
+## 2026-08-10 (ι) — Session: **Απόφαση Δ (priced gate στη διαφορά) + αξιολόγηση εξωτερικού notebook → §v1n** (docs/analysis only)
+
+**Εντολή:** μετά το v1m.2 Ε1 STOP — έλεγξε αν τα συμπεράσματα δημόσιου notebook
+(`notebooks/the-strawberry-field-is-worth-3-847.ipynb`) έχουν βάση και πώς αξιοποιούνται·
+ενημέρωσε το current_phase.md. **Χωρίς εκτέλεση** που να επηρεάζει τον agent που έτρεχε
+παράλληλα το v1m.2.
+
+**Αποτέλεσμα σε μία γραμμή:** το post-mortem του Ε1 αποκάλυψε **δομικό σφάλμα στην Απόφαση Α**
+(τιμολογεί απόλυτη, κληρονομημένη απώλεια έναντι budget που κλιμακώνεται με το οριακό κέρδος)
+⇒ **Απόφαση Δ εγκρίθηκε**· και το notebook — του οποίου η αριθμητική επαληθεύτηκε πλήρως —
+ανέδειξε το **FERTILIZER ($13.685/ep, 2η μεγαλύτερη γραμμή εσόδων μας)** ως ποτέ-μη-εξετασμένο
+increment ⇒ νέο **§v1n**.
+
+**Καμία αλλαγή σε `agent/`, κανένα gate, καμία υποβολή, καμία εκτέλεση episode.**
+
+### 1. Το Ε1 STOP επανεξετάστηκε στα artefacts — και το gate είναι το πρόβλημα
+
+Άνοιξαν τα `gates/v1m2_e1_dev_{mirror,meta}`. **Ίδιος candidate κώδικας, αλλάζει μόνο ο αντίπαλος:**
+
+| Arm | mean_diff | `shed_overflow_burnt` | priced/ep | budget | verdict |
+|---|---:|---:|---:|---:|---|
+| vs `meta_route` | **+$1.567,4** | 112 | $175,0 | $156,7 | ⛔ 11,2% |
+| vs `v1h_2d` (mirror) | +$64,9 | **754** | $1.323 | **$6,49** | ⛔ 2.038% |
+
+Τρία ευρήματα:
+
+1. **Η απώλεια είναι του baseline, όχι του increment.** Το L2 μέτρησε το ίδιο το `v1h_2d`
+   ζωντανά στα **$154/ep** priced loss. Οριακή συνεισφορά του order-emission fix:
+   **~$21/ep πάνω σε κέρδος $1.567/ep = 1,3%**.
+2. **112 ή 754 overflow units από τον ίδιο κώδικα** ⇒ το counter περιγράφει **συνθήκες αγοράς**,
+   όχι ποιότητα candidate.
+3. **`budget = 10% × mean_diff` κάνει το mirror gate μαθηματικά αδύνατο.** Όταν το mirror είναι
+   σωστά ~0 — ό,τι ακριβώς θέλουμε από market-only fix — το budget γίνεται $6,49.
+
+⇒ increment με **+$1.567/ep vs πραγματικό αντίπαλο**, **33-15**, occupancy byte-ίσο
+(`crop_tile_days 39.677/39.677`, `worker_turns_total 585.856/585.856`) απορρίφθηκε για
+**$18,3/ep**. Ίδιο μοτίβο με το §0.2 σημείο 2.
+
+### 2. Απόφαση Δ — εγκρίθηκε από τον χρήστη
+
+Γράφτηκε στο `current_phase.md` §1: (α) τιμολόγηση στη **διαφορά**
+`max(0, priced_loss_a − priced_loss_b)`· (β) δομικό σκέλος + κανόνας γραπτού μηχανισμού
+**αμετάβλητα και απόλυτα**· (γ) τιμολογημένο gate **μόνο στο acceptance arm**, ποτέ στο mirror
+(regression detector κατά Απόφαση Β)· (δ) raw counters και των δύο arms συνεχίζουν να
+αναφέρονται. Απαιτεί νέο `priced_loss_b` στο `harness/compare.py`.
+**Δεν είναι χαλάρωση:** το v1m Δ3 (28 unexplained escapes) εξακολουθεί να απορρίπτεται από (β).
+
+⇒ **Το v1m.2 Ε1 ξανανοίγει για re-scoring χωρίς νέο DEV** — το `gates/v1m2_e1_dev_meta` είναι πλήρες.
+
+### 3. Αξιολόγηση notebook — αριθμητική σωστή, στρατηγικό συμπέρασμα λάθος
+
+Επαληθεύτηκαν έναντι `engine_reference/kaggriculture.py`:
+
+| Ισχυρισμός | Verdict |
+|---|---|
+| Strawberry field **$3.847** (62η μονάδα στο $1) | ✅ ακριβές στο δολάριο (`amp=1,92`, floor Δ=62,5) |
+| Melon **$26.627**/field-season vs naive $75.000 | ✅ **επιβεβαιώνει ανεξάρτητα** το §v1m μοντέλο ($26.477 + ουρά στο floor) |
+| Fertilizer «fed or not» per-animal-per-day | ✅ engine:818 — **αλλά boolean, όχι σωρευτικό**: ό,τι δεν συλλεχθεί **χάνεται** |
+| Fertilizer 2η μεγαλύτερη οροφή | ✅ `revenue(200)=$16.020` · `revenue(400)=$24.040` (avg $60) |
+| Hands = **ημερήσιο ενοίκιο**, 8 hands = $54 | ✅ engine:867-868 — `hands=[]` + `hires_today=0` κάθε βράδυ |
+| «$0,28/action ⇒ ο μεγαλύτερος μοχλός» | ⛔ **μέσος όρος, όχι οριακό** |
+
+⛔ Στα δικά μας 10 hands το **οριακό** κόστος είναι `fib(10)=$89` → **$3,71/action** και
+`fib(11)=$144` → **$6,00/action** — **13-21×** το headline. Με idle **27,8%**, το §v1j STOP
+**δεν** ανατρέπεται.
+
+⚠️ **Διορθώθηκε δική μας καταγραφή:** το 2026-08-10 (γ) απέδωσε το v1j `{12,12}≡{12,10}` στο ότι
+«fib(10)/fib(11) σπάνια χωράνε στο πρωινό bank». Με **ημερήσιο reset** των hires, $233/μέρα είναι
+ασήμαντο έναντι bank $11k τη d15 ⇒ φταίει μάλλον το **δικό μας hire gate**, όχι το cash.
+Το συμπέρασμα (idle ⇒ κανένα κέρδος) μένει· το σκέλος «bank» **δεν επαναχρησιμοποιείται ως τεκμήριο**.
+
+⚠️ **Δομικός περιορισμός του notebook:** κάθε νούμερο είναι **single-seller**, και το `T`
+αντιμετωπίζεται ως «χωράφι που διαθέτεις» — για το FERTILIZER όμως `T=200` είναι **animal-days**,
+όχι πλακίδια. Solo άνω φράγμα, όχι αξία ladder.
+
+### 4. Το αξιοποιήσιμο: FERTILIZER (§v1n)
+
+`baselines/2026-08-10/l2c_tile_economics.json`, 34 ladder replays, median/ep — **δεν** τρέχτηκε
+τίποτα νέο:
+
+| Προϊόν | Εμείς | Αντίπαλος | Δ |
+|---|---:|---:|---:|
+| MILK | $26.648 | $29.088 | −$2.440 |
+| **FERTILIZER** | **$13.685** | $10.530 | **+$3.155** |
+| WOOL | $12.795 | $4.249 | +$8.546 |
+| STRAWBERRY | $6.962 | $7.626 | −$664 |
+| CARROT | $4.709 | $0 | +$4.709 |
+| WHEAT | $2.236 | $4.036 | −$1.800 |
+| MELON | $0 | $27.263 | −$27.263 |
+
+Το FERTILIZER είναι η **2η μεγαλύτερη** γραμμή εσόδων μας — μπροστά από το WOOL, ~3× το καλύτερο
+crop — και **ποτέ δεν εξετάστηκε σε increment**. Αντιστρέφοντας την καμπύλη
+(`price(Δ)=100−0,2Δ`, cliff 500): πουλάμε **~163** μονάδες/ep, ο αντίπαλος **~120**, κοινό
+inventory **~283/500**· οροφή μας ~260 μονάδες.
+
+| Υπόθεση | Οριακό έσοδο |
+|---|---:|
+| Solo (όπως το notebook) | +$5.607/ep |
+| **Κοινή προσφορά** (μάθημα Β.2) | **+$3.279/ep** |
+
+Ίδια τάξη με ολόκληρη την κούρσα melon (+$3.421/ep) — **χωρίς να αγγιχτεί ούτε ένα tile**.
+
+### 5. Τι άλλαξε στα docs
+
+`current_phase.md`: νέα **§Απόφαση Δ** (§1, εγκεκριμένη)· §Πρωτόκολλο metric-gate γραμμή
+τροποποιήθηκε· **§v1m.2 σημάνθηκε «ΞΑΝΑΝΟΙΓΕΙ για re-scoring»**· νέα **§v1n fertilizer capture**
+(Ρ1 διαγνωστικό χωρίς νέα episodes + Ρ2 increment + πλήρης αξιολόγηση notebook)· **§v1j** πήρε
+τη διόρθωση για το ημερήσιο hire reset· §1 τίτλος, σειρά ΜΕΡΟΥΣ Β και χρονοδιάγραμμα ενημερώθηκαν.
+
+### Τι ΔΕΝ έγινε
+
+Καμία αλλαγή σε `agent/` ή `harness/`· κανένα gate/episode/compare· καμία υποβολή· κανένα commit.
+Η υλοποίηση της Απόφασης Δ στο `harness/compare.py` **δεν** γράφτηκε — παραδίδεται ως εντολή.
+
+---
+
+## 2026-08-10 (θ) — Session: **v1m.2 melon race retry ⛔ STOP στο Ε1 DEV**
+
+**Εντολή:** υλοποίηση §v1m.2 σε αυστηρή σειρά Ε1 order-emission → Ε2 escape diagnosis →
+Ε3 FEED-first melon fix/re-size, με kill σε κάθε στάδιο, engine 1.32.6 και both seats.
+
+**Αποτέλεσμα σε μία γραμμή:** το Ε1 Δ2 fix επιβεβαίωσε ότι είναι MARKET-ONLY και κέρδισε
+οικονομικά (`+64,9/ep` mirror, `+1.567,4/ep` και W/L `33-15` vs meta), αλλά το meta DEV
+απέτυχε Απόφαση Α με **priced loss $175,0/ep > $156,7/ep budget (11,2%)** ⇒ **STOP στο Ε1**,
+revert του order-emission patch και ακύρωση Ε2/Ε3· κανένα holdout/checkpoint/submission.
+
+### Ε1 — Order-emission fix
+
+Υλοποιήθηκε αποκλειστικά στο `if len(orders) > max_orders`: keep-by-tier και έπειτα emit των
+kept SELLs πριν από τα υπόλοιπα. Η διαδρομή `len <= max` έμεινε ανέγγιχτη. Προστέθηκε guard,
+τα `tests/` πέρασαν **214/214**, και μετά το STOP αφαιρέθηκαν μαζί με το candidate patch.
+
+DEV 0–47, both seats, unpinned, `--metrics`, `kaggle-environments==1.32.6`:
+
+| DEV artefact | vs | mean diff / verdict | seed W/L/T | median bank A | Απόφαση Α |
+|---|---|---:|---:|---:|---|
+| `gates/v1m2_e1_dev_mirror` | `v1h_2d` | **+$64,9**, NON_INFERIOR, CI [$17,3, $112,5] | **28-0-20** | **$48.628** | ⛔ `$1.322,9/ep > $6,5`; escapes unexplained |
+| `gates/v1m2_e1_dev_meta` | `meta_route` | **+$1.567,4**, IMPROVED, CI [$745,1, $2.389,7] | **33-15-0** | **$52.544,5** | ⛔ **$175,0/ep > $156,7** |
+
+Υποχρεωτικά diagnostics:
+
+| Metric (σύνολο 96 episodes) | Mirror A | Mirror B | Meta A | Meta B |
+|---|---:|---:|---:|---:|
+| `crop_tile_days` | **39.677** | **39.677** | 39.648 | 66.841 |
+| `worker_turns_idle` | **165.545** | **165.545** | 164.597 | 100.563 |
+| `worker_turns_total` | **585.856** | **585.856** | 585.304 | 576.587 |
+| `animals_underfed_days` | **3.955** (41,2/ep) | **3.955** | **3.986** (41,5/ep) | 3.574 |
+| MELON units / revenue / $/u | 0 / $0 / $0 | 0 / $0 / $0 | 0 / $0 / $0 | 11.081 / $2.550.352 / $230,16 |
+
+Το assertion MARKET-ONLY πέρασε ακριβώς στο mirror:
+`crop_tile_days_a == crop_tile_days_b == 39.677`,
+`worker_turns_idle_a == worker_turns_idle_b == 165.545` και
+`worker_turns_total_a == worker_turns_total_b == 585.856`. Άρα δεν χρειαζόταν pinned rerun.
+
+Metric counters candidate:
+
+| Counter | Mirror | Meta |
+|---|---:|---:|
+| `animals_escaped` | **4** | **0** |
+| `shed_overflow_burnt` | **754** | **112** |
+| `water_weeds_lost` / `unexpected_weeds_lost` | 33 / 33 | 0 / 0 |
+| hard-zero faults | 0 | 0 |
+| `unexplained_metrics` | `['animals_escaped']` | `[]` |
+| `metric_gate_passed` | **False** | **False** |
+
+Το meta gate είναι το αποφασιστικό kill: ο μηχανισμός overflow ήταν γραμμένος και το absolute
+cap <$500 περνούσε, αλλά `175 / 1.567,4 = 11,2%`, πάνω από το δεσμευτικό 10%. Το παλιό
+SMOKE `v1m_d2_meta_clean` παρέμενε καθαρό στα 12 seeds, αλλά δεν γενικεύτηκε στο πλήρες DEV.
+
+### Ε2 — Ακυρώθηκε
+
+Δεν δημιουργήθηκε disposable Δ3 candidate, δεν τρέχτηκε seed 3 replay και δεν γράφτηκε
+`gates/v1m2_escape_diagnosis/diagnosis.md`, επειδή το Ε1 kill ακυρώνει ρητά Ε2/Ε3.
+
+### Ε3 — Ακυρώθηκε
+
+Δεν δοκιμάστηκαν near-shed N=3, N=7, FEED reservation, SMOKE/DEV/holdout ή νέο melon sizing.
+
+### Απόφαση και τελικό state
+
+**STOP στο Ε1 DEV.** Το `agent/executor.py` και το guard test επανήλθαν ακριβώς στην pre-stage
+κατάσταση. Κρατήθηκαν τα δύο DEV artefacts και το υπάρχον harness reporting. Διορθώθηκε μόνο το
+stale comment στο `agent/config.py`: πραγματική κατανομή COW 4 / SHEEP 6 / GOOSE 0, τρία
+unclaimed PASTURE slots και unused COOP. Μετά το revert/housekeeping, το τελικό suite πέρασε
+**213/213** (9 γνωστές warnings).
+
+### Τι ΔΕΝ έγινε
+
+Holdout-confirm 100–147 · `checkpoints/v1m_d2` · Ε2 diagnosis · Ε3 smoke/DEV/holdout ·
+`checkpoints/v1m` · submission. Το ενεργό Kaggle ζεύγος έμεινε αμετάβλητο.
+
+---
+
+## 2026-08-10 (η) — Session: **v1m melon race ⛔ STOP στο Δ3 SMOKE**
+
+**Εντολή:** υλοποίηση §v1m σε 4 στάδια με kill-criteria (Δ0 διάγνωση → Δ1 probe curve →
+Δ2 order-emission → Δ3 melon entry), αποκλειστικά vs `meta_route`, engine 1.32.6.
+
+**Αποτέλεσμα σε μία γραμμή:** το race μοντέλο και το N=4 first-seller πέρασαν οικονομικά
+(**$/u $226**, W/L **11-1**, median bank **$59,4k**) αλλά το Δ3 αύξησε `animals_escaped`
+**0→28** ⇒ **STOP στο Δ3** χωρίς DEV/holdout/checkpoint/submission· `agent/` reverted.
+
+### Δ0 — Διάγνωση (πριν από agent/)
+
+`KAGGRI_DEBUG=1` play seed 0 `main.py` vs `meta_route`, `gates/v1m_diagnostic_seed0/`.
+
+| # | Εύρημα |
+|---|---|
+| (α) | Bench πρώτη MELON πώληση: **d13 turn 0**, qty 60, order_index **9/10** (τελευταίο slot). Σύνολο 120 (d13×60 + d25×48 + d26×6 + d29×6). Shed=0 έως d12 EOD. |
+| (β) | Truncation `len>max` στις d10–d12: **1 turn** (d12 t0, requested=12→10 HIRE, SELLs dropped). ⇒ **Δ2 δικαιολογείται**. |
+| (γ) | Ελεύθερα NW χωρίς reclaim crops/herd: **(3,0)(1,0)(0,1)(0,0)** → **N_max=4**, seed cost **$320**. |
+
+### Δ1 — Probe curve (καμία αλλαγή agent/)
+
+`gates/v1m_probe_curve/melon_curve.json` — first-seller πάνω σε day-start inventory (meta vs pass).
+
+| V\D | 10 | 12 | 14 | 18 |
+|---:|---:|---:|---:|---:|
+| 30 | $254.30 | $256.00 | $212.70 | $217.40 |
+| **60** | **$245.85** | $247.37 | $190.05 | $195.93 |
+| 90 | $233.13 | $234.99 | $161.39 | $168.48 |
+| 120 | $214.85 | $217.18 | $127.54 | $135.22 |
+
+KILL (V=60,D=10) vs analytical $238 ±15% band [$202,$274]: **PASS** ($245.85).
+Το §0α/§2 $119,6/tile-day **δεν** αναθεωρείται — η καμπύλη επιβεβαιώθηκε.
+**N=4** (max revenue εντός Δ0 budget)· Δ3 kill-threshold **$/u ≥ $150**.
+
+### Δ2 — Order-emission fix (εκτελέστηκε)
+
+Keep-by-tier όπως πριν· emit SELLs πρώτα μεταξύ των kept.
+- Mirror vs `v1h_2d` (pinned): `mean_diff +$86.5 ≥ 0`, occupancy identical, W/L 7-0-5.
+- vs meta (unpinned): seed W/L **8-4** (ίδιο με baseline v1h_2d), `metric_gate_passed=True`
+  με mechanism για overflow $68.8/ep.
+
+### Δ3 — Melon entry N=4 + Δ2 — ⛔ STOP στο SMOKE
+
+Candidate: MELON στα 4 free NW tiles· `_GROWN_CROPS` + harvest @ first_yield_day=10·
+PASTURE κομμένο στα 10 used· COOP `()`· WHEAT/FEED/herd/hands αμετάβλητα.
+Harness: `revenue_by_product` + `realized_price_per_unit` + melon units/revenue στο compare.
+
+SMOKE 0-11 both seats `--town-pin basket` vs `meta_route`:
+
+| Κριτήριο | Τιμή | Verdict |
+|---|---:|---|
+| MELON $/u | **$226.36** (576 units) | ✅ ≥ $150 |
+| median_bank_a | **$59.350,5** vs bench $56.720,5 | ✅ |
+| seed W/L | **11-1** (ep 21-3) | ✅ από 8-4 |
+| mean_diff | **+$3.421/ep** IMPROVED | — |
+| Απόφαση Α | escapes=28, priced=$1.167/ep > budget | ⛔ |
+| animals_escaped | **28** (was 0) | ⛔ STOP |
+| animals_underfed_days/ep | 41,6 (Δ2 baseline 41,2) | ⚠️ ελαφρά ↑ |
+
+Escapes: ακριβώς 4 σε καθένα από seeds 3,4,5,7,8,9,10 — συστηματικό labour/feed
+contention από το N=4 footprint, όχι τυχαίο.
+
+**STOP.** `git checkout -- agent/` · κανένα DEV/holdout/checkpoint/submission.
+Κρατήθηκαν: `gates/v1m_*`, harness melon $/u reporting + tests, probe curve, diagnosis.
+
+### Τι ΔΕΝ έγινε
+
+DEV 0-47 · holdout-confirm · `checkpoints/v1m` · submission · v1k follow-up · 2ος κύκλος
+melon · STRAWBERRY/WHEAT/land/hire αλλαγές. Το Δ2 emit-order **reverted** μαζί με το Δ3
+(ολόκληρο `agent/`).
+
+---
+
+## 2026-08-10 (ζ) — Session: **Β.2 clean-room meta-bench** ✅
+
+**Εντολή:** υλοποίηση §Β.2 — δύο ντετερμινιστικοί bench αντίπαλοι (`meta_route`,
+`meta_route_sheep`) από δημοσιευμένα στατιστικά μόνο + melon price probe· καμία αλλαγή σε
+`agent/`, κανένα checkpoint/submission/policy.
+
+**Αποτέλεσμα σε μία γραμμή:** και τα πέντε κριτήρια πέρασαν· vs `v1h_2d` SMOKE **4-8**
+(μη-degenerate)· melon **114**/σεζόν · tile-days **701**/ep · probe stacked **$62/u**
+(MARGINAL για v1m) — εργαλείο έτοιμο, όχι increment.
+
+### 1. Engine + παραδοτέα
+
+- Επαληθεύτηκε `kaggle-environments==1.32.6` πριν από κάθε μέτρηση.
+- `harness/bench_agents/__init__.py`, `meta_route.py`, `meta_route_sheep.py`.
+- `agent/` ως read-only βιβλιοθήκη· ιδιωτικό `copy.deepcopy(CONFIG)`· προσωρινό patch
+  `_GROWN_CROPS` μόνο μέσα στο bench `build_tasks` (restored). Path loader χωρίς `__file__`
+  (get_last_callable) → repo root από `sys.path`/`cwd`.
+- Tests: `tests/test_meta_bench.py` · **212/212** pytest PASS.
+
+### 2. Αποδοχή #1–#4
+
+| # | Αποτέλεσμα |
+|---|---|
+| 1 Clean | `DONE/DONE`, 0 stderr, both seats |
+| 2 Determinism | seed 3 × 96 steps × PYTHONHASHSEED 0/12345 ταυτόσημο |
+| 3 Non-degenerate | seed W/L **4-8**, episode **8-16** vs `checkpoints/v1h_2d` |
+| 4 Profile | melon 114 · tile-days 700,6/ep · 3 quadrants (όλα εντός ≤2× του στόχου) |
+
+Πρώτη προσπάθεια με published 8c/6s + πλήρες sell calendar ⇒ **71 escapes, 0-24** (STOP #3).
+Δεύτερη: herd στο gated **4c/6s**, μόνο MELON withhold d10, logistics από v1h_2d overlay ⇒
+πέρασε. Hands 12 παραμένει ανέφικτο (fib) — τεκμηριωμένο.
+
+### 3. Melon price probe (#5)
+
+Meta πούλησε 114 @ $231/u. Inventory τέλους 10084 (I0=10000). +120 μονάδες από εκεί:
+avg **$62,23**/u (min **$1**). Counterfactual χωρίς το dump: $235,82/u. Haircut **−$173,58**/u.
+⇒ το L2 $119,6/tile-day είναι solo· κοινή προσφορά χτυπάει cliff. **MARGINAL** για v1m.
+
+### 4. Artefacts / docs
+
+`gates/b2_meta_bench/` — `profile_validation.md`, `melon_price_probe.json`, `vs_v1h2d/`,
+`determinism.json`. `current_phase.md` §Β.2 ✅ ΚΛΕΙΣΤΟ· επόμενο **v1m**.
+
+### Τι ΔΕΝ έγινε
+
+Καμία αλλαγή σε `agent/` · κανένα checkpoint · καμία υποβολή · καμία απόφαση policy για v1m
+πέρα από την καταγραφή του probe signal.
+
+---
+
+## 2026-08-10 (στ) — Session: **v1l crop mix WHEAT→CARROT ⛔ STOP στο SMOKE**
+
+**Εντολή:** ασφαλής μετατροπή WHEAT→CARROT εντός υπαρχόντων planted windows (όχι πότε/πόσα
+tiles, όχι γη/προσλήψεις/κοπάδι, όχι strawberry/MELON), OCCUPANCY pinned SMOKE πριν από DEV,
+κρατώντας WHEAT feed reserve από μετρημένη κατανάλωση FEED.
+
+**Αποτέλεσμα σε μία γραμμή:** το candidate 4 WHEAT + 8 SW CARROT κατέρρευσε στο SMOKE
+(**−$7.161/ep**, 0/12 seeds, median bank $43,4k→ κάτω από baseline $52,1k)· το `crop_revenue`
+**δεν ανέβηκε**· escapes/underfed χειροτέρεψαν ⇒ **STOP χωρίς DEV/holdout/checkpoint/submission**.
+
+### 1. Μετρημένο FEED reserve (πριν από κώδικα)
+
+Baseline `main.py` vs pass, seed 0, recorded replay:
+
+- **212 FEED actions/ep** (WHEAT consumed)· animal-days EOD sum 253· underfed_days 42.
+- Home WHEAT με 12 tiles: ~36 PLANT · παραγωγή ≈190 μονάδες· **BUY 117 / SELL 95** ⇒ ήδη
+  καθαρός αγοραστής. Early FEED (πριν SW ~d10) αγοράζεται πάντα.
+- Άρα «μηδένισε το wheat» θα ήταν καταστροφή· κρατήθηκαν **4 πλησιέστερα** SW tiles ως WHEAT
+  feed reserve και μετατράπηκαν τα **8 μακρινότερα** σε CARROT στο ίδιο `wheat_last_plant_day`
+  window (σύνολο SW slots σταθερό στα 12).
+
+### 2. Ελάχιστο candidate
+
+- `sw_wheat_tiles` 12→4 · νέο `sw_carrot_tiles=8` · SW θέσεις μεταφέρθηκαν στο τέλος του
+  `target_tiles["CARROT"]` (NE list trim στα 3 ενεργά)· ίδιο plant window με το WHEAT.
+- Planner: `sw_carrot` προστίθεται στο carrot target μόνο μέσα στο wheat window.
+- Scheduler: reserve ημερήσιου plant budget για WHEAT ώστε το μεγαλύτερο CARROT target να μην
+  το λιμοκτονεί (CARROT-first στο `_GROWN_CROPS`).
+- Harness: νέο `crop_revenue` (άθροισμα τιμών πώλησης WHEAT/CARROT/STRAWBERRY/TOMATO/MELON)
+  σε metrics/compare/cli, δίπλα στα v1k diagnostics.
+
+### 3. SMOKE — OCCUPANCY, pinned basket, both seats
+
+Command: `main.py` vs `checkpoints/v1h_2d/main.py`, `SMOKE_SEEDS 0-11`, `--town-pin basket`,
+`--metrics`, 6 workers. Artefacts: `gates/v1l_smoke/`,
+`gates/v1l_smoke_tracked/v1l_smoke/results.json`.
+
+| Μέγεθος | Candidate | Baseline | Verdict |
+|---|---:|---:|---|
+| `mean_diff` | **−$7.161/ep** | — | CI [−$9.164, −$5.159] |
+| seed W/L/T | **0/12/0** | — | episode 0/24/0 |
+| `median_bank` | **$43.370,5** | **$52.076,5** | Απόφαση Β αποτυγχάνει |
+| `crop_revenue` | **$13.003,8/ep** | $13.072,9 | ⛔ δεν κινήθηκε θετικά |
+| `crop_tile_days` | 405,6/ep | 413,4 | ελαφρά κάτω |
+| worker idle | 40.574/146.648 = 27,7% | 28,2% | — |
+| `animals_underfed_days` | **50,9/ep** | 40,8 | ⛔ αυξήθηκε |
+| `animals_escaped` | **10** (σύνολο) | 0 | ⛔ |
+
+Raw candidate: overflow **0** · water/unexpected weeds **32/32** · decay/clipped/no-ops/abort 0 ·
+≤$5 sales 38/15.524 (0,24%). `priced_loss=$816,7/ep`· αρνητικό mean diff ⇒ budget $0 ⇒
+`metric_gate_passed=False`. Watch-item v1k: overflow καθαρό· water weeds εμφανίστηκαν (32).
+
+### 4. Απόφαση και τελικό state
+
+Απέτυχε Απόφαση Α, Απόφαση Β, θετική `crop_revenue`, και no-increase underfed/escapes.
+**STOP στο SMOKE.** Agent policy reverted (`sw_wheat_tiles=12`, χωρίς `sw_carrot_tiles`·
+`git diff -- agent` κενό). Κρατήθηκαν harness `crop_revenue` + tests, gate artefacts, docs.
+
+**Μάθημα για επόμενο:** το L2 WHEAT `$15,5/tile-day` είναι **sales-only**. Τα ίδια tiles αξίζουν
+ως αποφευχθείσα αγορά FEED (~212 μονάδες/ep)· η στατική εκτίμηση +$2.800 αγνοούσε αυτό.
+Επόμενο βήμα φάσης: **Β.2 meta-bench** (όχι επανάληψη v1l χωρίς νέο feed accounting).
+
+---
+
+## 2026-08-10 (ε) — Session: **v1k late-season replant — μηχανισμός βρέθηκε, first-harvest fix ⛔ STOP στο SMOKE**
+
+**Εντολή:** διάγνωση πρώτα με `KAGGRI_DEBUG`, ελάχιστο late-season replant fix χωρίς αλλαγή
+crop mix/γης/προσλήψεων/κοπαδιού, OCCUPANCY gate με pinned basket, SMOKE 0-11 πριν από DEV.
+
+**Αποτέλεσμα σε μία γραμμή:** το shutdown είναι πραγματικό planner suppression, όχι task
+starvation· το first-harvest candidate αύξησε τα crop tile-days **413→539** και έριξε το idle
+**28,2%→23,8%**, αλλά απέτυχε και τους δύο απόλυτους στόχους (550 / <22%), δεν ανέβασε bank
+(**−$166,9/ep**) και απέτυχε το priced gate ⇒ **STOP χωρίς DEV/holdout/checkpoint/submission**.
+
+### 1. Διάγνωση — γραμμένη πριν από κώδικα
+
+Ένα clean mirror episode, seed 0, `KAGGRI_DEBUG=1`, current `main.py` έναντι
+`checkpoints/v1h_2d/main.py`: `DONE/DONE`, $67.728/$67.728, `unexplained_noops=0`, ίδιες
+τροχιές πριν από την αλλαγή (διαφορετικά fingerprints λόγω package namespace).
+
+Οι πραγματικές PLANT receipts και η επανεκτέλεση των recorded observations μέσω
+`make_day_plan`/`build_tasks` έδειξαν:
+
+- **STRAWBERRY:** 8 PLANT, τελευταία step 56 (**d2**). Από d6 το
+  `strawberry_last_plant_day=5` μηδενίζει το target· όταν τα ongoing φυτά αποσύρονται, δεν
+  δημιουργείται replacement task.
+- **WHEAT:** 37 PLANT, τελευταία step 499 (**d20**). Το guard απαιτεί
+  `wheat_last_plant_day + max_yield_day <= liquidation_day`, δηλαδή πλήρες peak-yield cycle,
+  ενώ πρώτη συγκομιδή χωρά μέχρι d27.
+- **CARROT:** 45 PLANT, τελευταία step 618 (**d25**). Το liquidation μηδενίζει το target από d26,
+  ενώ πρώτη συγκομιδή χωρά μέχρι d27.
+- Το ίδιο liquidation μπλοκάρει και `BUY_SEED` στο executor· άρα οποιοδήποτε target στις d26-27
+  μπορεί να χρησιμοποιήσει μόνο seed buffer που αγοράστηκε πριν από d26.
+
+Άρα: υποψήφιος **(1) over-conservative/static horizon guard επιβεβαιώθηκε**, ο **(2)
+liquidation** συνεισφέρει από d26, και ο **(3) task starvation αποκλείστηκε** — τα late PLANT
+tasks λείπουν από το pool, δεν χάνουν priority. Το FEED παρέμεινε priority 0.
+Γραπτό artefact πριν από code change:
+`gates/v1k_diagnostic_seed0/diagnosis.md` + replay/receipts στον ίδιο φάκελο.
+
+### 2. Ελάχιστο candidate
+
+Αλλάχθηκε μόνο το χρονικό eligibility των **ίδιων** targets:
+
+- τα 8 base STRAWBERRY targets έμεναν replantable μέχρι
+  `last_season_day - first_yield_day`· το NE expansion παρέμεινε στο αρχικό d5 window,
+- τα υπάρχοντα CARROT/WHEAT targets έμεναν επιλέξιμα μέχρι την αντίστοιχη πρώτη συγκομιδή,
+  ακόμη και μέσα στο sell-side liquidation,
+- crop counts, γη, hand targets, κοπάδι, seed purchasing, market policy και FEED/WATER priorities
+  αμετάβλητα — συνεπώς το candidate βασιζόταν σκόπιμα στο υπάρχον pre-liquidation seed buffer.
+
+Προστέθηκαν guard tests. Πριν το gate το πλήρες suite αποκάλυψε ότι το `.venv` είχε
+**kaggle-environments 1.32.4** (town-center interval 12 + παλιό ramp), παρότι το repo είναι
+pinned στο 1.32.6. Αποκαταστάθηκε ρητά `kaggle-environments==1.32.6` **πριν** από οποιοδήποτε
+gate· μετά: **210/210 tests PASS**. Κανένα gate δεν έτρεξε σε λάθος engine.
+
+### 3. Νέο υποχρεωτικό reporting
+
+Το [harness/metrics.py](harness/metrics.py) εξάγει πλέον `crop_tile_days` με ακριβώς τον ίδιο
+EOD ορισμό του L2 (validation στα 34 ladder replays: median **415**, ίδιο με το L2) και
+`worker_turns_total`. Το [harness/compare.py](harness/compare.py) μεταφέρει/αθροίζει για **και
+τα δύο arms**:
+
+`crop_tile_days` · `worker_turns_idle/total` · `animals_underfed_days`.
+
+Το CLI τα γράφει στο tracked `results.json` και τα τυπώνει `/ep`/ποσοστό. Tests metrics/harness
+πράσινα· το reporting κρατήθηκε μετά το STOP επειδή είναι standing requirement του L2, όχι
+μέρος της απορριφθείσας policy.
+
+### 4. SMOKE — OCCUPANCY, pinned basket, both seats
+
+Command contract: candidate `main.py` vs `checkpoints/v1h_2d/main.py`, `SMOKE_SEEDS 0-11`,
+`--town-pin basket`, `--metrics`, 6 workers, 24 raw episodes. Artefacts:
+`gates/v1k_smoke/` και tracked copy `gates/v1k_smoke_tracked/v1k_smoke/results.json`.
+
+| Μέγεθος | Candidate | Baseline | Verdict |
+|---|---:|---:|---|
+| `mean_diff` | **−$166,9/ep** | — | CI [−$673,4, +$339,6] |
+| seed W/L/T | **5/6/1** | — | episode W/L/T 8/14/2 |
+| `median_bank` | **$50.920,5** | **$50.959,5** | απόλυτο σκέλος δεν κινήθηκε |
+| `crop_tile_days` | **539,3/ep** | 413,4 | ⛔ <550 |
+| worker idle | **34.974/146.648 = 23,8%** | 41.412/146.648 = 28,2% | ⛔ όχι <22% |
+| `animals_underfed_days` | **32,9/ep** | 40,8 | ✅ βελτιώθηκε |
+
+Raw candidate counters: `animals_escaped=0` · `shed_overflow_burnt=28` ·
+`water_weeds_lost=14` · `unexpected_weeds_lost=14` · `plant_decay_units_lost=0` ·
+`clipped_production_ticks=0` · `unexplained_noops=0` · `market_sim_aborted=False` ·
+≤$5 sales `40/14.963` (0,27%).
+
+Γραπτοί μηχανισμοί: overflow = extra late harvests πάνω από residual EOD bandwidth·
+water/unexpected weeds = πρόσθετο late watering demand κάτω από τον αμετάβλητο FEED-first
+scheduler. `priced_loss=$350/ep`; με αρνητικό mean diff το budget είναι **$0** ⇒
+`metric_gate_passed=False`.
+
+### 5. Απόφαση και τελικό state
+
+Το candidate απέτυχε:
+
+1. **Απόφαση Α:** priced gate false.
+2. **Απόφαση Β:** median bank στάσιμο/ελαφρά χαμηλότερο και mean diff αρνητικό.
+3. **v1k targets:** 539,3 < 550 crop tile-days και 23,8% > 22% idle.
+
+Σύμφωνα με το πρωτόκολλο, **STOP στο SMOKE**. Δεν εκτελέστηκε DEV 0-47, holdout 100-147,
+checkpoint ή submission. Η candidate αλλαγή σε `agent/config.py`, `agent/planner.py` και τα
+candidate guard tests **reverted στο pre-session working policy state** (`git diff -- agent`
+κενό· semantically ίδιο trajectory με `v1h_2d` στο diagnostic). Κρατήθηκαν μόνο diagnostics,
+gate artefacts, harness reporting/tests και οι ενημερώσεις docs. Το **v1l δεν ξεκίνησε**.
+
+---
+
 ## 2026-08-10 (δ) — Session: **L2 ladder diagnostic του v1h.2d — το increment μεταφέρθηκε, αλλά η αιτία του χάσματος αλλάζει** (docs/data only)
 
 **Εντολή:** κατέβασε τα replays του τελευταίου submission (v1h.2d), ανάλυσε πού το χάνει ο

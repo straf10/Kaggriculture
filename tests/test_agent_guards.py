@@ -319,6 +319,48 @@ def test_h8_market_truncation_keeps_hire_over_sell():
     assert orders == [["HIRE"]]
 
 
+def test_e1_market_truncation_emits_kept_sells_first():
+    """current_phase.md §v1m.2 Ε1 — the two halves of truncation are separate decisions.
+    *Which* orders survive is still tier order (H8: HIRE outranks SELL). *In what order the
+    survivors are emitted* is not: the engine fills a turn's market orders in emission order,
+    so a kept SELL at index 6-9 prices against inventory the same turn's earlier orders already
+    moved. With a 2-order budget the HIRE must still survive over a third order, and the
+    surviving SELL must be emitted ahead of it — while the un-truncated path (len <= max) is
+    left exactly as it was."""
+    from agent.executor import market_orders
+
+    observation = _minimal_observation(step=0)
+    observation["private"]["shed"]["CARROT"] = 50
+    observation["private"]["shed"]["STRAWBERRY"] = 50
+    observation["market"]["inventory"]["CARROT"] = 10
+    observation["market"]["inventory"]["STRAWBERRY"] = 10
+    observation["market"]["prices"]["CARROT"] = 35
+    observation["market"]["prices"]["STRAWBERRY"] = 130
+    snapshot = parse(observation)
+
+    def orders_at(cap):
+        config = copy.deepcopy(CONFIG)
+        config["executor"]["max_market_orders"] = cap
+        return market_orders(snapshot, make_day_plan(snapshot, config),
+                             make_ledger(snapshot), [["PASS"]], config)
+
+    # 8 orders are constructed here: 2 SELLs then 6 HIREs. At cap 8 nothing is truncated.
+    untruncated = orders_at(8)
+    assert len(untruncated) == 8
+    assert [order[0] for order in untruncated] == ["SELL", "SELL"] + ["HIRE"] * 6
+
+    # At cap 7 the cut fires: keep-by-tier drops the *lower-value* SELL (H8, unchanged), and
+    # the one SELL that survives is emitted ahead of the six HIREs it was kept alongside.
+    truncated = orders_at(7)
+    assert len(truncated) == 7
+    assert [order[0] for order in truncated] == ["SELL"] + ["HIRE"] * 6
+    assert truncated[0] == ["SELL", "STRAWBERRY", 50]
+
+    # And when the budget is tighter than the HIREs alone, tier order still decides survival —
+    # emitting SELLs first must never resurrect an order the cut removed.
+    assert [order[0] for order in orders_at(6)] == ["HIRE"] * 6
+
+
 def test_g10_strawberry_planting_stops_after_opening_window():
     observation = _minimal_observation(step=6 * 24)
     observation["private"]["seeds"]["STRAWBERRY"] = 3

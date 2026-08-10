@@ -46,6 +46,15 @@ MIN_N_FOR_NON_INFERIOR = 12  # review_89d99f0_2026-08-05.md M3
 # be read as a GO by themselves — only holdout-confirm, checked exactly once, can be.
 VALID_STAGES = ("dev-screen", "holdout-confirm")
 
+# current_phase.md §1 Απόφαση Δ (2026-08-10): which question a comparison is being asked.
+#   "acceptance"  — vs the §Β.2 meta bench: the arm that decides whether an increment is taken.
+#                   The priced leg applies here, on the *difference* between the two sides.
+#   "regression"  — vs our own baseline (mirror): a regression detector under Απόφαση Β. The
+#                   $-verdict and the structural leg apply; the priced budget never does.
+# Default "acceptance": a run that does not say which question it asks is held to the stricter
+# of the two, so the looser regime is always an explicit, recorded choice.
+ARM_ROLES = ("acceptance", "regression")
+
 # review.md H5: the only durable, git-tracked evidence that a gate ran and what it decided.
 # runs/ (replays, per-episode jsonl) stays gitignored — this is deliberately small.
 GATES_DIR = Path("gates")
@@ -118,6 +127,15 @@ def priced_metric_loss(counts, episodes: int) -> tuple:
 def priced_loss_budget(mean_diff: float) -> float:
     """The most $/episode of priced loss a change earning `mean_diff` is allowed to cause."""
     return min(PRICED_LOSS_ABSOLUTE_CAP, PRICED_LOSS_GAIN_FRACTION * max(mean_diff, 0.0))
+
+
+def priced_loss_delta(loss_a: float, loss_b: float) -> float:
+    """current_phase.md §1 Απόφαση Δ: what the candidate *introduces*, not what it inherits.
+
+    Clamped at zero — a candidate that breaks *less* than the arm it is measured against does
+    not earn a negative loss it can spend on breaking something else.
+    """
+    return max(0.0, loss_a - loss_b)
 
 _T_TABLE = {
     1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
@@ -275,6 +293,68 @@ def _play_orientation(agent_first, agent_second, seed, steps, run_dir, record, s
     return result.rewards, result.metrics
 
 
+_V1K_REPORT_METRICS = (
+    "crop_tile_days",
+    "worker_turns_idle",
+    "worker_turns_total",
+    "animals_underfed_days",
+    "crop_revenue",
+)
+
+
+def _attach_v1k_diagnostics(
+    orientation: dict,
+    metrics_by_seat: dict,
+    *,
+    a_seat: int,
+    b_seat: int,
+) -> None:
+    """Attach mandatory occupancy/feed reporting for both comparison arms."""
+    for arm, seat in (("a", a_seat), ("b", b_seat)):
+        seat_metrics = metrics_by_seat.get(seat, {})
+        for metric in _V1K_REPORT_METRICS:
+            orientation[f"{metric}_{arm}"] = int(seat_metrics.get(metric, 0))
+        # v1m: MELON race gate needs units + realized $/u, not just crop_revenue sum.
+        units = seat_metrics.get("units_sold_by_product") or {}
+        revenue = seat_metrics.get("revenue_by_product") or {}
+        orientation[f"melon_units_{arm}"] = int(units.get("MELON", 0))
+        orientation[f"melon_revenue_{arm}"] = int(revenue.get("MELON", 0))
+
+
+# current_phase.md §1 Απόφαση Δ point 4: the raw counters of *both* arms are reported. Δ changes
+# the criterion, not the transparency — so every counter that gets priced on agent_a's side is
+# also read off agent_b's seat, plus the raw `weeds_lost` diagnostic for symmetry.
+_ARM_B_COUNTER_METRICS = (*PRICED_SOURCE_METRICS, "weeds_lost")
+
+
+def _attach_metric_fields(orientation: dict, metrics_by_seat: dict, *, a_seat: int, b_seat: int) -> None:
+    """Copy every gate counter and diagnostic out of one episode's per-seat metrics.
+
+    agent_a occupies seat 0 in the "A@0/B@1" orientation and seat 1 in the swapped one, so
+    which seat is read has to follow the arm, not a constant (plan.md §1.5.3). Kept in one
+    place because it is applied at four call sites (two orientations x sequential/parallel);
+    the four inline copies it replaced were where a new counter got forgotten.
+    """
+    seat_a = metrics_by_seat.get(a_seat, {}) or {}
+    orientation["water_weeds_lost_a"] = seat_a.get("water_weeds_lost", 0)
+    orientation["plant_decay_units_lost_a"] = seat_a.get("plant_decay_units_lost", 0)
+    orientation["animals_escaped_a"] = seat_a.get("animals_escaped", 0)
+    orientation["clipped_production_ticks_a"] = seat_a.get("clipped_production_ticks", 0)
+    orientation["shed_overflow_burnt_a"] = seat_a.get("shed_overflow_burnt", 0)
+    orientation["weeds_lost_a"] = seat_a.get("weeds_lost", 0)
+    orientation["unexpected_weeds_lost_a"] = seat_a.get("unexpected_weeds_lost", 0)
+    orientation["units_sold_at_or_below_5_a"] = seat_a.get("units_sold_at_or_below_5", 0)
+    orientation["sales_count_a"] = len(seat_a.get("market_sales", []))
+    orientation["unexplained_noops_a"] = seat_a.get("unexplained_noops")
+    orientation["market_sim_aborted_a"] = bool(seat_a.get("market_sim_aborted", False))
+
+    seat_b = metrics_by_seat.get(b_seat, {}) or {}
+    for metric in _ARM_B_COUNTER_METRICS:
+        orientation[f"{metric}_b"] = seat_b.get(metric, 0)
+
+    _attach_v1k_diagnostics(orientation, metrics_by_seat, a_seat=a_seat, b_seat=b_seat)
+
+
 def _is_picklable(obj) -> bool:
     try:
         pickle.dumps(obj)
@@ -324,11 +404,41 @@ class CompareResult:
     sales_count_a: Optional[int] = None  # denominator for the units_sold_at_or_below_5_a budget
     unexplained_noops_a: Optional[int] = None  # None unless diagnostics were collected (KAGGRI_DEBUG)
     market_sim_aborted_a: Optional[bool] = None  # review.md M11: True fails the gate
-    # current_phase.md §1 Απόφαση Α: what the surviving losses cost per episode, what they were
-    # allowed to cost, and the written mechanism for each one that is non-zero.
+    # current_phase.md §v1k: mandatory per-gate diagnostics, totals across all raw episodes.
+    crop_tile_days_a: Optional[int] = None
+    crop_tile_days_b: Optional[int] = None
+    worker_turns_idle_a: Optional[int] = None
+    worker_turns_idle_b: Optional[int] = None
+    worker_turns_total_a: Optional[int] = None
+    worker_turns_total_b: Optional[int] = None
+    animals_underfed_days_a: Optional[int] = None
+    animals_underfed_days_b: Optional[int] = None
+    crop_revenue_a: Optional[int] = None
+    crop_revenue_b: Optional[int] = None
+    # current_phase.md §v1m: MELON race reporting (totals across raw episodes).
+    melon_units_a: Optional[int] = None
+    melon_units_b: Optional[int] = None
+    melon_revenue_a: Optional[int] = None
+    melon_revenue_b: Optional[int] = None
+    # current_phase.md §1 Απόφαση Δ: the same four priced counters, read off agent_b's seat.
+    # Reported unconditionally (Δ point 4) — the criterion changed, the transparency did not.
+    animals_escaped_b: Optional[int] = None
+    shed_overflow_burnt_b: Optional[int] = None
+    unexpected_weeds_lost_b: Optional[int] = None
+    water_weeds_lost_b: Optional[int] = None
+    weeds_lost_b: Optional[int] = None  # raw diagnostic, same status as weeds_lost_a
+    # current_phase.md §1 Απόφαση Α/Δ: what the surviving losses cost per episode on each side,
+    # what the *difference* was allowed to cost, and the written mechanism for each non-zero
+    # candidate counter. `priced_loss_per_episode` is agent_a's absolute loss and keeps its name
+    # for compatibility with every gate artefact written before Δ; it is also emitted as
+    # `priced_loss_a` in results.json so the JSON reads as a matched pair with `priced_loss_b`.
     priced_loss_per_episode: Optional[float] = None
+    priced_loss_b: Optional[float] = None
+    priced_loss_delta: Optional[float] = None
     priced_loss_budget_used: Optional[float] = None
     priced_loss_breakdown: dict = field(default_factory=dict)
+    priced_loss_breakdown_b: dict = field(default_factory=dict)
+    arm_role: str = "acceptance"  # which question this comparison answers (ARM_ROLES)
     metric_mechanisms: dict = field(default_factory=dict)
     unexplained_metrics: tuple = ()  # non-zero priced counters with no declared mechanism
     metric_gate_passed: Optional[bool] = None  # None unless metrics_checked
@@ -365,6 +475,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             allow_repeat_confirm: bool = False,
             confirm_ledger_path: Optional[Path] = None,
             metric_mechanisms: Optional[dict] = None,
+            arm_role: str = "acceptance",
             screen_evidence_dir: Optional[Path] = None) -> CompareResult:
     """Paired-seed protocol: A and B play the same seeds. With both_seats=True (default),
     each seed is played twice — A@seat0/B@seat1 and B@seat0/A@seat1 — since the weed-RNG
@@ -405,15 +516,38 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     default — extract_metrics() is not free. When metrics=False gate fields are None, not 0:
     absence of measurement is not proof of zero loss.
 
-    The metric gate itself is current_phase.md §1 Απόφαση Α (2026-08-10), in three parts:
-      - structural faults stay hard zero: plant_decay_units_lost, clipped_production_ticks,
-        unexplained no-ops, market-simulation abort, and the <=2% low-price sale budget;
-      - losses are priced (METRIC_UNIT_PRICES) and must fit priced_loss_budget(mean_diff),
-        i.e. both <=10% of the measured gain and <=$500/episode;
-      - every non-zero priced counter must have a declared mechanism in `metric_mechanisms`
-        ({metric name without the _a suffix: one-line explanation}). An undeclared non-zero
-        counter fails the gate: pricing buys tolerance for *understood* loss, never for
-        unexplained loss, which is exactly the bug-detector role the old hard-zero gate had.
+    The metric gate itself is current_phase.md §1 Απόφαση Α as amended by Απόφαση Δ
+    (2026-08-10), in three parts:
+      - structural faults stay hard zero, on agent_a's counters, in *both* arm roles:
+        plant_decay_units_lost, clipped_production_ticks, unexplained no-ops,
+        market-simulation abort, and the <=2% low-price sale budget;
+      - every non-zero priced counter of agent_a must have a declared mechanism in
+        `metric_mechanisms` ({metric name without the _a suffix: one-line explanation}), in
+        both arm roles. An undeclared non-zero counter fails the gate: pricing buys tolerance
+        for *understood* loss, never for unexplained loss, which is exactly the bug-detector
+        role the old hard-zero gate had, and it is what still rejects v1m Δ3;
+      - the priced leg is judged on the *difference* between the arms,
+        priced_loss_delta = max(0, priced_loss_a - priced_loss_b), against
+        priced_loss_budget(mean_diff) — both <=10% of the measured gain and <=$500/episode —
+        and only when arm_role="acceptance".
+
+    arm_role (Απόφαση Δ point 3) says which question the comparison asks. "acceptance" (the
+    default) is a run against the §Β.2 meta bench: it decides whether an increment is taken, so
+    the priced leg applies. "regression" is a mirror run against our own baseline, which under
+    Απόφαση Β is a regression detector: the $-verdict and the structural/mechanism legs apply,
+    the priced budget never does. Under Α the mirror was held to 10% of a mean_diff that a
+    correct market-only fix drives to ~0 — a $6.49 budget no candidate could ever meet
+    (current_phase.md §1 Δ, memory.md 2026-08-10 (ι)). Both arms' raw counters are reported
+    either way; Δ changed the criterion, not the transparency.
+
+    Two points where the written rule needed an interpretation, recorded here and in
+    current_phase.md §1 Απόφαση Δ:
+      - `priced_loss_b` is the loss of *this comparison's arm B*. In an acceptance run that is
+        the bench opponent, not our own previous baseline — the rule is written per-arm
+        ("follow the crop_tile_days_a/_b pattern"), so that is what it measures.
+      - "the structural leg is unchanged and absolute in both arms" is read as: unchanged, i.e.
+        still agent_a's counters, and applied under both arm roles. A bench's own structural
+        faults are not the candidate's bug and do not fail our gate.
 
     stage tags which decision this report may back: "dev-screen" (tuning/screening — never a
     GO by itself, seeds must be a subset of harness.seeds.DEV_SEEDS) or "holdout-confirm"
@@ -451,6 +585,11 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     """
     if stage is not None and stage not in VALID_STAGES:
         raise ValueError(f"compare(): stage must be one of {VALID_STAGES} or None, got {stage!r}")
+    if arm_role not in ARM_ROLES:
+        raise ValueError(
+            f"compare(): arm_role must be one of {ARM_ROLES}, got {arm_role!r} "
+            "(current_phase.md §1 Απόφαση Δ)"
+        )
     if town_pin is not None and town_pin not in PIN_MODES:
         raise ValueError(
             f"compare(): town_pin must be one of {PIN_MODES} or None, got {town_pin!r}"
@@ -721,6 +860,25 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             noop_values = [o.get("unexplained_noops_a") for o in orientations]
             unexplained_noops_a = None if any(v is None for v in noop_values) else sum(noop_values)
             market_sim_aborted_a = any(o.get("market_sim_aborted_a", False) for o in orientations)
+            v1k_diagnostics = {
+                f"{metric}_{arm}": sum(
+                    o.get(f"{metric}_{arm}", 0) for o in orientations
+                )
+                for metric in _V1K_REPORT_METRICS
+                for arm in ("a", "b")
+            }
+            for arm in ("a", "b"):
+                v1k_diagnostics[f"melon_units_{arm}"] = sum(
+                    o.get(f"melon_units_{arm}", 0) for o in orientations
+                )
+                v1k_diagnostics[f"melon_revenue_{arm}"] = sum(
+                    o.get(f"melon_revenue_{arm}", 0) for o in orientations
+                )
+            # Απόφαση Δ: same summed-not-averaged rule as the _a counters above.
+            arm_b_counters = {
+                f"{metric}_b": sum(o.get(f"{metric}_b", 0) for o in orientations)
+                for metric in _ARM_B_COUNTER_METRICS
+            }
         else:
             water_weeds_lost_a = plant_decay_units_lost_a = None
             animals_escaped_a = clipped_production_ticks_a = None
@@ -728,6 +886,15 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             units_sold_at_or_below_5_a = None
             sales_count_a = unexplained_noops_a = None
             market_sim_aborted_a = None
+            v1k_diagnostics = {
+                f"{metric}_{arm}": None
+                for metric in _V1K_REPORT_METRICS
+                for arm in ("a", "b")
+            }
+            for arm in ("a", "b"):
+                v1k_diagnostics[f"melon_units_{arm}"] = None
+                v1k_diagnostics[f"melon_revenue_{arm}"] = None
+            arm_b_counters = {f"{metric}_b": None for metric in _ARM_B_COUNTER_METRICS}
         return {
             "seed": seed,
             "seat_layout": [o["layout"] for o in orientations],
@@ -747,6 +914,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "sales_count_a": sales_count_a,
             "unexplained_noops_a": unexplained_noops_a,
             "market_sim_aborted_a": market_sim_aborted_a,
+            **arm_b_counters,
+            **v1k_diagnostics,
         }
 
     # review_89d99f0_2026-08-05.md M2 / review.md M6 fields above already guard resume; a callable agent_spec (lambda,
@@ -817,39 +986,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     rewards0, metrics0 = partial[seed][False]
                     orientation0 = {"layout": "A@0/B@1", "bank_a": rewards0[0], "bank_b": rewards0[1]}
                     if metrics:
-                        m0 = metrics0.get(0, {})
-                        orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
-                        orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
-                        orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
-                        orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
-                        orientation0["shed_overflow_burnt_a"] = m0.get("shed_overflow_burnt", 0)
-                        orientation0["weeds_lost_a"] = m0.get("weeds_lost", 0)
-                        orientation0["unexpected_weeds_lost_a"] = m0.get(
-                            "unexpected_weeds_lost", 0
-                        )
-                        orientation0["units_sold_at_or_below_5_a"] = m0.get("units_sold_at_or_below_5", 0)
-                        orientation0["sales_count_a"] = len(m0.get("market_sales", []))
-                        orientation0["unexplained_noops_a"] = m0.get("unexplained_noops")
-                        orientation0["market_sim_aborted_a"] = bool(m0.get("market_sim_aborted", False))
+                        _attach_metric_fields(orientation0, metrics0, a_seat=0, b_seat=1)
                     orientations = [orientation0]
                     if both_seats:
                         rewards1, metrics1 = partial[seed][True]
                         orientation1 = {"layout": "B@0/A@1", "bank_a": rewards1[1], "bank_b": rewards1[0]}
                         if metrics:
-                            m1 = metrics1.get(1, {})
-                            orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
-                            orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
-                            orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
-                            orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
-                            orientation1["shed_overflow_burnt_a"] = m1.get("shed_overflow_burnt", 0)
-                            orientation1["weeds_lost_a"] = m1.get("weeds_lost", 0)
-                            orientation1["unexpected_weeds_lost_a"] = m1.get(
-                                "unexpected_weeds_lost", 0
-                            )
-                            orientation1["units_sold_at_or_below_5_a"] = m1.get("units_sold_at_or_below_5", 0)
-                            orientation1["sales_count_a"] = len(m1.get("market_sales", []))
-                            orientation1["unexplained_noops_a"] = m1.get("unexplained_noops")
-                            orientation1["market_sim_aborted_a"] = bool(m1.get("market_sim_aborted", False))
+                            _attach_metric_fields(orientation1, metrics1, a_seat=1, b_seat=0)
                         orientations.append(orientation1)
                     row = _finalize(seed, orientations)
                     computed[seed] = row
@@ -891,20 +1034,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     "bank_b": r_a0.rewards[1],
                 }
                 if metrics:
-                    m0 = r_a0.metrics.get(0, {})
-                    orientation0["water_weeds_lost_a"] = m0.get("water_weeds_lost", 0)
-                    orientation0["plant_decay_units_lost_a"] = m0.get("plant_decay_units_lost", 0)
-                    orientation0["animals_escaped_a"] = m0.get("animals_escaped", 0)
-                    orientation0["clipped_production_ticks_a"] = m0.get("clipped_production_ticks", 0)
-                    orientation0["shed_overflow_burnt_a"] = m0.get("shed_overflow_burnt", 0)
-                    orientation0["weeds_lost_a"] = m0.get("weeds_lost", 0)
-                    orientation0["unexpected_weeds_lost_a"] = m0.get(
-                        "unexpected_weeds_lost", 0
-                    )
-                    orientation0["units_sold_at_or_below_5_a"] = m0.get("units_sold_at_or_below_5", 0)
-                    orientation0["sales_count_a"] = len(m0.get("market_sales", []))
-                    orientation0["unexplained_noops_a"] = m0.get("unexplained_noops")
-                    orientation0["market_sim_aborted_a"] = bool(m0.get("market_sim_aborted", False))
+                    _attach_metric_fields(orientation0, r_a0.metrics, a_seat=0, b_seat=1)
                 orientations.append(orientation0)
 
                 if both_seats:
@@ -914,20 +1044,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                         "bank_b": r_b0.rewards[0],
                     }
                     if metrics:
-                        m1 = r_b0.metrics.get(1, {})
-                        orientation1["water_weeds_lost_a"] = m1.get("water_weeds_lost", 0)
-                        orientation1["plant_decay_units_lost_a"] = m1.get("plant_decay_units_lost", 0)
-                        orientation1["animals_escaped_a"] = m1.get("animals_escaped", 0)
-                        orientation1["clipped_production_ticks_a"] = m1.get("clipped_production_ticks", 0)
-                        orientation1["shed_overflow_burnt_a"] = m1.get("shed_overflow_burnt", 0)
-                        orientation1["weeds_lost_a"] = m1.get("weeds_lost", 0)
-                        orientation1["unexpected_weeds_lost_a"] = m1.get(
-                            "unexpected_weeds_lost", 0
-                        )
-                        orientation1["units_sold_at_or_below_5_a"] = m1.get("units_sold_at_or_below_5", 0)
-                        orientation1["sales_count_a"] = len(m1.get("market_sales", []))
-                        orientation1["unexplained_noops_a"] = m1.get("unexplained_noops")
-                        orientation1["market_sim_aborted_a"] = bool(m1.get("market_sim_aborted", False))
+                        _attach_metric_fields(orientation1, r_b0.metrics, a_seat=1, b_seat=0)
                     orientations.append(orientation1)
 
                 row = _finalize(seed, orientations)
@@ -1049,6 +1166,24 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         noop_rows = [row.get("unexplained_noops_a") for row in per_seed]
         unexplained_noops_a = None if any(v is None for v in noop_rows) else sum(noop_rows)
         market_sim_aborted_a = any(row.get("market_sim_aborted_a", False) for row in per_seed)
+        v1k_diagnostics = {
+            f"{metric}_{arm}": sum(
+                row.get(f"{metric}_{arm}", 0) for row in per_seed
+            )
+            for metric in _V1K_REPORT_METRICS
+            for arm in ("a", "b")
+        }
+        for arm in ("a", "b"):
+            v1k_diagnostics[f"melon_units_{arm}"] = sum(
+                row.get(f"melon_units_{arm}", 0) for row in per_seed
+            )
+            v1k_diagnostics[f"melon_revenue_{arm}"] = sum(
+                row.get(f"melon_revenue_{arm}", 0) for row in per_seed
+            )
+        arm_b_counters = {
+            f"{metric}_b": sum(row.get(f"{metric}_b", 0) or 0 for row in per_seed)
+            for metric in _ARM_B_COUNTER_METRICS
+        }
         units_sold_budget_ok = (
             sales_count_a == 0 or (units_sold_at_or_below_5_a / sales_count_a) <= 0.02
         )
@@ -1066,8 +1201,17 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "unexpected_weeds_lost": unexpected_weeds_lost_a,
             "water_weeds_lost": water_weeds_lost_a,
         }
+        priced_counts_b = {
+            metric: arm_b_counters[f"{metric}_b"] for metric in PRICED_SOURCE_METRICS
+        }
         priced_loss_per_episode, priced_loss_breakdown = priced_metric_loss(
             priced_counts, len(raw_orientations)
+        )
+        priced_loss_b_value, priced_loss_breakdown_b = priced_metric_loss(
+            priced_counts_b, len(raw_orientations)
+        )
+        priced_loss_delta_value = priced_loss_delta(
+            priced_loss_per_episode, priced_loss_b_value
         )
         priced_loss_budget_used = priced_loss_budget(mean_diff)
         declared = {
@@ -1075,16 +1219,22 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             for metric, text in (metric_mechanisms or {}).items()
             if str(text).strip()
         }
+        # Deliberately agent_a's counters only, and deliberately *not* relaxed by Δ: pricing —
+        # differenced or absolute — buys tolerance for understood loss, never for unexplained
+        # loss. This is what still rejects v1m Δ3's 28 escapes (current_phase.md §1 Δ point 2).
         unexplained_metrics = tuple(
             metric for metric, count in sorted(priced_counts.items())
             if (count or 0) > 0 and metric not in declared
         )
-        metric_gate_passed = (
-            structural_ok
-            and not unexplained_metrics
-            # 1e-9 absorbs float division only; it is far below one cent per episode.
-            and priced_loss_per_episode <= priced_loss_budget_used + 1e-9
+        # Απόφαση Δ point 3: the priced budget is an *acceptance* instrument. In a mirror
+        # (role="regression") the $-verdict and the structural leg are the whole gate — a
+        # market-only fix correctly measures ~0 there, which under Α made the budget ~$6 and
+        # the gate mathematically unreachable (memory.md 2026-08-10 (ι)).
+        # 1e-9 absorbs float division only; it is far below one cent per episode.
+        priced_leg_ok = arm_role == "regression" or (
+            priced_loss_delta_value <= priced_loss_budget_used + 1e-9
         )
+        metric_gate_passed = structural_ok and not unexplained_metrics and priced_leg_ok
     else:
         water_weeds_lost_a = plant_decay_units_lost_a = None
         animals_escaped_a = clipped_production_ticks_a = None
@@ -1093,10 +1243,21 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         sales_count_a = unexplained_noops_a = None
         market_sim_aborted_a = None
         priced_loss_per_episode = priced_loss_budget_used = None
+        priced_loss_b_value = priced_loss_delta_value = None
         priced_loss_breakdown = {}
+        priced_loss_breakdown_b = {}
         declared = {}
         unexplained_metrics = ()
         metric_gate_passed = None
+        arm_b_counters = {f"{metric}_b": None for metric in _ARM_B_COUNTER_METRICS}
+        v1k_diagnostics = {
+            f"{metric}_{arm}": None
+            for metric in _V1K_REPORT_METRICS
+            for arm in ("a", "b")
+        }
+        for arm in ("a", "b"):
+            v1k_diagnostics[f"melon_units_{arm}"] = None
+            v1k_diagnostics[f"melon_revenue_{arm}"] = None
 
     # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
     # verdict, AND the metric gate having actually run and passed — an unmeasured metric
@@ -1126,6 +1287,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "agent_b_fp": code_fingerprints[1],
             "seed_set_name": seed_set_name,
             "town_pin": town_pin,  # §Β.0′: a pinned confirm must be legible as such in the ledger
+            "arm_role": arm_role,  # §1 Δ: which gate regime this confirm was judged under
             "both_seats": both_seats,
             "metrics": metrics,
             "incomplete": incomplete,
@@ -1172,9 +1334,15 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         sales_count_a=sales_count_a,
         unexplained_noops_a=unexplained_noops_a,
         market_sim_aborted_a=market_sim_aborted_a,
+        **arm_b_counters,
+        **v1k_diagnostics,
         priced_loss_per_episode=priced_loss_per_episode,
+        priced_loss_b=priced_loss_b_value,
+        priced_loss_delta=priced_loss_delta_value,
         priced_loss_budget_used=priced_loss_budget_used,
         priced_loss_breakdown=priced_loss_breakdown,
+        priced_loss_breakdown_b=priced_loss_breakdown_b,
+        arm_role=arm_role,
         metric_mechanisms=dict(declared),
         unexplained_metrics=unexplained_metrics,
         metric_gate_passed=metric_gate_passed,

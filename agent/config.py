@@ -190,25 +190,28 @@ CONFIG = {
         # plan.md §5.1 v1d / v1g: reserved structure tiles for animal placement, carved up
         # per-name by agent.animal_slots.animal_slot_ranges in config["animals"]["targets"]
         # dict order — the first `targets["COW"]` PASTURE tiles below are COW's, the next
-        # `targets["SHEEP"]` are SHEEP's. All 13 PASTURE tiles are NW (owned from day 0):
+        # `targets["SHEEP"]` are SHEEP's. Current targets are COW=4, SHEEP=6, GOOSE=0:
+        # only the first 10 of 13 PASTURE slots are claimed; the final 3 stay unused, as does
+        # the COOP slot below. All structure slots are NW (owned from day 0):
         # current_phase.md v1g deliberately never places a structure on not-yet-purchased
         # land — BUY_LAND's gate (executor.py) requires every planned animal already placed,
         # so a structure sitting on NE-locked land would deadlock it (the same reasoning that
         # already put GOOSE's COOP on NW in v1e — see its comment below). Ordered nearest-
-        # shed-first within each animal's own block (FEED/CARE is a recurring daily commute
-        # cost ×13 now, review_89d99f0_2026-08-05.md C1 §1.3) — COW (8, more numerous) gets
-        # the nearer half, SHEEP (5) the farther half.
+        # shed-first across the claimed slots (FEED/CARE is a recurring daily commute cost
+        # ×10 now, review_89d99f0_2026-08-05.md C1 §1.3).
         "animal_structure_tiles": {
             "PASTURE": (
-                # COW block (8): distances 2,2,2,3,3,4,4,5 from the (4,4) shed spawn.
-                (4, 2), (3, 3), (2, 4), (3, 2), (2, 3), (4, 0), (0, 4), (0, 3),
-                # SHEEP block (5): distances 6,6,7,7,8.
-                (0, 2), (2, 0), (0, 1), (1, 0), (0, 0),
+                # COW block (4): distances 2,2,2,3 from the (4,4) shed spawn.
+                (4, 2), (3, 3), (2, 4), (3, 2),
+                # SHEEP block (6): distances 3,4,4,5,6,6.
+                (2, 3), (4, 0), (0, 4), (0, 3), (0, 2), (2, 0),
+                # Unclaimed PASTURE capacity (3): distances 7,7,8.
+                (0, 1), (1, 0), (0, 0),
             ),
             # plan.md §5 v1e: GOOSE's COOP, placed on the reclaimed NW STRAWBERRY tile (3, 0)
             # rather than NE — see strawberry_tiles comment in config["planner"] for why NE
             # would deadlock BUY_LAND's animal_placed gate.
-            "COOP": ((3, 0),),
+            "COOP": ((3, 0),),  # GOOSE=0: listed capacity, never built.
         },
     },
     "executor": {
