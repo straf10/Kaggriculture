@@ -10,7 +10,136 @@
 
 ---
 
-## 2026-08-10 — Session: **στρατηγική αναθεώρηση — το mirror loop χτύπησε ταβάνι** (docs-only)
+## 2026-08-10 (β) — Session: **v1h.2d priced gate υλοποιήθηκε, νέο harness bug βρέθηκε, `checkpoints/v1h_2d` έκλεισε holdout, 4ο submission**
+
+**Εντολή:** εφάρμοσε το §1 Απόφαση Α σε κώδικα και κλείσε το v1h.2d (checkpoint + submission).
+**Μην ξεκινήσεις το L1.**
+
+**Αποτέλεσμα σε μία γραμμή:** το priced gate μπήκε στο `harness/compare.py`, αλλά η υλοποίησή
+του αποκάλυψε ότι το **v1h.2d semantic exclusion του 09-08 δεν δούλευε ποτέ** — ένα δεύτερο,
+ανεξάρτητο bug στο harness, όχι στον agent. Μετά τη διόρθωση το candidate πέρασε καθαρό DEV+
+holdout με **+$7.599,7/ep** (πολύ πάνω από το εκτιμώμενο +$3.019/ep), έγινε `checkpoints/v1h_2d`,
+και υποβλήθηκε ως `55390611`. Στο πέρασμα βρέθηκε ότι ένα **άγνωστο, ανεξήγητο submission**
+(`55387820`) είχε ήδη σπρώξει το v1g εκτός των 2 ενεργών θέσεων πριν καν ξεκινήσει η σημερινή
+συνεδρία.
+
+### 1. Priced gate στο `harness/compare.py` (§1 Απόφαση Α)
+
+Νέα σταθερά `METRIC_UNIT_PRICES` (escape $1.000, shed overflow $150/unit, lost crop tile $300) +
+`priced_metric_loss()`/`priced_loss_budget()` (min($500, 10%×mean_diff)). Το `metric_gate_passed`
+χωρίζεται πλέον σε δομικό μέρος (hard-zero: `plant_decay_units_lost`, `clipped_production_ticks`,
+low-price budget, no-ops, market abort) και τιμολογημένο μέρος. Νέο CLI flag
+`--metric-mechanism METRIC=WHY`: κάθε μη μηδενικός τιμολογημένος counter **πρέπει** να έχει
+δηλωμένο μηχανισμό αλλιώς αποτυγχάνει ανεξαρτήτως τιμής (`unexplained_metrics`) — αυτό κρατά τη
+λειτουργία "ανιχνευτή bug" του παλιού hard-zero gate. `priced_metric_counts()` ενώνει
+`unexpected_weeds_lost`/`water_weeds_lost` σε ένα `lost_crop_tiles` (max, όχι sum) γιατί
+πυροδοτούνται από **το ίδιο** PLANT→WEED transition — αλλιώς θα χρεωνόταν το ίδιο tile δύο φορές.
+Νέα tests σε `tests/test_harness.py` κλειδώνουν και τα τρία ήδη μετρημένα arms
+(`gate_v1h2_dev` ⛔ 96% του gain, `gate_v1h2d_eod_surplus` ⛔ cap, `gate_v1h2d_feed_slack` ✅ 7,9%).
+
+### 2. Δεύτερο bug, ανεξάρτητο του πρώτου: το semantic exclusion του v1h.2d δεν πυροδοτούσε ΠΟΤΕ
+
+Πριν τρέξει κανένα νέο gate, αναπαρήχθη το candidate του 09-08
+(`gates/gate_v1h2d_feed_slack`) για να επιβεβαιωθεί το priced verdict — αλλά ένα καθαρό
+`compare()` πάνω στο ίδιο fingerprint έδωσε **`unexpected_weeds_lost=16` σε 1 seed** αντί για 0,
+δηλαδή το guard `test_v1h2d_compare_gates_unexpected_not_raw_weeds` περνούσε αλλά το πραγματικό
+replay όχι. Διάγνωση (`diag_weeds.py`, seed 1, seat 0): το engine **δεν** αποσύρει ένα
+harvested-to-zero ongoing crop στο ίδιο turn με το HARVEST — το αποσύρει στο **επόμενο**
+`max_lifespan_step` decay tick, μετρημένο **17-24 steps αργότερα** (harvests στα steps
+389/392/416/419/438, retirements στα 408/432/456). Το `harness/metrics.py` έλεγχε το
+`successful_ongoing_harvests[seat]` **μόνο μέσα στην ίδια transition** που περιείχε το WEED —
+άρα η εξαίρεση δεν πυροδοτούσε ποτέ σε πραγματικό replay, μόνο στο συνθετικό unit test όπου
+harvest και retirement συνέπιπταν τεχνητά στο ίδιο βήμα.
+
+**Fix:** νέο συσσωρευμένο `harvested_to_zero: set` στο `extract_metrics()`, γεμίζει σε κάθε
+transition από το `successful_ongoing_harvests[seat]` και ελέγχεται αθροιστικά σε ολόκληρο το
+επεισόδιο (keyed by `(θέση, crop, planted_day)` ώστε ένα ξαναφυτεμένο crop στο ίδιο tile να ΜΗΝ
+κληρονομεί την εξαίρεση). Νέο test
+`test_v1h2d_retirement_is_expected_even_when_it_lands_turns_after_the_harvest` (δύο tiles,
+ένα harvest-to-zero + ένα ποτέ-μη-θερισμένο, ίδιο lifespan schedule — επιβεβαιώνει ότι μόνο το
+πρώτο εξαιρείται). `pytest tests/`: **205 passed** (μετά την επαναφορά του
+`tests/test_agent_guards.py` στο 59fe9af — βλ. §3).
+
+### 3. `cdcbe62` ("Fixed several bugs") ήταν ungated και μετρήθηκε αρνητικό — δεν κρατήθηκε
+
+Το working tree στην αρχή αυτής της συνεδρίας ήταν `cdcbe62`, ένα commit **μεταγενέστερο** του
+`59fe9af` (το commit που μέτρησε το `gate_v1h2d_feed_slack`) με αλλαγές σε
+`agent/config.py`/`executor.py`/`planner.py` (νέο `_truncate_orders` tier-preserving sort, νέο
+`config["runtime"]["shed_capacity"]`, `>=`→`>` στον hard floor, headroom sell products
+ταξινομημένα κατά marginal value, `animal_placed`→`placed_count>=target`) **χωρίς δικό του gate**.
+Σύγκριση total DEV (seeds 0-47, both seats, `--town-pin basket`) των δύο arms:
+
+| Arm | mean_diff vs `v1h_1` | animals_escaped | shed_overflow | priced/ep | metric_gate |
+|---|---:|---:|---:|---:|---|
+| `59fe9af` (`gate_v1h2d_dev_pre`) | **+$7.133,6** | 0 | 32 | $50,0 (10%) | ✅ |
+| `cdcbe62` (`gate_v1h2d_dev_head`) | +$4.216,8 | **39** | 0 | $406,2 (96%) | ⛔ |
+
+Το `cdcbe62` κοστίζει **~$2.900/ep** και ξαναφέρνει 39 escapes χωρίς κανένα καταγεγραμμένο
+μηχανισμό. `agent/` και `tests/test_agent_guards.py` επαναφέρθηκαν στο `59fe9af`
+(`git checkout 59fe9af -- agent/ tests/test_agent_guards.py`) πριν χτιστεί το checkpoint. Το
+`cdcbe62` μένει στο git history για επιθεώρηση αλλά το `agent/` delta του δεν κρατήθηκε.
+
+### 4. Holdout-confirm και checkpoint
+
+`checkpoints/v1h_2d` (fingerprint `56c62c30…`, byte-identical με το `agent/` του `59fe9af`).
+`HOLDOUT_SEEDS` 100-147, both seats, `--metrics`, χωρίς pin, vs `checkpoints/v1h_1`:
+
+```
+verdict=IMPROVED  mean_diff=+$7.599,7/ep  se=1.266,0  ci95=(5.051,7, 10.147,7)
+wins_a=41/48  sign_test_p≈6,2e-7  errors=0
+water_weeds=decay=escapes=clipped=0  shed_overflow_burnt=28  weeds_lost=768 (diagnostic)
+unexpected_weeds_lost=0  ≤$5=22/61.518  priced_loss=$43,8/ep (0,6%)  metric_gate_passed=True
+GO=True
+```
+
+Το holdout είναι **πάνω** από το DEV (+$7.599 vs +$7.133) και πάνω από την αρχική εκτίμηση
+(+$3.019 του 09-08, πριν διορθωθεί το metrics.py bug) — το semantic-gate fix αφαίρεσε
+συστηματική υποτίμηση, δεν ήταν τυχαίο θόρυβο. `gates/confirm_log.jsonl` νέα γραμμή,
+`repeat_confirm_index=0`.
+
+### 5. Submission #4 και ένα ανεξήγητο εύρημα
+
+Πλήρες §Α.2 checklist πέρασε στο staged bundle: loader contract (`agent.policy.agent`, τελευταίο
+callable, όχι `__file__`)· timing seat0 `max=50,8ms`/seat1 `max=5,2ms` (`×3<1s` άνετα)·
+determinism `PYTHONHASHSEED` 0 vs 12345 ταυτόσημο (`rewards=(22587.0,22587.0)`)· mirror smoke
+`clean=True`· vs `checkpoints/v1h_1` seed 5 νίκη (`42849 vs 26768`)· 43.328 bytes· `pytest`
+**205 passed**· `KAGGRI_DEBUG` off. Πλήρης καταγραφή:
+[baselines/2026-08-10/validation.md](baselines/2026-08-10/validation.md). Υποβλήθηκε:
+**`SUBMISSION_ID 55390611`**, μήνυμα *"v1h.2d metric restoration (D1/D2/D3 + EOD surplus sell +
+FEED slack, engine 1.32.6) — replaces broken v1h"*, PENDING at submit time, **2 uploads
+remaining today**.
+
+⚠️ **Εύρημα:** `kaggle competitions submissions kaggriculture` έδειξε ένα submission που
+**δεν καταγράφεται πουθενά σε αυτό το repo**: `55387820`, uploaded 2026-08-09 18:58 UTC,
+publicScore **634,1**, περιγραφή *«4th attempt (3rd attempt but 2nd try to check if oponent
+path leads to better results)»*. Πριν το σημερινό upload, το ενεργό ζεύγος ήταν ήδη
+`{55387820, v1h}` — **όχι** `{v1g, v1h}` όπως κατέγραφε το §0 πριν διορθωθεί. Δηλαδή το v1g
+είχε ήδη πέσει εκτός θέσεων πριν ξεκινήσει η σημερινή συνεδρία, από upload που δεν πέρασε ποτέ
+από το gate/checkpoint πρωτόκολλο αυτού του repo. Δεν διερευνήθηκε το περιεχόμενό του (θα
+απαιτούσε λήψη replay, εκτός scope). Μετά το σημερινό upload το ενεργό ζεύγος είναι
+**`{55387820, 55390611}`** — το v1h (`55383610`) έπεσε εκτός, όχι το `55387820`.
+current_phase.md §Α ενημερώθηκε με το ακριβές ζεύγος και τη σημείωση.
+
+### 6. Fresh publicScore — ασύγκλιτο, αλλά αξίζει καταγραφή
+
+Λίγο αργότερα η ίδια συνεδρία: `55390611` έγινε `COMPLETE` με **publicScore 613,6** —
+**χαμηλότερο** και από το σπασμένο `v1h` (652,5) και από το `v1g` (643,6). Το `55387820`
+ενημερώθηκε ταυτόχρονα σε 608,2 (από 634,1). Και τα δύο νούμερα κινούνται ακόμα μέσα σε λίγες
+ώρες, ίδιο μοτίβο με το v1g (508,3 → συνέκλινε σε 643,7 σε ~2 μέρες, memory.md 2026-08-09) — άρα
+**δεν διαβάζεται ως regression σήμερα**, αλλά είναι το πρώτο πράγμα που πρέπει να ελεγχθεί ξανά
+σε 24-48h πριν θεωρηθεί το v1h.2d αποδεδειγμένα καλύτερο στην πραγματική ladder. Το τοπικό
+holdout (+$7.599,7/ep, καθαρά metrics) παραμένει η ισχυρότερη διαθέσιμη απόδειξη μέχρι τη
+σύγκλιση.
+
+### 7. Τι ΔΕΝ έγινε
+
+Δεν ξεκίνησε το L1 ladder diagnostic (ρητή οδηγία χρήστη). Δεν διερευνήθηκε το `55387820`. Δεν
+έγινε commit των docs updates αυτής της εγγραφής (current_phase.md/memory.md) — παραμένουν
+uncommitted, καμία εντολή χρήστη για commit σε αυτό το σημείο.
+
+---
+
+## 2026-08-10 (α) — Session: **στρατηγική αναθεώρηση — το mirror loop χτύπησε ταβάνι** (docs-only)
 
 **Εντολή:** review των 3 τελευταίων sessions + notebooks + meta report· απόφαση για το πώς
 προχωράμε με score 700 έναντι 3.100+ της ελίτ. **Καμία αλλαγή κώδικα**, μόνο `current_phase.md`

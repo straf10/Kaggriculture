@@ -269,34 +269,29 @@ Baseline: το τελευταίο αποδεκτό checkpoint (**σήμερα `v
 
 ---
 
-### v1h.2d — κλείσιμο του metric restoration [ΤΩΡΑ · 1 συνεδρία]
+### v1h.2d — κλείσιμο του metric restoration [✅ ΚΛΕΙΣΤΟ 2026-08-10 — `checkpoints/v1h_2d`, submitted]
 
-**Κατάσταση:** ο κώδικας υπάρχει και είναι μετρημένος. Έμεινε ανοιχτός **μόνο** επειδή το παλιό
-hard-zero gate τον απέρριψε· υπό την **Απόφαση Α** περνά (§1). Δεν γράφεται νέα λογική.
-
-Candidate = `v1h_2c` + EOD product-aware surplus sell + FEED deadline/slack fix
-(fingerprint live arm `daec4fecfe10883d005a4450d75b4bffa7d168b749d9e78de1b1dfa9cca1f3a1`).
-
-- [ ] **Τιμολόγησε ρητά** το `gate_v1h2d_feed_slack` κατά την Απόφαση Α και γράψε το
-      `priced_loss/ep` στο results ledger (**$237/ep = 7,9%** — κάτω και από τα δύο όρια).
-- [ ] **Γράψε τον μηχανισμό** των δύο εναπομεινάντων counters, όπως απαιτεί η δικλείδα:
-      84 overflow = υπόλοιπο burn σε peak-παραγωγής μέρες· 34 water weeds = units που το
-      FEED priority −1 τραβά από το WATER. **Και τα δύο είναι unit contention** — παρακολουθούνται
-      στο v1j, όπου η αύξηση crew τα αναιρεί δομικά.
-- [ ] **Υλοποίησε το gate policy στον κώδικα**: `compare.py` — νέο `priced_loss` πεδίο,
-      `metric_gate_passed` κατά Απόφαση Α, τα raw counters αμετάβλητα στο output.
-      Guard tests: το `v1h_2c` σκέτο και το EOD-only **πρέπει** να αποτυγχάνουν, ο συνδυασμός να
-      περνά (τρία καρφωμένα σενάρια από τα υπάρχοντα `gates/` artifacts).
-- [ ] **Συνολικό DEV** `candidate vs checkpoints/v1h_1`, seeds 0-47, both seats,
-      `--town-pin basket --metrics`. Απαιτείται `IMPROVED` **και** `median_bank ≥ $46k`.
-- [ ] **One-shot holdout-confirm** 100-147, both seats, **χωρίς pin**. `IMPROVED` + Απόφαση Α.
-- [ ] **`checkpoints/v1h_2d`** + fingerprint verification· `pytest tests/` πράσινο.
-- [ ] **Submission** (Απόφαση Γ): αντικαθιστά το **v1h**, κρατά το v1g ως champion μέχρι να
-      συγκλίνει το νέο rating. Πλήρες §Α.2 checklist, καταγραφή σε `baselines/2026-08-10/`.
-
-**STOP conditions:** συνολικό DEV `INCONCLUSIVE`/`REGRESSED` ⇒ STOP και revert. Holdout όχι
-`IMPROVED` ⇒ STOP, καμία tuning απόφαση πάνω στα 100-147. Νέος counter που εμφανίζεται **χωρίς
-μηχανισμό** ⇒ αντιμετωπίζεται ως bug, όχι ως κόστος.
+> **Αποτέλεσμα:** το priced gate (§1 Απόφαση Α) μπήκε στο `harness/compare.py`
+> (`METRIC_UNIT_PRICES`, `priced_loss_budget`, `--metric-mechanism`). Η υλοποίηση αποκάλυψε ένα
+> **δεύτερο, ανεξάρτητο harness bug**: το semantic weed-exclusion του 09-08 δεν πυροδοτούσε ποτέ
+> σε πραγματικό replay, επειδή το engine αποσύρει ένα harvested-to-zero ongoing crop **17-24
+> steps μετά** το HARVEST, όχι στο ίδιο turn — διορθώθηκε με συσσωρευμένο harvest-tracking σε
+> ολόκληρο το επεισόδιο (`harness/metrics.py`). Μετά τη διόρθωση: total DEV `IMPROVED
+> +$7.133,6/ep`, one-shot unpinned holdout `IMPROVED +$7.599,7/ep` (CI `[5.051,7, 10.147,7]`,
+> 41/48 seed wins), `priced_loss=$43,8/ep (0,6%)`, `metric_gate_passed=True`, `GO=True`.
+> `checkpoints/v1h_2d` δημιουργήθηκε και υποβλήθηκε (`SUBMISSION_ID 55390611`).
+>
+> Το working tree του `cdcbe62` ("Fixed several bugs", μεταγενέστερο του μετρημένου `59fe9af`)
+> ήταν **ungated** και μετρήθηκε αρνητικό (+$4.216,8/ep αντί +$7.133,6, 39 escapes χωρίς
+> μηχανισμό) — δεν κρατήθηκε· το checkpoint χτίστηκε από το `59fe9af` agent state.
+>
+> ⚠️ **Ανεξήγητο submission βρέθηκε στο πέρασμα**: `55387820` (2026-08-09 18:58, `634,1`) δεν
+> αντιστοιχεί σε κανένα gate/checkpoint αυτού του repo και είχε ήδη σπρώξει το **v1g** εκτός των
+> 2 ενεργών θέσεων πριν ξεκινήσει η σημερινή συνεδρία. §Α ενημερώθηκε με το πραγματικό ζεύγος.
+> Δεν διερευνήθηκε περαιτέρω — παραμένει ανοιχτό αν χρειάζεται σκόπιμη αντικατάσταση.
+>
+> Πλήρες ιστορικό, όλα τα νούμερα, το bisection του `cdcbe62` και το diagnostic script:
+> **memory.md 2026-08-10 (β)**. Validation checklist: `baselines/2026-08-10/validation.md`.
 
 ---
 
@@ -531,8 +526,8 @@ exploit και δεν το χειριζόμαστε ως τέτοιο — το �
 | Βήμα | Στόχος | Κατάσταση |
 |---|---|---|
 | Φάση 1 + v1f/v1g/v1h′/v1h.1/v1h.2 a-c | 08-06 → 08-09 | ✅ **ΚΛΕΙΣΤΑ** — memory.md |
-| **v1h.2d κλείσιμο** (priced gate → total DEV → holdout → `v1h_2d` → **submission**) | **08-10** | ⬅ **ΤΩΡΑ** |
-| **L1 ladder diagnostic** (docs/data only, παράλληλα) | 08-10 → 08-12 | ⬅ **ΤΩΡΑ** |
+| v1h.2d κλείσιμο (priced gate → total DEV → holdout → `v1h_2d` → submission) | 08-10 | ✅ **ΚΛΕΙΣΤΟ** — `SUBMISSION_ID 55390611` — memory.md 2026-08-10 (β) |
+| **L1 ladder diagnostic** (docs/data only, παράλληλα) | 08-10 → 08-12 | ⬅ **ΤΩΡΑ, δεν έχει ξεκινήσει** |
 | **v1j scale-out** (wheat 12 → ~28 + crew 10 → 12) | 08-11 → 08-18 | ⏸ το κύριο money item |
 | Β.2 clean-room meta-bench (εκτός `agent/`) | 08-18 → 08-21 | ⏸ προαπαιτούμενο του v1i |
 | v1i sell-ahead (+ per-unit sum, + order emission fix) | 08-21 → 08-31 | ⏸ |
