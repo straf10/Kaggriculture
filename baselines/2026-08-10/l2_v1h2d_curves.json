@@ -1,0 +1,520 @@
+{
+  "submission": 55390611,
+  "n": 34,
+  "wins": 16,
+  "our_final_median": 57360.0,
+  "opp_final_median": 55607.0,
+  "bank_median": {
+    "0": 438.0,
+    "1": 333.5,
+    "2": 497.0,
+    "3": 691.0,
+    "4": 724.0,
+    "5": 930.5,
+    "6": 667.5,
+    "7": 744.0,
+    "8": 950.0,
+    "9": 2334.5,
+    "10": 1986.5,
+    "11": 5135.5,
+    "12": 5991.0,
+    "13": 8934.5,
+    "14": 11486.5,
+    "15": 13821.5,
+    "16": 16351.5,
+    "17": 23432.0,
+    "18": 28578.5,
+    "19": 31550.0,
+    "20": 34259.5,
+    "21": 36494.0,
+    "22": 39091.0,
+    "23": 42711.0,
+    "24": 43591.0,
+    "25": 47637.5,
+    "26": 53508.5,
+    "27": 54115.5,
+    "28": 56616.5,
+    "29": 57360.0
+  },
+  "opp_bank_median": {
+    "0": 371.5,
+    "1": 232.5,
+    "2": 190.5,
+    "3": 321.0,
+    "4": 312.5,
+    "5": 357.0,
+    "6": 293.5,
+    "7": 296.5,
+    "8": 349.0,
+    "9": 345.0,
+    "10": 1144.0,
+    "11": 3940.0,
+    "12": 5158.5,
+    "13": 7629.5,
+    "14": 8691.5,
+    "15": 10137.5,
+    "16": 12094.0,
+    "17": 14962.5,
+    "18": 16908.0,
+    "19": 19216.0,
+    "20": 21527.5,
+    "21": 25613.0,
+    "22": 28623.0,
+    "23": 32005.5,
+    "24": 36769.5,
+    "25": 40969.5,
+    "26": 45284.5,
+    "27": 48029.0,
+    "28": 52133.5,
+    "29": 55607.0
+  },
+  "v1h_bank_median": {
+    "0": 36.0,
+    "1": 1.0,
+    "2": 150.0,
+    "3": 4.0,
+    "4": 582.0,
+    "5": 509.0,
+    "6": 648.0,
+    "7": 849.0,
+    "8": 877.0,
+    "9": 1751.0,
+    "10": 2610.0,
+    "11": 2890.0,
+    "12": 4316.0,
+    "13": 5895.0,
+    "14": 7822.0,
+    "15": 11018.0,
+    "16": 13149.0,
+    "17": 16924.0,
+    "18": 23432.0,
+    "19": 25111.0,
+    "20": 27324.0,
+    "21": 29501.0,
+    "22": 30353.0,
+    "23": 32062.0,
+    "24": 34473.0,
+    "25": 36493.0,
+    "26": 41759.0,
+    "27": 43920.0,
+    "28": 45095.0,
+    "29": 47091.0
+  },
+  "elite": {
+    "5": 299,
+    "10": 2212,
+    "15": 21272,
+    "20": 45689
+  },
+  "ladder_metrics_per_ep": {
+    "animals_escaped": 0.08823529411764706,
+    "shed_overflow_burnt": 0.08823529411764706,
+    "water_weeds_lost": 0.17647058823529413,
+    "unexpected_weeds_lost": 0.17647058823529413,
+    "weeds_lost": 8.176470588235293,
+    "decay_weeds_lost": 0.0,
+    "plant_decay_units_lost": 0.0,
+    "clipped_production_ticks": 0.0,
+    "units_sold_at_or_below_5": 0.2647058823529412,
+    "animals_underfed_days": 40.76470588235294
+  },
+  "ladder_metrics_per_ep_opp": {
+    "animals_escaped": 2.411764705882353,
+    "shed_overflow_burnt": 27.0,
+    "water_weeds_lost": 7.088235294117647,
+    "unexpected_weeds_lost": 10.176470588235293,
+    "weeds_lost": 18.61764705882353,
+    "decay_weeds_lost": 3.088235294117647,
+    "plant_decay_units_lost": 8.852941176470589,
+    "clipped_production_ticks": 0.0,
+    "units_sold_at_or_below_5": 26.852941176470587,
+    "animals_underfed_days": 22.08823529411765
+  },
+  "priced_loss_per_ep": 154.41176470588235,
+  "farm_by_day": {
+    "5": {
+      "us": {
+        "hands": 6.0,
+        "tiles_planted": 11.0,
+        "animals_total": 5.0,
+        "unlocked_quadrants": 1.0,
+        "plants_wheat": 0.0,
+        "plants_strawberry": 8.0,
+        "plants_carrot": 3.0,
+        "plants_melon": 0.0
+      },
+      "opp": {
+        "hands": 5.5,
+        "tiles_planted": 18.0,
+        "animals_total": 3.0,
+        "unlocked_quadrants": 1.0,
+        "plants_wheat": 2.0,
+        "plants_strawberry": 0.0,
+        "plants_carrot": 0.0,
+        "plants_melon": 10.0
+      }
+    },
+    "10": {
+      "us": {
+        "hands": 6.0,
+        "tiles_planted": 19.0,
+        "animals_total": 10.0,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 5.0,
+        "plants_strawberry": 8.0,
+        "plants_carrot": 6.0,
+        "plants_melon": 0.0
+      },
+      "opp": {
+        "hands": 7.5,
+        "tiles_planted": 17.0,
+        "animals_total": 6.0,
+        "unlocked_quadrants": 2.0,
+        "plants_wheat": 2.0,
+        "plants_strawberry": 0.0,
+        "plants_carrot": 0.0,
+        "plants_melon": 3.0
+      }
+    },
+    "15": {
+      "us": {
+        "hands": 10.0,
+        "tiles_planted": 19.0,
+        "animals_total": 10.0,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 8.0,
+        "plants_strawberry": 8.0,
+        "plants_carrot": 3.0,
+        "plants_melon": 0.0
+      },
+      "opp": {
+        "hands": 10.0,
+        "tiles_planted": 31.0,
+        "animals_total": 10.0,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 2.5,
+        "plants_strawberry": 7.5,
+        "plants_carrot": 0.0,
+        "plants_melon": 10.0
+      }
+    },
+    "20": {
+      "us": {
+        "hands": 10.0,
+        "tiles_planted": 18.0,
+        "animals_total": 10.0,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 12.0,
+        "plants_strawberry": 0.0,
+        "plants_carrot": 6.0,
+        "plants_melon": 0.0
+      },
+      "opp": {
+        "hands": 10.0,
+        "tiles_planted": 27.5,
+        "animals_total": 10.5,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 2.0,
+        "plants_strawberry": 6.5,
+        "plants_carrot": 0.0,
+        "plants_melon": 8.0
+      }
+    },
+    "29": {
+      "us": {
+        "hands": 6.0,
+        "tiles_planted": 0.0,
+        "animals_total": 10.0,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 0.0,
+        "plants_strawberry": 0.0,
+        "plants_carrot": 0.0,
+        "plants_melon": 0.0
+      },
+      "opp": {
+        "hands": 7.5,
+        "tiles_planted": 4.0,
+        "animals_total": 10.5,
+        "unlocked_quadrants": 3.0,
+        "plants_wheat": 0.0,
+        "plants_strawberry": 0.0,
+        "plants_carrot": 0.0,
+        "plants_melon": 0.0
+      }
+    }
+  },
+  "scoreboard": [
+    {
+      "episode_id": 91467868,
+      "win": true,
+      "our": 73835.0,
+      "opp": 63895.0,
+      "opp_name": "Aeternum",
+      "seat": 0
+    },
+    {
+      "episode_id": 91456941,
+      "win": true,
+      "our": 70181.0,
+      "opp": 43733.0,
+      "opp_name": "toxic_2499",
+      "seat": 0
+    },
+    {
+      "episode_id": 91456021,
+      "win": false,
+      "our": 69782.0,
+      "opp": 83679.0,
+      "opp_name": "Guseinov Elvin",
+      "seat": 1
+    },
+    {
+      "episode_id": 91524705,
+      "win": false,
+      "our": 66981.0,
+      "opp": 70374.0,
+      "opp_name": "anthony sinchi",
+      "seat": 1
+    },
+    {
+      "episode_id": 91471514,
+      "win": false,
+      "our": 66960.0,
+      "opp": 92259.0,
+      "opp_name": "Vishal Sharma",
+      "seat": 0
+    },
+    {
+      "episode_id": 91474245,
+      "win": true,
+      "our": 65410.0,
+      "opp": 43150.0,
+      "opp_name": "Kris Adamatzky",
+      "seat": 1
+    },
+    {
+      "episode_id": 91462406,
+      "win": true,
+      "our": 64945.0,
+      "opp": 53390.0,
+      "opp_name": "Colin Gaffney",
+      "seat": 1
+    },
+    {
+      "episode_id": 91545738,
+      "win": true,
+      "our": 63863.0,
+      "opp": 46450.0,
+      "opp_name": "daffaharil",
+      "seat": 0
+    },
+    {
+      "episode_id": 91461492,
+      "win": true,
+      "our": 63662.0,
+      "opp": 62311.0,
+      "opp_name": "Khalibryler",
+      "seat": 0
+    },
+    {
+      "episode_id": 91455107,
+      "win": false,
+      "our": 63472.0,
+      "opp": 131465.0,
+      "opp_name": "Garigariyong",
+      "seat": 1
+    },
+    {
+      "episode_id": 91472424,
+      "win": true,
+      "our": 63440.0,
+      "opp": 50257.0,
+      "opp_name": "Xmeeeee",
+      "seat": 0
+    },
+    {
+      "episode_id": 91476075,
+      "win": false,
+      "our": 62549.0,
+      "opp": 66092.0,
+      "opp_name": "carlos mario de oro aguado",
+      "seat": 1
+    },
+    {
+      "episode_id": 91458742,
+      "win": false,
+      "our": 62397.0,
+      "opp": 87584.0,
+      "opp_name": "CompilingCoder",
+      "seat": 1
+    },
+    {
+      "episode_id": 91523898,
+      "win": true,
+      "our": 61662.0,
+      "opp": 37066.0,
+      "opp_name": "DevilQ",
+      "seat": 1
+    },
+    {
+      "episode_id": 91457841,
+      "win": false,
+      "our": 61544.0,
+      "opp": 104272.0,
+      "opp_name": "Tejas Rajput",
+      "seat": 1
+    },
+    {
+      "episode_id": 91452786,
+      "win": false,
+      "our": 61184.0,
+      "opp": 61184.0,
+      "opp_name": "STRAF",
+      "seat": 0
+    },
+    {
+      "episode_id": 91541080,
+      "win": false,
+      "our": 57970.0,
+      "opp": 74412.0,
+      "opp_name": "fvong",
+      "seat": 1
+    },
+    {
+      "episode_id": 91453312,
+      "win": true,
+      "our": 56750.0,
+      "opp": 38222.0,
+      "opp_name": "jeon hyeon woo",
+      "seat": 1
+    },
+    {
+      "episode_id": 91466041,
+      "win": true,
+      "our": 55610.0,
+      "opp": 36296.0,
+      "opp_name": "kuroneko",
+      "seat": 1
+    },
+    {
+      "episode_id": 91475157,
+      "win": false,
+      "our": 55218.0,
+      "opp": 86510.0,
+      "opp_name": "evanca",
+      "seat": 0
+    },
+    {
+      "episode_id": 91470602,
+      "win": false,
+      "our": 53548.0,
+      "opp": 56557.0,
+      "opp_name": "Ahmad Elawady",
+      "seat": 1
+    },
+    {
+      "episode_id": 91454209,
+      "win": true,
+      "our": 52969.0,
+      "opp": 3000.0,
+      "opp_name": "Lalwani Palash",
+      "seat": 1
+    },
+    {
+      "episode_id": 91576806,
+      "win": false,
+      "our": 52677.0,
+      "opp": 94882.0,
+      "opp_name": "CrossEngineered",
+      "seat": 1
+    },
+    {
+      "episode_id": 91468770,
+      "win": true,
+      "our": 52057.0,
+      "opp": 46975.0,
+      "opp_name": "Huseyin Battal",
+      "seat": 1
+    },
+    {
+      "episode_id": 91463311,
+      "win": true,
+      "our": 51364.0,
+      "opp": 45267.0,
+      "opp_name": "kumanomi",
+      "seat": 0
+    },
+    {
+      "episode_id": 91466945,
+      "win": false,
+      "our": 49947.0,
+      "opp": 54657.0,
+      "opp_name": "juewang1p",
+      "seat": 0
+    },
+    {
+      "episode_id": 91473332,
+      "win": false,
+      "our": 47363.0,
+      "opp": 51816.0,
+      "opp_name": "Hassan Algizani",
+      "seat": 0
+    },
+    {
+      "episode_id": 91459670,
+      "win": false,
+      "our": 46688.0,
+      "opp": 57496.0,
+      "opp_name": "Oleksandr Dudnev",
+      "seat": 1
+    },
+    {
+      "episode_id": 91465126,
+      "win": false,
+      "our": 44283.0,
+      "opp": 71973.0,
+      "opp_name": "Josh Hipps",
+      "seat": 0
+    },
+    {
+      "episode_id": 91469687,
+      "win": true,
+      "our": 42284.0,
+      "opp": 36410.0,
+      "opp_name": "Marc Dakuginow",
+      "seat": 1
+    },
+    {
+      "episode_id": 91464214,
+      "win": true,
+      "our": 41253.0,
+      "opp": 14447.0,
+      "opp_name": "Akshay V",
+      "seat": 0
+    },
+    {
+      "episode_id": 91495242,
+      "win": false,
+      "our": 39978.0,
+      "opp": 134104.0,
+      "opp_name": "Moshel",
+      "seat": 1
+    },
+    {
+      "episode_id": 91578696,
+      "win": true,
+      "our": 35807.0,
+      "opp": 16913.0,
+      "opp_name": "CoorDi",
+      "seat": 1
+    },
+    {
+      "episode_id": 91460581,
+      "win": false,
+      "our": 28541.0,
+      "opp": 39108.0,
+      "opp_name": "RAVI KUMAR696996",
+      "seat": 1
+    }
+  ]
+}
