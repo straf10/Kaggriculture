@@ -10,8 +10,10 @@ baselines/
 gates/
 checkpoints/
 
-# Kaggle notebooks — large embedded outputs, not part of the agent/harness source
-notebooks/
+# Kaggle notebooks — large embedded outputs, not part of the agent/harness source.
+# Leading slash matters: a bare `notebooks/` also swallowed docs/source/notebooks/,
+# which holds the small tracked markdown extracts every doc reference points at.
+/notebooks/
 
 # Scraped/derived meta datasets — not needed to build or run the agent
 data/archive/

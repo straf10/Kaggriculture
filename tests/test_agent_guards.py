@@ -299,11 +299,19 @@ def test_m7_market_orders_truncates_instead_of_raising():
     assert len(orders) == 1
 
 
-def test_h8_market_truncation_keeps_hire_over_sell():
-    """review.md H8 — truncation used to keep construction order (SELL orders built first),
-    so a budget-tight turn could drop HIRE/BUY_LAND — the orders with the largest measured
-    ROI — in favor of a SELL worth a few dollars. HIRE (tier 0) must survive a 1-order budget
-    ahead of a pending SELL (tier 5), regardless of which was constructed first."""
+def test_v1o2_hire_no_longer_displaces_a_sell_but_is_only_deferred():
+    """v1o.2 supersedes review.md H8's *resolution* while keeping its concern.
+
+    H8's problem was that a budget-tight turn silently dropped HIRE — the highest-ROI order —
+    in favour of a low-value SELL, because truncation followed construction order. Its fix made
+    HIRE tier 0 so it survives the cut. v1o.2 found the cost of that fix: one HIRE is one market
+    order and the engine takes at most `maxMarketOrdersPerTurn` = 10 per turn, so a 10-hand crew
+    rebuilt in hour 0 consumes the entire budget and the day's SELLs are the orders dropped —
+    and the crew still cannot pass 10, whatever `hands_target` says.
+
+    The new contract: hires claim only the slots left over, and resume on the next turn (up to
+    `hire_last_hour`), where the engine's own `hires_today` counter continues the fib() price
+    escalation. So a hire is **deferred, never lost**, and the SELL survives."""
     from agent.executor import market_orders
 
     tight_config = copy.deepcopy(CONFIG)
@@ -314,9 +322,45 @@ def test_h8_market_truncation_keeps_hire_over_sell():
     observation["market"]["prices"]["CARROT"] = 35
     snapshot = parse(observation)
     plan = make_day_plan(snapshot, tight_config)
-    ledger = make_ledger(snapshot)
-    orders = market_orders(snapshot, plan, ledger, [["PASS"]], tight_config)
-    assert orders == [["HIRE"]]
+    orders = market_orders(snapshot, plan, make_ledger(snapshot), [["PASS"]], tight_config)
+    assert [order[0] for order in orders] == ["SELL"]
+
+    # ...and the hire the tight turn could not fit happens on the next one, at the price its
+    # position in the day's hire sequence dictates (hires_today=1 -> fib(1), not fib(0) again).
+    later = _minimal_observation(step=1)
+    later["farms"][0]["hires_today"] = 1
+    later["private"]["shed"]["CARROT"] = 0
+    later_snapshot = parse(later)
+    later_orders = market_orders(later_snapshot, make_day_plan(later_snapshot, tight_config),
+                                 make_ledger(later_snapshot), [["PASS"]], tight_config)
+    assert ["HIRE"] in later_orders
+
+
+def test_v1o2_hires_are_capped_by_the_engines_order_budget_not_by_hands_target():
+    """The measured ceiling. With `hire_last_hour` at its pre-v1o.2 value of 0, a target of 14
+    produces at most `max_market_orders` HIREs in hour 0 and the rest are silently dropped by
+    the engine — which is why the v1o.2 smoke screen measured sw_hands_target 10, 12 and 14 as
+    byte-identical. Above hour 0 the remainder is reachable."""
+    from agent.executor import market_orders
+
+    config = copy.deepcopy(CONFIG)
+    config["planner"]["hands_target"] = 14
+    config["planner"]["sw_hands_target"] = 14
+    observation = _minimal_observation(step=0)
+    observation["farms"][0]["money"] = 100_000
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, config)
+    assert plan.hands_target == 14
+    hour0 = market_orders(snapshot, plan, make_ledger(snapshot), [["PASS"]], config)
+    assert sum(1 for order in hour0 if order[0] == "HIRE") <= config["executor"]["max_market_orders"]
+
+    hour1 = _minimal_observation(step=1, hands=tuple((4, 3) for _ in range(10)))
+    hour1["farms"][0]["money"] = 100_000
+    hour1["farms"][0]["hires_today"] = 10
+    hour1_snapshot = parse(hour1)
+    hour1_orders = market_orders(hour1_snapshot, make_day_plan(hour1_snapshot, config),
+                                 make_ledger(hour1_snapshot), [["PASS"]], config)
+    assert sum(1 for order in hour1_orders if order[0] == "HIRE") == 4
 
 
 def test_e1_market_truncation_emits_kept_sells_first():
@@ -349,16 +393,37 @@ def test_e1_market_truncation_emits_kept_sells_first():
     assert len(untruncated) == 8
     assert [order[0] for order in untruncated] == ["SELL", "SELL"] + ["HIRE"] * 6
 
-    # At cap 7 the cut fires: keep-by-tier drops the *lower-value* SELL (H8, unchanged), and
-    # the one SELL that survives is emitted ahead of the six HIREs it was kept alongside.
+    # v1o.2: at cap 7 the cut no longer fires at all, and that is the increment. HIRE now
+    # claims only the slots the other orders left, so it can never be the order that overflows
+    # the budget — both SELLs survive and the crew simply finishes assembling on the next turn
+    # (test_v1o2_hire_no_longer_displaces_a_sell_but_is_only_deferred). Before v1o.2 this line
+    # read `["SELL"] + ["HIRE"] * 6`: one of the two SELLs was thrown away to buy a hand the
+    # engine would have granted for free one turn later.
     truncated = orders_at(7)
     assert len(truncated) == 7
-    assert [order[0] for order in truncated] == ["SELL"] + ["HIRE"] * 6
+    assert [order[0] for order in truncated] == ["SELL", "SELL"] + ["HIRE"] * 5
     assert truncated[0] == ["SELL", "STRAWBERRY", 50]
+    assert truncated[1] == ["SELL", "CARROT", 50]
 
-    # And when the budget is tighter than the HIREs alone, tier order still decides survival —
-    # emitting SELLs first must never resurrect an order the cut removed.
-    assert [order[0] for order in orders_at(6)] == ["HIRE"] * 6
+    # The tier map itself is untouched — H8's ranking still decides survival wherever the cut
+    # is still reachable (i.e. from the non-HIRE tiers, which do not self-limit).
+    from agent.executor import _ORDER_TIER
+
+    assert _ORDER_TIER["HIRE"] < _ORDER_TIER["BUY_PRODUCT"] < _ORDER_TIER["SELL"]
+
+    # And the cut is still reachable from SELLs alone, where it keeps construction order among
+    # equals and drops the tail.
+    many = copy.deepcopy(CONFIG)
+    many["executor"]["max_market_orders"] = 3
+    observation_many = _minimal_observation(step=0)
+    for product in ("CARROT", "STRAWBERRY", "MILK", "WOOL", "FERTILIZER"):
+        observation_many["private"]["shed"][product] = 50
+        observation_many["market"]["inventory"][product] = 10
+    snapshot_many = parse(observation_many)
+    cut = market_orders(snapshot_many, make_day_plan(snapshot_many, many),
+                        make_ledger(snapshot_many), [["PASS"]], many)
+    assert len(cut) == 3
+    assert [order[0] for order in cut] == ["SELL"] * 3
 
 
 def test_g10_strawberry_planting_stops_after_opening_window():
@@ -1112,16 +1177,20 @@ def test_v1g2_throttle_cannot_add_a_market_order():
         "throttle backfilled an unexpected product at the order cap; the (δ) crowd-out risk "
         "is order-position-sensitive, so any change here needs its own measurement"
     )
-    # The sharpest way to state what the throttle bought here: **nothing, and now less than
-    # nothing**. Before §v1i the throttled arm sold the same 160 units as the baseline (40 WOOL
-    # swapped for 40 FERTILIZER at the cap) — the §v1g.2 (γ) result, "no price to win, only
-    # volume to lose", reproduced at the order-cap level. §v1i's batch-average rule keeps a
-    # 2-unit WOOL order alive where the marginal rule dropped WOOL to zero, so the freed slot
-    # is never freed and FERTILIZER stays cut: 122 units against the baseline's 160. The
-    # throttle stays off (§v1g.2 γ) and this is one more measured reason, but the interaction
-    # is real and worth pinning — a residual order still costs a slot at the 10-order cap.
-    assert sum(throttled_sells.values()) == 122
-    assert sum(baseline_sells.values()) == 160
+    # The sharpest way to state what the throttle bought here: **nothing**. Before §v1i the
+    # throttled arm sold the same 160 units as the baseline (40 WOOL swapped for 40 FERTILIZER
+    # at the cap) — the §v1g.2 (γ) result, "no price to win, only volume to lose", reproduced at
+    # the order-cap level. §v1i's batch-average rule keeps a 2-unit WOOL order alive where the
+    # marginal rule dropped WOOL to zero, so that residue still costs a slot.
+    #
+    # v1o.2 moved both numbers, measurably and in the intended direction: HIRE no longer claims
+    # slots the other orders needed, so the FERTILIZER order that used to be squeezed out of
+    # *both* arms now survives — baseline 160 -> 200 units, throttled 122 -> 162. The
+    # residual-order interaction being pinned here is unchanged (WOOL still throttled to 2, the
+    # throttle still strictly loses volume); what moved is that the 10-order cap is no longer
+    # spent on hands the engine would have granted a turn later. The throttle stays off (§v1g.2 γ).
+    assert sum(throttled_sells.values()) == 162
+    assert sum(baseline_sells.values()) == 200
     assert throttled_sells["WOOL"] == 2
 
 
@@ -1196,21 +1265,59 @@ def _plan_with_quadrants(quadrants, *, day, hands=8):
     return make_day_plan(parse(observation), CONFIG)
 
 
-def test_v1h_wheat_waits_for_sw_and_for_strawberrys_planting_window_to_close():
-    """Two gates, both load-bearing. Without SW the tiles are LOCKED. And while STRAWBERRY is
-    still being planted, _capacity_limited_targets trims whichever crop has the *largest*
-    target — which would be STRAWBERRY (24) — so an early WHEAT target would be paid for out
-    of STRAWBERRY's budget rather than its own."""
-    last_strawberry_day = CONFIG["planner"]["strawberry_last_plant_day"]
+def test_v1h_wheat_waits_for_sw_and_for_its_own_first_plant_day():
+    """Two gates, both load-bearing. Without SW the tiles are LOCKED. And WHEAT does not start
+    on day 0 because _capacity_limited_targets trims whichever crop has the *largest* target —
+    which would be STRAWBERRY (24) — so an early WHEAT target would be paid for out of
+    STRAWBERRY's budget rather than its own.
 
-    no_sw = _plan_with_quadrants(["NW", "NE"], day=last_strawberry_day + 3)
+    v1o.1: the second gate is `wheat_first_plant_day`, its own knob. It used to be spelled
+    `snapshot.day > strawberry_last_plant_day`, which made the SW quadrant's entire season a
+    side effect of STRAWBERRY's replant window — so extending that window (the v1o.1 increment)
+    would silently have deleted SW. test_v1o1_* below pins the decoupling itself."""
+    first_wheat_day = CONFIG["planner"]["wheat_first_plant_day"]
+
+    no_sw = _plan_with_quadrants(["NW", "NE"], day=first_wheat_day + 2)
     assert no_sw.plant_targets.get("WHEAT", 0) == 0
 
-    too_early = _plan_with_quadrants(["NW", "NE", "SW"], day=last_strawberry_day)
+    too_early = _plan_with_quadrants(["NW", "NE", "SW"], day=first_wheat_day - 1)
     assert too_early.plant_targets.get("WHEAT", 0) == 0
 
-    ready = _plan_with_quadrants(["NW", "NE", "SW"], day=last_strawberry_day + 1)
+    ready = _plan_with_quadrants(["NW", "NE", "SW"], day=first_wheat_day)
     assert ready.plant_targets.get("WHEAT", 0) > 0
+
+
+def test_v1o1_strawberry_is_replanted_past_the_old_day_5_window():
+    """ROADMAP §4.3 S3 step 1 / §3.2: "our farm shuts down on day 17" was this constant. E0
+    traced the planner's own raw targets and found STRAWBERRY's target hitting 0 on day 6 and
+    never returning, so the 8 tiles planted on days 0-5 decayed to WEED around days 17-21 with
+    nothing planted behind them — 26 planted tiles at peak against the top-30's 62.
+
+    The guard is on the *shape* (a target still exists well past the old cutoff of 5, and it
+    does close before the end), not on the screened value itself."""
+    assert CONFIG["planner"]["strawberry_last_plant_day"] > 5
+    assert _plan_with_quadrants(["NW", "NE"], day=12).plant_targets.get("STRAWBERRY", 0) > 0
+    last_day = CONFIG["planner"]["strawberry_last_plant_day"]
+    assert _plan_with_quadrants(["NW", "NE"], day=last_day).plant_targets.get("STRAWBERRY", 0) > 0
+    assert _plan_with_quadrants(["NW", "NE"], day=last_day + 1).plant_targets.get("STRAWBERRY", 0) == 0
+    # A seed planted on the last allowed day must still reach its first yield tick inside the
+    # episode — otherwise the tile is watered all season and harvested by nobody.
+    first_yield_age = engine.CROPS["STRAWBERRY"]["first_yield_day"]
+    assert last_day + first_yield_age <= CONFIG["runtime"]["episode_steps"] // 24 - 1
+
+
+def test_v1o1_wheat_window_is_independent_of_the_strawberry_window():
+    """The decoupling itself, pinned: moving strawberry_last_plant_day must not move WHEAT's
+    first plant day. This is the regression that would silently empty the SW quadrant."""
+    from copy import deepcopy
+
+    config = deepcopy(CONFIG)
+    config["planner"]["strawberry_last_plant_day"] = 25
+    observation = _minimal_observation(step=CONFIG["planner"]["wheat_first_plant_day"] * 24,
+                                       hands=tuple((4, 3) for _ in range(8)))
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE", "SW"]
+    plan = make_day_plan(parse(observation), config)
+    assert plan.plant_targets.get("WHEAT", 0) > 0
 
 
 def test_v1h_wheat_planting_stops_in_time_to_still_mature():

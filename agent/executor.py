@@ -553,7 +553,28 @@ def market_orders(
     # index, so SELL at i funds HIRE at i+1 in the same list — construction order
     # SELL-then-HIRE is load-bearing. Cap added HIREs so truncation cannot reorder HIRE
     # ahead of that SELL (tier-sort would put HIRE first → silent no-op at $0).
-    if snapshot.hour == 0 and plan.hands_target > len(snapshot.hand_positions):
+    #
+    # v1o.2 — the crew ceiling, finally located. E0 measured the crew hitting `hands_target` on
+    # every single day, and a v1o.2 smoke screen then measured `sw_hands_target` 10 -> 12 -> 14
+    # as **byte-identical** to 10 (mean_diff exactly $0,00, CI [0, 0], every counter equal). The
+    # cause is here and it is not money: **one HIRE is one market order, the engine processes at
+    # most `maxMarketOrdersPerTurn` = 10 per player per turn and silently drops the rest**
+    # (engine_reference/kaggriculture.py:538 + .json "extra orders beyond this limit are
+    # silently dropped"), and hands are wiped every night — so a crew rebuilt entirely inside
+    # hour 0 can never exceed 10, whatever the target says. This is the real mechanism behind
+    # ROADMAP §3.3's v1j STOP ("+2 hands never hired"), which had been attributed to cost.
+    #
+    # Two changes, one mechanism — "emit only what fits, continue next turn":
+    #   * hires may now be emitted through `hire_last_hour` instead of at hour 0 only. The
+    #     engine's own `hires_today` counter carries the fib() price escalation across turns
+    #     within the day (:690-694, reset at :868), so hire 11 costs fib(11) whether it is
+    #     bought at hour 0 or hour 2 — the split changes *when*, never *what*.
+    #   * the order-slot cap is now applied unconditionally, not only on the cashless-morning
+    #     sell-credit path. Without that, a 10-hire morning fills the whole budget and the
+    #     truncation below — which sorts HIRE to tier 0 — silently drops that turn's SELLs.
+    if snapshot.hour <= int(executor_config.get("hire_last_hour", 0)) and (
+        plan.hands_target > len(snapshot.hand_positions)
+    ):
         hire_budget = available_money
         first_cost = _hire_cost(snapshot.hires_today, farm_hand_cost_mult)
         using_sell_credit = hire_budget < first_cost
@@ -565,9 +586,8 @@ def market_orders(
                     for i in range(qty):
                         hire_budget += market_price(product, inventory + i)
         hires_needed = plan.hands_target - len(snapshot.hand_positions)
-        if using_sell_credit:
-            slots_left = max(0, int(executor_config["max_market_orders"]) - len(orders))
-            hires_needed = min(hires_needed, slots_left)
+        slots_left = max(0, int(executor_config["max_market_orders"]) - len(orders))
+        hires_needed = min(hires_needed, slots_left)
         hires_already = snapshot.hires_today
         for offset in range(hires_needed):
             cost = _hire_cost(hires_already + offset, farm_hand_cost_mult)

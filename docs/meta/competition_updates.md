@@ -10,7 +10,11 @@
 > 2. Αν αλλάζει **κανόνα** → προωθείται στο [reference/engine_deltas.md](docs/reference/engine_deltas.md) με status `⚠️ UNVERIFIED`, και ιδανικά γράφεται test στο [tests/test_engine_facts.py](tests/test_engine_facts.py) που το κάνει `✅ TESTED`.
 > 3. Αν αλλάζει **αριθμό απόδοσης** → [reference/economics.md](docs/reference/economics.md) ή [reference/market.md](docs/reference/market.md).
 > 4. Αν αλλάζει **meta/ladder** → νέα εγγραφή στο [meta/ladder_snapshots.md](docs/meta/ladder_snapshots.md).
-> 5. Αν αλλάζει **στρατηγική προτεραιότητα** → συζήτηση για MASTERPLAN/plan.md, **όχι** σιωπηλή αλλαγή.
+> 5. Αν αλλάζει **στρατηγική προτεραιότητα** → συζήτηση για [ROADMAP.md](ROADMAP.md), **όχι** σιωπηλή αλλαγή.
+>
+> *(Οι παλιές εγγραφές παρακάτω παραπέμπουν σε `MASTERPLAN.md` / `current_phase.md`, που
+> διαγράφηκαν στις 2026-08-11. Είναι **dated, append-only** εγγραφές και δεν ξαναγράφονται· ο
+> χάρτης αντιστοίχισης είναι στο [docs/INDEX.md](docs/INDEX.md) «Χάρτης παλιών ονομάτων».)*
 >
 > Το πεδίο `Ενέργεια` κάθε εγγραφής λέει σε ποιο βήμα βρίσκεται. Εγγραφή με `Ενέργεια: εκκρεμεί`
 > είναι ανοιχτή δουλειά.

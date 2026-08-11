@@ -29,7 +29,54 @@ CONFIG = {
         # fit the new structures, not the full crop/animal portfolio rebalance MASTERPLAN
         # reserves for v1h.
         "strawberry_tiles": 8,
-        "strawberry_last_plant_day": 5,
+        # v1o.1 (ROADMAP §4.3 S3 step 1): the single gate that shut the farm down. E0
+        # (analysis/e0_s3_blockers.py, 4 seeds x both seats vs meta_route) traced the planner's
+        # own raw targets per day and found STRAWBERRY's raw target drops to 0 on **day 6** and
+        # never returns: the 8 tiles planted on days 0-5 reach their 4th and last yield tick
+        # (first_yield_day 10 + interval 2 * 3 = age 16) around days 17-21, decay to WEED, and
+        # nothing is ever planted behind them. Measured consequence at the old value of 5:
+        # planted tiles peak at **26** on d14-17 and fall to 18 (d20) / 11,5 (d24) / 0 (d28),
+        # against the current-engine top-30 profile's 62 / 60 / 59 / 1
+        # (data/derived/b3_target_profile.json). That is ROADMAP §3.2's "our farm shuts down on
+        # day 17", and it is a config constant, not an emergent capacity limit: the capacity
+        # gate (_capacity_limited_targets) trims nothing at all on days 14-24, and the crew hits
+        # its hands_target on every single day of all 8 E0 runs.
+        #
+        # Why 12 and not later. STRAWBERRY is `ongoing` with first_yield_day 10 and interval 2,
+        # so a seed planted on day P first pays on P+10 and reaches its full 4 ticks on P+16 —
+        # arithmetic alone would say 19. The value is screened, and the screen says the opposite
+        # of the arithmetic. SMOKE 0-11, both seats, `--town-pin basket`, mirror vs
+        # `checkpoints/v1i`:
+        #
+        #   value | mean_diff | verdict      | crop tile-days | idle  | clipped_production_ticks
+        #      12 |   +$603   | INCONCLUSIVE |          515,3 | 20,2% | 0
+        #      16 | -$4.071   | REGRESSED    |          567,7 | 15,8% | 1  <- structural, hard STOP
+        #      20 | -$7.913   | REGRESSED    |          615,3 | 14,3% | 1  <- structural, hard STOP
+        #
+        # Tile-days and idle keep improving monotonically past 12 and the bank keeps falling,
+        # because the extra watering is paid for out of the animals: analysis/
+        # v1o1_product_split.py (vs the non-mirror `meta_route` bench) measured STRAWBERRY going
+        # 32 -> 80 units at a *higher* realized price ($232,9 -> $259,0, i.e. no saturation at
+        # all) while WOOL lost 41% of its units and FERTILIZER 27% — HARVEST on an animal tile
+        # is priority 1 and COLLECT_FERTILIZER is priority 3, both below WATER's 0, so new
+        # priority-0 crop work crushes them first. 16 and 20 additionally break a *structural*
+        # counter (an animal's yield left uncollected past its cap), which is a STOP under
+        # ROADMAP §2.1.5 regardless of the dollar verdict.
+        #
+        # So 12 is not "the best window" — it is the largest window that today's task priorities
+        # can actually staff. Raising it again is gated on protecting animal upkeep from crop
+        # watering first; see ROADMAP §3.3.
+        "strawberry_last_plant_day": 12,
+        # v1o.1: WHEAT's start used to be spelled `snapshot.day > strawberry_last_plant_day`
+        # (planner.make_day_plan), which silently coupled the two windows — extending
+        # STRAWBERRY's window by itself would have pushed WHEAT's first plant to day 17 and
+        # deleted the SW quadrant's whole season. Split out as its own knob, set to the day the
+        # old expression produced at strawberry_last_plant_day=5, so the decoupling is
+        # behaviour-preserving at the old value and the two windows can now be screened apart.
+        # The ordering reason the old expression encoded is still real and is preserved by the
+        # comment on sw_wheat_tiles: STRAWBERRY has a hard planting deadline and WHEAT does not,
+        # so where the capacity gate has to choose, WHEAT is the one that can wait.
+        "wheat_first_plant_day": 6,
         "max_new_plants_per_day": 5,
         # v1f: screened hands_target in {6, 8, 10, 12} on DEV_SEEDS vs checkpoints/v1e (all vs
         # the fixed 41-tile crop-target ceiling + 3 fixed animals). 6 and 8 IMPROVED, 10 and 12
@@ -57,7 +104,57 @@ CONFIG = {
         # is being worked, and 12 measured identical to 10 (the 11th and 12th hire cost fib(10)
         # =89 / fib(11)=144 at an hour when the bank rarely has it, so they are mostly never
         # actually hired). See memory.md 2026-08-08 for the full sweep.
+        # v1o.2 (ROADMAP §4.3 S3 step 1, crew shape): screened again on top of v1o.1's refilled
+        # farm, because every number above was measured against a farm that emptied after day 17
+        # and therefore against a workload that no longer exists. The top-30 profile
+        # (data/derived/b3_target_profile.json) runs 14 hands at d10 and d20; E0 established
+        # that our crew is capped by this constant alone and never by the fib() hire budget
+        # (`days_hands_below_target` was empty in all 8 runs at 10 hands) — so whether a larger
+        # crew is affordable is a real question this screen had to answer rather than assume.
+        #
+        # It took two screens. The first raised this constant alone and measured 10 -> 12 -> 14
+        # as **byte-identical** (mean_diff exactly $0,00, CI [0, 0]) — the ceiling was the
+        # engine's 10-orders-per-turn limit, not this number (see executor.hire_last_hour). With
+        # that unblocked, SMOKE 0-11 both seats `--town-pin basket` vs `checkpoints/v1o_1`:
+        #
+        #   (sw, endgame, hire_last_hour) | mean_diff | verdict      | tile-days | idle
+        #   (10, 6, 0)  slot-cap only     |  -$9.704  | REGRESSED    |       415 | 15,9%
+        #   (12, 6, 2)                    |  +$4.316  | IMPROVED     |       595 | 25,2%
+        #   (14, 6, 2)                    |  -$1.516  | INCONCLUSIVE |       599 | 31,8%
+        #   (14, 10, 2)                   |    -$591  | INCONCLUSIVE |       603 | 32,8%
+        #
+        # 14 buys 4 more tile-days than 12 and pays fib(12)+fib(13) = $610/day extra for them,
+        # with idle unit-turns going the wrong way (25,2% -> 31,8%) — the crew overshoots the
+        # work again, which is the same shape v1f measured at its own scale.
+        #
+        # ⛔ **12 then went to DEV and STOPPED on the acceptance arm**, and the number is left
+        # at 10. DEV 0-47 both seats, pinned, vs `meta_route`: the dollars were the best this
+        # session has produced (`mean_diff` **+$4.144,7**, IMPROVED, episodes **82-14**,
+        # `median_bank` **$59.409**) — and `priced_loss_delta` came in at **$477,6/ep against a
+        # budget of $414,5** (10% of mean_diff; it is inside the $500 absolute leg but the rule
+        # is AND, not OR), driven by `animals_escaped` **87 vs 32**. That is ROADMAP §2.1.5, and
+        # it is not a tuning opportunity: the mechanism is that 12 hands on ~594 crop tile-days
+        # generate more priority-0 WATER than the same tier's FEED can survive, which is the
+        # *same* displacement analysis/v1o1_product_split.py measured taking 41% of WOOL and 27%
+        # of FERTILIZER. The crew is not the fix for that and cannot be raised past it; feed
+        # priority has to be protected first. See ROADMAP §3.3 and memory.md 2026-08-11.
         "sw_hands_target": 10,
+        # v1o.2: what the crew drops back to once SW's last WHEAT is harvestable
+        # (wheat_last_plant_day + max_yield_day = day 24). Was hard-wired to the pre-SW
+        # `hands_target` of 6; split out so the endgame crew can be screened apart from the
+        # mid-season crew. It is not cosmetic: v1o.1's unpinned holdout carries 240
+        # water_weeds_lost, and the mechanism is this step-down — the capacity gate's floor
+        # holds every already-planted tile, so the tiles stay but a third of the crew that was
+        # watering them does not. The counter-argument is measured too and is why 6 was chosen
+        # in v1h': carrying the big crew into liquidation lost 2 far SHEEP per episode to unit
+        # contention on days 25-27 (see planner.make_day_plan).
+        #
+        # Screened and **left at 6**: raising it to 10 alongside a 14-hand mid-season crew moved
+        # nothing worth having (-$591 vs -$1.516, both INCONCLUSIVE, water-weeds 44 vs 52 on 24
+        # smoke episodes). The step-down is therefore not the water-weed mechanism it looked
+        # like; the tiles that die are dying of priority, not of headcount. Kept as a separate
+        # knob because that is now a *measured* answer rather than an assumption.
+        "endgame_hands_target": 6,
         "capacity_safety_factor": 0.8,
         # plan.md §5 v1c: added to carrot_tiles/strawberry_tiles once "NE" is in
         # snapshot.my_quadrants (the NE-mirrored tiles appended to target_tiles below). NOT a
@@ -217,6 +314,27 @@ CONFIG = {
     "executor": {
         "enabled": True,
         "max_market_orders": 10,
+        # v1o.2: last hour of the day in which a HIRE order may still be emitted. 0 is the
+        # pre-v1o.2 behaviour (hire the whole crew in hour 0), and 0 is also a hard ceiling of
+        # exactly 10 hands, because one HIRE is one market order and the engine drops everything
+        # past `maxMarketOrdersPerTurn` = 10 silently — see the long note in
+        # executor.market_orders. Anything above 0 lets the crew finish assembling on later
+        # turns at the same fib() price. Kept small: a hand hired at hour h works 24-h turns, so
+        # the marginal value of a late hire falls while its fib cost does not.
+        #
+        # ⚠️ The two halves of v1o.2 are **not separable** and the screen proves it. Applying the
+        # order-slot cap while leaving this at 0 measured **-$9.704/ep, REGRESSED, 0-24** with
+        # crop tile-days collapsing 513 -> 415: with hires confined to hour 0, capping them at
+        # the leftover slots simply means the day's SELLs starve the crew. review.md H8 was
+        # right that HIRE must not lose to SELL — it is only safe to let it yield the slot
+        # *because* the hire now happens one turn later instead of not at all.
+        #
+        # Gated on its own, at the unchanged crew of 10. The crew *size* increase that this
+        # unblocked (sw_hands_target 12) is a separate, STOPPED question — see that knob. What
+        # is kept here is only the hiring mechanism: at 10 hands it does not add a single hand,
+        # it stops the morning's 10 HIREs from pushing that day's SELL orders off the end of the
+        # engine's 10-order budget.
+        "hire_last_hour": 2,
         "seed_buffer": 6,
         # v1g.2: these stay the hard lower bound. planner._dynamic_sell_floors may only RAISE a
         # product's floor above the value here (and only for products with non-zero NPC demand),

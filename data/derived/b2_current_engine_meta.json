@@ -1,0 +1,1157 @@
+{
+  "by_team": {
+    "Abracadabra": {
+      "animals_at": {
+        "5": 6,
+        "10": 12,
+        "15": 12,
+        "20": 12,
+        "29": 14
+      },
+      "animals_peak": {
+        "COW": 9,
+        "GOOSE": 0,
+        "SHEEP": 5
+      },
+      "final_money_median": 75290.0,
+      "first_quadrant_day": {
+        "2": 6,
+        "3": 10,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3,
+        "10": 14,
+        "15": 9,
+        "20": 14,
+        "29": 9
+      },
+      "money_at": {
+        "5": 518.0,
+        "10": 4791.0,
+        "15": 16053.0,
+        "20": 46785.0,
+        "24": 58138.0,
+        "29": 75290.0
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2,
+          "revenue": 12534.0,
+          "tile_days": 0,
+          "units_sold": 239.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 84.0,
+          "first_sell_day": 10,
+          "revenue": 15960.0,
+          "tile_days": 190.0,
+          "units_sold": 114.0
+        },
+        "MILK": {
+          "batch_median": 8,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9,
+          "revenue": 14840.0,
+          "tile_days": 0,
+          "units_sold": 225.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 13.0,
+          "dollars_per_tile_day": 37.7,
+          "first_sell_day": 14,
+          "revenue": 21748.0,
+          "tile_days": 577.0,
+          "units_sold": 276.0
+        },
+        "WHEAT": {
+          "batch_median": 7.0,
+          "dollars_per_tile_day": 34.9,
+          "first_sell_day": 5,
+          "revenue": 19170.0,
+          "tile_days": 549.0,
+          "units_sold": 440.0
+        },
+        "WOOL": {
+          "batch_median": 8.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6,
+          "revenue": 12574.0,
+          "tile_days": 0,
+          "units_sold": 138.0
+        }
+      },
+      "quadrants_final": 3,
+      "seats": 7,
+      "tiles_at": {
+        "10": 56,
+        "15": 63,
+        "17": 63,
+        "20": 61,
+        "24": 59,
+        "27": 44,
+        "29": 2
+      }
+    },
+    "Dmitry Larko": {
+      "animals_at": {
+        "5": 6,
+        "10": 12,
+        "15": 12,
+        "20": 12,
+        "29": 13
+      },
+      "animals_peak": {
+        "COW": 10,
+        "GOOSE": 0,
+        "SHEEP": 4
+      },
+      "final_money_median": 84136.0,
+      "first_quadrant_day": {
+        "2": 6,
+        "3": 10,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3,
+        "10": 14,
+        "15": 9,
+        "20": 14,
+        "29": 10
+      },
+      "money_at": {
+        "5": 538.0,
+        "10": 5828.0,
+        "15": 17239.0,
+        "20": 49983.0,
+        "24": 67761.0,
+        "29": 84136.0
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 3.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2,
+          "revenue": 13033.0,
+          "tile_days": 0,
+          "units_sold": 241.0
+        },
+        "MELON": {
+          "batch_median": 6,
+          "dollars_per_tile_day": 88.6,
+          "first_sell_day": 10,
+          "revenue": 15954.0,
+          "tile_days": 180.0,
+          "units_sold": 108.0
+        },
+        "MILK": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9,
+          "revenue": 18304.0,
+          "tile_days": 0,
+          "units_sold": 218.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 14,
+          "dollars_per_tile_day": 47.4,
+          "first_sell_day": 14,
+          "revenue": 23770.0,
+          "tile_days": 502.0,
+          "units_sold": 245.0
+        },
+        "WHEAT": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 34.5,
+          "first_sell_day": 0,
+          "revenue": 19645.0,
+          "tile_days": 569.0,
+          "units_sold": 473.0
+        },
+        "WOOL": {
+          "batch_median": 8,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6,
+          "revenue": 8012.0,
+          "tile_days": 0,
+          "units_sold": 132.0
+        }
+      },
+      "quadrants_final": 3,
+      "seats": 11,
+      "tiles_at": {
+        "10": 55,
+        "15": 57,
+        "17": 57,
+        "20": 56,
+        "24": 56,
+        "27": 47,
+        "29": 7
+      }
+    },
+    "Ezzzzzekki": {
+      "animals_at": {
+        "5": 6,
+        "10": 12,
+        "15": 12,
+        "20": 12,
+        "29": 13
+      },
+      "animals_peak": {
+        "COW": 9,
+        "GOOSE": 0,
+        "SHEEP": 4
+      },
+      "final_money_median": 69719.0,
+      "first_quadrant_day": {
+        "2": 6,
+        "3": 10,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3,
+        "10": 14,
+        "15": 9,
+        "20": 14,
+        "29": 10
+      },
+      "money_at": {
+        "5": 518.0,
+        "10": 4852.0,
+        "15": 16220.0,
+        "20": 42848.0,
+        "24": 50019.0,
+        "29": 69719.0
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2,
+          "revenue": 12375.0,
+          "tile_days": 0,
+          "units_sold": 223.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 88.6,
+          "first_sell_day": 10,
+          "revenue": 15948.0,
+          "tile_days": 180.0,
+          "units_sold": 108.0
+        },
+        "MILK": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9,
+          "revenue": 14764.0,
+          "tile_days": 0,
+          "units_sold": 223.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 14,
+          "dollars_per_tile_day": 33.8,
+          "first_sell_day": 14,
+          "revenue": 19653.0,
+          "tile_days": 581.0,
+          "units_sold": 286.0
+        },
+        "WHEAT": {
+          "batch_median": 6,
+          "dollars_per_tile_day": 32.6,
+          "first_sell_day": 5,
+          "revenue": 18225.0,
+          "tile_days": 559.0,
+          "units_sold": 439.0
+        },
+        "WOOL": {
+          "batch_median": 10.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6,
+          "revenue": 13904.0,
+          "tile_days": 0,
+          "units_sold": 132.0
+        }
+      },
+      "quadrants_final": 3,
+      "seats": 9,
+      "tiles_at": {
+        "10": 56,
+        "15": 61,
+        "17": 61,
+        "20": 60,
+        "24": 61,
+        "27": 45,
+        "29": 1
+      }
+    },
+    "Hak": {
+      "animals_at": {
+        "5": 6.0,
+        "10": 12.0,
+        "15": 12.0,
+        "20": 12.0,
+        "29": 13.0
+      },
+      "animals_peak": {
+        "COW": 9.0,
+        "GOOSE": 0.0,
+        "SHEEP": 4.0
+      },
+      "final_money_median": 94849.5,
+      "first_quadrant_day": {
+        "2": 6.0,
+        "3": 10.0,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3.0,
+        "10": 14.0,
+        "15": 9.0,
+        "20": 14.0,
+        "29": 10.0
+      },
+      "money_at": {
+        "5": 513.5,
+        "10": 6090.5,
+        "15": 19758.5,
+        "20": 54796.5,
+        "24": 69998.0,
+        "29": 94849.5
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.5,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2.0,
+          "revenue": 12500.5,
+          "tile_days": 0.0,
+          "units_sold": 223.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 88.6,
+          "first_sell_day": 10.0,
+          "revenue": 15948.0,
+          "tile_days": 180.0,
+          "units_sold": 108.0
+        },
+        "MILK": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9.0,
+          "revenue": 25851.5,
+          "tile_days": 0.0,
+          "units_sold": 223.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 14.0,
+          "dollars_per_tile_day": 51.8,
+          "first_sell_day": 14.0,
+          "revenue": 30070.5,
+          "tile_days": 581.0,
+          "units_sold": 286.0
+        },
+        "WHEAT": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 33.2,
+          "first_sell_day": 5.0,
+          "revenue": 18534.0,
+          "tile_days": 559.0,
+          "units_sold": 439.0
+        },
+        "WOOL": {
+          "batch_median": 10.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6.0,
+          "revenue": 25442.0,
+          "tile_days": 0.0,
+          "units_sold": 132.0
+        }
+      },
+      "quadrants_final": 3.0,
+      "seats": 6,
+      "tiles_at": {
+        "10": 56.0,
+        "15": 62.0,
+        "17": 62.0,
+        "20": 60.5,
+        "24": 61.0,
+        "27": 45.0,
+        "29": 1.0
+      }
+    },
+    "Jince": {
+      "animals_at": {
+        "5": 6.0,
+        "10": 12.0,
+        "15": 12.0,
+        "20": 12.0,
+        "29": 14.0
+      },
+      "animals_peak": {
+        "COW": 9.0,
+        "GOOSE": 0.0,
+        "SHEEP": 5.0
+      },
+      "final_money_median": 88147.0,
+      "first_quadrant_day": {
+        "2": 6.0,
+        "3": 10.0,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3.0,
+        "10": 14.0,
+        "15": 9.0,
+        "20": 14.0,
+        "29": 9.0
+      },
+      "money_at": {
+        "5": 521.0,
+        "10": 4800.0,
+        "15": 16631.5,
+        "20": 48957.5,
+        "24": 66627.5,
+        "29": 88147.0
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2.0,
+          "revenue": 12519.0,
+          "tile_days": 0.0,
+          "units_sold": 239.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 84.2,
+          "first_sell_day": 10.0,
+          "revenue": 16002.0,
+          "tile_days": 190.0,
+          "units_sold": 114.0
+        },
+        "MILK": {
+          "batch_median": 8.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9.0,
+          "revenue": 23110.0,
+          "tile_days": 0.0,
+          "units_sold": 225.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 13.0,
+          "dollars_per_tile_day": 43.5,
+          "first_sell_day": 14.0,
+          "revenue": 25078.5,
+          "tile_days": 577.0,
+          "units_sold": 276.0
+        },
+        "WHEAT": {
+          "batch_median": 7.0,
+          "dollars_per_tile_day": 33.8,
+          "first_sell_day": 5.0,
+          "revenue": 18538.0,
+          "tile_days": 549.0,
+          "units_sold": 440.0
+        },
+        "WOOL": {
+          "batch_median": 8.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6.0,
+          "revenue": 14075.5,
+          "tile_days": 0.0,
+          "units_sold": 138.0
+        }
+      },
+      "quadrants_final": 3.0,
+      "seats": 6,
+      "tiles_at": {
+        "10": 56.0,
+        "15": 63.0,
+        "17": 63.0,
+        "20": 61.0,
+        "24": 59.0,
+        "27": 44.0,
+        "29": 2.0
+      }
+    },
+    "Kaito Fukami": {
+      "animals_at": {
+        "5": 6,
+        "10": 12,
+        "15": 12,
+        "20": 12,
+        "29": 13
+      },
+      "animals_peak": {
+        "COW": 9,
+        "GOOSE": 0,
+        "SHEEP": 4
+      },
+      "final_money_median": 82818.0,
+      "first_quadrant_day": {
+        "2": 6,
+        "3": 10,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3,
+        "10": 14,
+        "15": 9,
+        "20": 14,
+        "29": 10
+      },
+      "money_at": {
+        "5": 518.0,
+        "10": 4843.0,
+        "15": 17857.0,
+        "20": 48888.0,
+        "24": 62522.0,
+        "29": 82818.0
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2,
+          "revenue": 12391.0,
+          "tile_days": 0,
+          "units_sold": 223.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 84.0,
+          "first_sell_day": 10,
+          "revenue": 15960.0,
+          "tile_days": 190.0,
+          "units_sold": 114.0
+        },
+        "MILK": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9,
+          "revenue": 18827.0,
+          "tile_days": 0,
+          "units_sold": 223.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 14,
+          "dollars_per_tile_day": 38.1,
+          "first_sell_day": 14,
+          "revenue": 22137.0,
+          "tile_days": 581.0,
+          "units_sold": 286.0
+        },
+        "WHEAT": {
+          "batch_median": 6,
+          "dollars_per_tile_day": 33.6,
+          "first_sell_day": 5,
+          "revenue": 18803.0,
+          "tile_days": 559.0,
+          "units_sold": 439.0
+        },
+        "WOOL": {
+          "batch_median": 10.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6,
+          "revenue": 14039.0,
+          "tile_days": 0,
+          "units_sold": 132.0
+        }
+      },
+      "quadrants_final": 3,
+      "seats": 7,
+      "tiles_at": {
+        "10": 55,
+        "15": 62,
+        "17": 62,
+        "20": 60,
+        "24": 61,
+        "27": 45,
+        "29": 1
+      }
+    },
+    "Lev Neganov": {
+      "animals_at": {
+        "5": 6.0,
+        "10": 12.0,
+        "15": 12.0,
+        "20": 12.0,
+        "29": 13.0
+      },
+      "animals_peak": {
+        "COW": 10.0,
+        "GOOSE": 0.0,
+        "SHEEP": 4.0
+      },
+      "final_money_median": 74319.5,
+      "first_quadrant_day": {
+        "2": 6.0,
+        "3": 10.0,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3.0,
+        "10": 14.0,
+        "15": 9.0,
+        "20": 14.0,
+        "29": 10.0
+      },
+      "money_at": {
+        "5": 515.0,
+        "10": 6436.5,
+        "15": 16933.0,
+        "20": 49100.5,
+        "24": 59060.0,
+        "29": 74319.5
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 3.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2.0,
+          "revenue": 12753.0,
+          "tile_days": 0.0,
+          "units_sold": 232.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 98.2,
+          "first_sell_day": 10.0,
+          "revenue": 17674.0,
+          "tile_days": 180.0,
+          "units_sold": 108.0
+        },
+        "MILK": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9.0,
+          "revenue": 14007.0,
+          "tile_days": 0.0,
+          "units_sold": 218.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 14.0,
+          "dollars_per_tile_day": 37.0,
+          "first_sell_day": 14.0,
+          "revenue": 20895.0,
+          "tile_days": 564.0,
+          "units_sold": 275.0
+        },
+        "WHEAT": {
+          "batch_median": 4.5,
+          "dollars_per_tile_day": 33.1,
+          "first_sell_day": 5.0,
+          "revenue": 17931.5,
+          "tile_days": 541.0,
+          "units_sold": 459.0
+        },
+        "WOOL": {
+          "batch_median": 12.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6.0,
+          "revenue": 13663.5,
+          "tile_days": 0.0,
+          "units_sold": 132.0
+        }
+      },
+      "quadrants_final": 3.0,
+      "seats": 6,
+      "tiles_at": {
+        "10": 60.0,
+        "15": 61.0,
+        "17": 61.0,
+        "20": 59.0,
+        "24": 56.0,
+        "27": 40.0,
+        "29": 0.0
+      }
+    },
+    "Ueddy": {
+      "animals_at": {
+        "5": 6.0,
+        "10": 12.0,
+        "15": 12.0,
+        "20": 12.0,
+        "29": 13.0
+      },
+      "animals_peak": {
+        "COW": 9.0,
+        "GOOSE": 0.0,
+        "SHEEP": 4.0
+      },
+      "final_money_median": 94541.0,
+      "first_quadrant_day": {
+        "2": 6.0,
+        "3": 10.0,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3.0,
+        "10": 14.0,
+        "15": 9.0,
+        "20": 14.0,
+        "29": 10.0
+      },
+      "money_at": {
+        "5": 513.5,
+        "10": 4879.5,
+        "15": 18356.0,
+        "20": 57770.5,
+        "24": 69956.0,
+        "29": 94541.0
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2.0,
+          "revenue": 12681.5,
+          "tile_days": 0.0,
+          "units_sold": 224.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 86.3,
+          "first_sell_day": 10.0,
+          "revenue": 15960.0,
+          "tile_days": 185.0,
+          "units_sold": 111.0
+        },
+        "MILK": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9.0,
+          "revenue": 43680.5,
+          "tile_days": 0.0,
+          "units_sold": 223.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 14.0,
+          "dollars_per_tile_day": 45.6,
+          "first_sell_day": 14.0,
+          "revenue": 26495.0,
+          "tile_days": 581.0,
+          "units_sold": 284.0
+        },
+        "WHEAT": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 33.1,
+          "first_sell_day": 5.0,
+          "revenue": 18512.5,
+          "tile_days": 559.0,
+          "units_sold": 439.0
+        },
+        "WOOL": {
+          "batch_median": 10.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6.0,
+          "revenue": 6873.5,
+          "tile_days": 0.0,
+          "units_sold": 132.0
+        }
+      },
+      "quadrants_final": 3.0,
+      "seats": 10,
+      "tiles_at": {
+        "10": 56.0,
+        "15": 61.5,
+        "17": 61.5,
+        "20": 60.0,
+        "24": 61.0,
+        "27": 45.0,
+        "29": 1.0
+      }
+    },
+    "Valmorlee": {
+      "animals_at": {
+        "5": 6.0,
+        "10": 12.0,
+        "15": 12.0,
+        "20": 12.0,
+        "29": 14.0
+      },
+      "animals_peak": {
+        "COW": 9.0,
+        "GOOSE": 0.0,
+        "SHEEP": 5.0
+      },
+      "final_money_median": 63866.5,
+      "first_quadrant_day": {
+        "2": 6.0,
+        "3": 10.0,
+        "4": null
+      },
+      "hands_at": {
+        "5": 3.0,
+        "10": 14.0,
+        "15": 9.0,
+        "20": 14.0,
+        "29": 9.0
+      },
+      "money_at": {
+        "5": 512.0,
+        "10": 4742.0,
+        "15": 15466.0,
+        "20": 36148.5,
+        "24": 45736.0,
+        "29": 63866.5
+      },
+      "per_product": {
+        "FERTILIZER": {
+          "batch_median": 4.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 2.0,
+          "revenue": 12388.0,
+          "tile_days": 0.0,
+          "units_sold": 239.0
+        },
+        "MELON": {
+          "batch_median": 6.0,
+          "dollars_per_tile_day": 84.2,
+          "first_sell_day": 10.0,
+          "revenue": 15997.0,
+          "tile_days": 190.0,
+          "units_sold": 114.0
+        },
+        "MILK": {
+          "batch_median": 8.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 9.0,
+          "revenue": 12643.0,
+          "tile_days": 0.0,
+          "units_sold": 225.0
+        },
+        "STRAWBERRY": {
+          "batch_median": 13.0,
+          "dollars_per_tile_day": 18.3,
+          "first_sell_day": 14.0,
+          "revenue": 10533.0,
+          "tile_days": 577.0,
+          "units_sold": 276.0
+        },
+        "WHEAT": {
+          "batch_median": 7.0,
+          "dollars_per_tile_day": 32.9,
+          "first_sell_day": 5.0,
+          "revenue": 18089.5,
+          "tile_days": 549.0,
+          "units_sold": 439.5
+        },
+        "WOOL": {
+          "batch_median": 8.0,
+          "dollars_per_tile_day": null,
+          "first_sell_day": 6.0,
+          "revenue": 14084.5,
+          "tile_days": 0.0,
+          "units_sold": 138.0
+        }
+      },
+      "quadrants_final": 3.0,
+      "seats": 6,
+      "tiles_at": {
+        "10": 55.5,
+        "15": 62.5,
+        "17": 62.5,
+        "20": 61.0,
+        "24": 59.0,
+        "27": 44.0,
+        "29": 2.0
+      }
+    }
+  },
+  "engine_town_center_sell_interval": 24,
+  "losers": {
+    "animals_at": {
+      "5": 6,
+      "10": 12,
+      "15": 12,
+      "20": 12,
+      "29": 13
+    },
+    "animals_peak": {
+      "COW": 9,
+      "GOOSE": 0,
+      "SHEEP": 4
+    },
+    "final_money_median": 78705.0,
+    "first_quadrant_day": {
+      "2": 6,
+      "3": 10,
+      "4": null
+    },
+    "hands_at": {
+      "5": 3,
+      "10": 14,
+      "15": 9,
+      "20": 14,
+      "29": 10
+    },
+    "money_at": {
+      "5": 515.0,
+      "10": 4857.0,
+      "15": 16433.0,
+      "20": 46458.0,
+      "24": 58284.0,
+      "29": 78705.0
+    },
+    "per_product": {
+      "FERTILIZER": {
+        "batch_median": 4.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 2,
+        "revenue": 12375.0,
+        "tile_days": 0,
+        "units_sold": 225.0
+      },
+      "MELON": {
+        "batch_median": 6.0,
+        "dollars_per_tile_day": 84.0,
+        "first_sell_day": 10,
+        "revenue": 15954.0,
+        "tile_days": 190.0,
+        "units_sold": 114.0
+      },
+      "MILK": {
+        "batch_median": 6,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 9,
+        "revenue": 15952.0,
+        "tile_days": 0,
+        "units_sold": 223.0
+      },
+      "STRAWBERRY": {
+        "batch_median": 14,
+        "dollars_per_tile_day": 39.0,
+        "first_sell_day": 14,
+        "revenue": 22525.0,
+        "tile_days": 577.0,
+        "units_sold": 277.0
+      },
+      "WHEAT": {
+        "batch_median": 6,
+        "dollars_per_tile_day": 33.0,
+        "first_sell_day": 5,
+        "revenue": 18469.0,
+        "tile_days": 559.0,
+        "units_sold": 439.0
+      },
+      "WOOL": {
+        "batch_median": 10.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 6,
+        "revenue": 9904.0,
+        "tile_days": 0,
+        "units_sold": 132.0
+      }
+    },
+    "quadrants_final": 3,
+    "seats": 57,
+    "tiles_at": {
+      "10": 56,
+      "15": 61,
+      "17": 61,
+      "20": 60,
+      "24": 60,
+      "27": 45,
+      "29": 1
+    }
+  },
+  "population": {
+    "animals_at": {
+      "5": 6.0,
+      "10": 12.0,
+      "15": 12.0,
+      "20": 12.0,
+      "29": 13.0
+    },
+    "animals_peak": {
+      "COW": 9.0,
+      "GOOSE": 0.0,
+      "SHEEP": 4.0
+    },
+    "final_money_median": 82747.0,
+    "first_quadrant_day": {
+      "2": 6.0,
+      "3": 10.0,
+      "4": null
+    },
+    "hands_at": {
+      "5": 3.0,
+      "10": 14.0,
+      "15": 9.0,
+      "20": 14.0,
+      "29": 10.0
+    },
+    "money_at": {
+      "5": 516.0,
+      "10": 4863.0,
+      "15": 16719.5,
+      "20": 48559.5,
+      "24": 63128.5,
+      "29": 82747.0
+    },
+    "per_product": {
+      "FERTILIZER": {
+        "batch_median": 4.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 2.0,
+        "revenue": 12400.0,
+        "tile_days": 0.0,
+        "units_sold": 224.0
+      },
+      "MELON": {
+        "batch_median": 6.0,
+        "dollars_per_tile_day": 88.7,
+        "first_sell_day": 10.0,
+        "revenue": 15960.0,
+        "tile_days": 180.0,
+        "units_sold": 108.0
+      },
+      "MILK": {
+        "batch_median": 6.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 9.0,
+        "revenue": 16856.0,
+        "tile_days": 0.0,
+        "units_sold": 223.0
+      },
+      "STRAWBERRY": {
+        "batch_median": 14.0,
+        "dollars_per_tile_day": 39.7,
+        "first_sell_day": 14.0,
+        "revenue": 22903.0,
+        "tile_days": 577.0,
+        "units_sold": 279.0
+      },
+      "WHEAT": {
+        "batch_median": 6.0,
+        "dollars_per_tile_day": 32.9,
+        "first_sell_day": 5.0,
+        "revenue": 18418.5,
+        "tile_days": 559.0,
+        "units_sold": 439.0
+      },
+      "WOOL": {
+        "batch_median": 10.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 6.0,
+        "revenue": 10796.0,
+        "tile_days": 0.0,
+        "units_sold": 132.0
+      }
+    },
+    "quadrants_final": 3.0,
+    "seats": 120,
+    "tiles_at": {
+      "10": 56.0,
+      "15": 61.5,
+      "17": 61.5,
+      "20": 60.0,
+      "24": 61.0,
+      "27": 45.0,
+      "29": 1.0
+    }
+  },
+  "winners": {
+    "animals_at": {
+      "5": 6,
+      "10": 12,
+      "15": 12,
+      "20": 12,
+      "29": 13
+    },
+    "animals_peak": {
+      "COW": 9,
+      "GOOSE": 0,
+      "SHEEP": 4
+    },
+    "final_money_median": 83807.0,
+    "first_quadrant_day": {
+      "2": 6,
+      "3": 10,
+      "4": null
+    },
+    "hands_at": {
+      "5": 3,
+      "10": 14,
+      "15": 9,
+      "20": 14,
+      "29": 10
+    },
+    "money_at": {
+      "5": 516.0,
+      "10": 4873.0,
+      "15": 16988.0,
+      "20": 49474.0,
+      "24": 63367.0,
+      "29": 83807.0
+    },
+    "per_product": {
+      "FERTILIZER": {
+        "batch_median": 4.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 2,
+        "revenue": 12507.0,
+        "tile_days": 0,
+        "units_sold": 224.0
+      },
+      "MELON": {
+        "batch_median": 6.0,
+        "dollars_per_tile_day": 88.7,
+        "first_sell_day": 10,
+        "revenue": 15960.0,
+        "tile_days": 180.0,
+        "units_sold": 108.0
+      },
+      "MILK": {
+        "batch_median": 6,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 9,
+        "revenue": 17673.0,
+        "tile_days": 0,
+        "units_sold": 223.0
+      },
+      "STRAWBERRY": {
+        "batch_median": 14,
+        "dollars_per_tile_day": 39.5,
+        "first_sell_day": 14,
+        "revenue": 22975.0,
+        "tile_days": 581.0,
+        "units_sold": 284.0
+      },
+      "WHEAT": {
+        "batch_median": 6,
+        "dollars_per_tile_day": 33.3,
+        "first_sell_day": 5,
+        "revenue": 18599.0,
+        "tile_days": 559.0,
+        "units_sold": 439.0
+      },
+      "WOOL": {
+        "batch_median": 10.0,
+        "dollars_per_tile_day": null,
+        "first_sell_day": 6,
+        "revenue": 10558.0,
+        "tile_days": 0,
+        "units_sold": 132.0
+      }
+    },
+    "quadrants_final": 3,
+    "seats": 57,
+    "tiles_at": {
+      "10": 56,
+      "15": 61,
+      "17": 61,
+      "20": 60,
+      "24": 61,
+      "27": 45,
+      "29": 1
+    }
+  }
+}

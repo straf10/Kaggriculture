@@ -35,7 +35,8 @@ Kaggle loader expects; `main.py` is the packaged submission entrypoint.
 | `analysis/` | One-off scripts that turn replays / ladder downloads into diagnostics (kept for reproducibility, not re-run on a schedule) |
 | `tests/` | Guard tests for the agent, engine-fact tripwires, and harness unit tests |
 | `engine_reference/` | Read-only mirror of the installed `kaggle-environments` engine, used for line-accurate references in docs (never imported by tests or the agent) |
-| `docs/` | Strategy notes ([`MASTERPLAN.md`](docs/MASTERPLAN.md)), curated engine/market reference, and dated meta/ladder snapshots — see [`docs/INDEX.md`](docs/INDEX.md) |
+| `docs/` | Curated engine/market reference and dated meta/ladder snapshots — see [`docs/INDEX.md`](docs/INDEX.md) |
+| `ROADMAP.md` | Strategy, measurement protocol, and the current hypothesis list |
 | `main.py` | Kaggle submission entrypoint (`tar -czf submission.tar.gz main.py agent/`) |
 
 Generated artifacts — episode replays, gate/comparison results, versioned agent checkpoints,
@@ -62,8 +63,12 @@ python -m pytest tests/
 
 ## Status
 
-This is an active competition entry; the live strategy notes and current work-in-progress are
-tracked in [`docs/MASTERPLAN.md`](docs/MASTERPLAN.md) and [`current_phase.md`](current_phase.md).
+This is an active competition entry. Strategy, measurement protocol, carried-forward findings, and
+the current hypothesis list all live in one place: [`ROADMAP.md`](ROADMAP.md). Start at
+[`docs/INDEX.md`](docs/INDEX.md) to find anything else.
+
+*(`docs/MASTERPLAN.md` and `current_phase.md` were retired on 2026-08-11 in favour of that single
+roadmap; their history is in git.)*
 
 ## License
 

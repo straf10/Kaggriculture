@@ -1,7 +1,7 @@
 # economics.md — τι αποδίδει το κάθε τι
 
-> **Ο πίνακας αποφάσεων.** Κάθε αριθμός εδώ έχει πηγή· τα `viz cell N` είναι τα κελιά που ήδη
-> παραπέμπει το [MASTERPLAN](docs/MASTERPLAN.md) και ζουν πλήρη στο
+> **Ο πίνακας αποφάσεων.** Κάθε αριθμός εδώ έχει πηγή· τα `viz cell N` είναι κελιά που ζουν πλήρη
+> στο
 > [source/notebooks/kaggriculture-visualized-what-every-crop-pays.md](docs/source/notebooks/kaggriculture-visualized-what-every-crop-pays.md).
 > Οι κανόνες πίσω από τους αριθμούς: [engine_deltas.md](docs/reference/engine_deltas.md). Οι τιμές πώλησης δεν
 > είναι σταθερές — δες [market.md](docs/reference/market.md) πριν πιστέψεις οποιοδήποτε "revenue" παρακάτω.

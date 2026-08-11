@@ -5,13 +5,14 @@
 > Πηγές: [source/discussion.md](docs/source/discussion.md) (community + επίσημες απαντήσεις),
 > [source/competition_info.md](docs/source/competition_info.md), το
 > [engine_reference/README.md](engine_reference/README.md) και το ίδιο το
-> `engine_reference/kaggriculture.py` (pinned στο `kaggle-environments==1.32.5`).
+> `engine_reference/kaggriculture.py` (pinned στο **`kaggle-environments==1.32.6`**).
 >
 > **Πριν γράψεις οποιαδήποτε λογική agent, αυτό το αρχείο διαβάζεται πρώτο.** Το
-> [MASTERPLAN §1](docs/MASTERPLAN.md) περιέχει τη στρατηγική περίληψη των κανόνων· εδώ είναι μόνο τα
+> [ROADMAP.md](ROADMAP.md) §3.1 δίνει τη στρατηγική περίληψη· εδώ είναι μόνο τα
 > σημεία όπου η αφελής ανάγνωση των docs παράγει **λάθος agent**.
 >
-> Τελευταία ενημέρωση: **2026-08-07** (v1g.1 engine bump 1.32.4→1.32.5, D26).
+> Τελευταία ενημέρωση: **2026-08-11** (καταγραφή του bump 1.32.5→1.32.6, D27· επαλήθευση
+> εγκατεστημένης έκδοσης, byte-ισότητας `engine_reference/` και `pytest tests/` 226 passed).
 
 ## Πώς διαβάζεται το status
 
@@ -48,6 +49,7 @@
 | D14 | **Δικό μας ρίσκο, όχι της μηχανής:** guard τύπου «μην πατάς locked tile» σπαταλά **25/69 worker-turns** έναντι 3-4/69 χωρίς αυτόν, και αφήνει hand εκτός φάρμας τη νύχτα | 📖 DOCUMENTED (viz cell 24) | — |
 | D15 | Τα invalid actions είναι **σιωπηλά no-ops** — το engine δεν πετάει ποτέ σφάλμα. Ό,τι δεν δοκιμαστεί τοπικά, δεν θα το μάθεις ποτέ από τον server | 📖 DOCUMENTED | — |
 | D26 | **[1.32.5]** `PICKUP`/`DROP`/`PLACE`-into-shed παλιά (1.32.4) no-op-αραν σε `LOCKED` shed-access tile (guard έτρεχε πριν). Από 1.32.5 λύνονται **πριν** το `LOCKED` guard — δουλεύουν και στα 4 SHED_ACCESS tiles ανεξαρτήτως lock. `agent/scheduler.py`'s hardcoded `access=(4,4)`/`SHED_ACCESS[0]` δεν είναι πια bug, απλά sub-optimal routing (1-2 turns/διαδρομή) — δοκιμάστηκε fix στο v1g.1, **μετρήθηκε net-negative** λόγω αλληλεπίδρασης με το `assign()`'s urgency/slack sort key (βλ. current_phase.md §v1g.1 note (θ)), reverted | ✅ TESTED (`test_engine_reference_matches_installed` tripwire + `pytest tests/` 139/139 clean μετά το bump) | — |
+| D27 | **[1.32.6 — η ανακοινωμένη balance change, ΖΩΝΤΑΝΗ]** Τρεις αλλαγές, όλες επαληθευμένες **στο εγκατεστημένο πακέτο** (2026-08-11): **(α)** το `TOWN_CENTER_DEMAND_SCHEDULE` (`[(20,4),(10,2),(0,1)]`) **διαγράφηκε** — το `_town_consume` κάνει πλέον flat `-= 1` ανά προϊόν· **(β)** `townCenterSellInterval` json default **12 → 24** (1 tick/μέρα αντί 2)· **(γ)** το shop unlock έχασε το `remaining = [s for s in SHOPS if s not in unlocked]` φίλτρο — τα shops κληρώνονται **με επανάθεση**, με νέα σταθερά `MAX_SHOP_INSTANCES = 8`, και **κάθε instance καταναλώνει ανεξάρτητα**. Αριθμητικά: town centre **140 → 30 μονάδες/προϊόν/σεζόν (−79%)**, με −87,5% ακριβώς στις μέρες 20-29· `E[διακριτοί τύποι shop] = 8·(1−(7/8)⁸) = 5,25`· `P(τύπος απών) = (7/8)⁸ = 34,4%`· `P(και οι 8 παρόντες) = 8!/8⁸ = 0,24%`. **Καμία άλλη αλλαγή** έναντι 1.32.5: `MARKET_PARAMS`, τιμές, cliffs, `_spawn_weeds`, `TOWN_CENTER_PRODUCTS` byte-identical. ⚠️ Πρακτικές συνέπειες: το **MELON** (0/8 shops) εξαρτάται 100% από ένα town centre που έχασε το 79% της απορρόφησής του· το `town_pin='schedule'` του harness δειγματίζει πλέον κατανομή που εμφανίζεται στο **0,24%** των επεισοδίων (χρησιμοποίησε `basket`)· και το «κράτα και πούλα αργά» **έπαψε να ισχύει** — η καμπύλη ζήτησης είναι επίπεδη | ✅ TESTED (`test_engine_reference_matches_installed` byte tripwire + `tests/test_engine_facts.py:535` `townCenterSellInterval == 24` + `tests/test_agent_guards.py:124` για την απουσία του `TOWN_CENTER_DEMAND_SCHEDULE`· `pytest tests/` **226 passed** στις 2026-08-11) | — |
 
 ## 3. Αγορά & orders
 
@@ -90,4 +92,9 @@
 
 Ό,τι κοκκινίσει **είναι** η αλλαγή. Επιπλέον, το `test_engine_reference_matches_installed`
 συγκρίνει byte-προς-byte το `engine_reference/` με το εγκατεστημένο πακέτο — αν αυτό σπάσει,
-**κάθε line reference σε MASTERPLAN/plan.md έχει σιωπηλά μετακινηθεί** και πρέπει να ελεγχθεί.
+**κάθε line reference σε docs/ και σε σχόλια κώδικα έχει σιωπηλά μετακινηθεί** και πρέπει να
+ελεγχθεί.
+
+⚠️ Το `pip install -U` παραπάνω **δεν τρέχει ποτέ ενώ τρέχει gate** — ακυρώνει τη σύγκριση. Ο
+detector χωρίς install (`pip index versions` → `pip download --no-deps --no-binary :all:` →
+`diff` του `.py` **και** του `.json`) είναι στο [ROADMAP §2.1.7](ROADMAP.md).

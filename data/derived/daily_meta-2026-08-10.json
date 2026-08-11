@@ -1,0 +1,281 @@
+{
+  "episode_date": "2026-08-10",
+  "band": {
+    "min_elo": 3100,
+    "max_elo": null
+  },
+  "n_episodes": 207,
+  "n_players": 414,
+  "money": {
+    "median": 82237.0,
+    "max": 155241.0
+  },
+  "modal": {
+    "crops": {
+      "WHEAT": 1
+    },
+    "animals": {
+      "COW": 9,
+      "SHEEP": 4
+    },
+    "hands": 10,
+    "land": [
+      "NE",
+      "NW",
+      "SW"
+    ],
+    "share": 0.287
+  },
+  "top_comps": [
+    {
+      "crops": {
+        "WHEAT": 1
+      },
+      "animals": {
+        "COW": 9,
+        "SHEEP": 4
+      },
+      "hands": 10,
+      "land": [
+        "NE",
+        "NW",
+        "SW"
+      ],
+      "count": 119
+    },
+    {
+      "crops": {
+        "WHEAT": 2
+      },
+      "animals": {
+        "COW": 9,
+        "SHEEP": 5
+      },
+      "hands": 9,
+      "land": [
+        "NE",
+        "NW",
+        "SW"
+      ],
+      "count": 106
+    },
+    {
+      "crops": {
+        "WHEAT": 3
+      },
+      "animals": {
+        "COW": 8,
+        "SHEEP": 4
+      },
+      "hands": 10,
+      "land": [
+        "NE",
+        "NW",
+        "SW"
+      ],
+      "count": 16
+    },
+    {
+      "crops": {
+        "WHEAT": 2
+      },
+      "animals": {
+        "COW": 9,
+        "SHEEP": 1
+      },
+      "hands": 9,
+      "land": [
+        "NE",
+        "NW",
+        "SW"
+      ],
+      "count": 14
+    },
+    {
+      "crops": {
+        "WHEAT": 2
+      },
+      "animals": {
+        "COW": 8,
+        "SHEEP": 6
+      },
+      "hands": 9,
+      "land": [
+        "NE",
+        "NW",
+        "SW"
+      ],
+      "count": 13
+    }
+  ],
+  "sell_timing": {
+    "FERTILIZER": {
+      "first_day": 4,
+      "avg_batch": 4.8,
+      "orders": 414
+    },
+    "WHEAT": {
+      "first_day": 8,
+      "avg_batch": 12.3,
+      "orders": 414
+    },
+    "WOOL": {
+      "first_day": 6,
+      "avg_batch": 9.1,
+      "orders": 414
+    },
+    "MILK": {
+      "first_day": 11,
+      "avg_batch": 7.1,
+      "orders": 414
+    },
+    "MELON": {
+      "first_day": 10,
+      "avg_batch": 7.3,
+      "orders": 414
+    },
+    "STRAWBERRY": {
+      "first_day": 14,
+      "avg_batch": 14.1,
+      "orders": 414
+    },
+    "CARROT": {
+      "first_day": 27,
+      "avg_batch": 8.0,
+      "orders": 4
+    }
+  },
+  "build_order": {
+    "first_land_order_median": 6,
+    "first_hire_order_median": 0,
+    "first_cow_order_median": 0,
+    "first_sheep_order_median": 0,
+    "early_crops": {
+      "WHEAT": 4544,
+      "MELON": 2034,
+      "STRAWBERRY": 1205,
+      "CARROT": 16
+    },
+    "money_curve_median": {
+      "5": 543.0,
+      "10": 2222.0,
+      "15": 11400.0,
+      "20": 37476.0
+    }
+  },
+  "by_outcome": {
+    "winners": {
+      "n_players": 200,
+      "money_median": 83807.0,
+      "build_order": {
+        "first_land_order_median": 6,
+        "first_hire_order_median": 0,
+        "first_cow_order_median": 0,
+        "first_sheep_order_median": 0,
+        "early_crops": {
+          "WHEAT": 2184,
+          "MELON": 1000,
+          "STRAWBERRY": 604,
+          "CARROT": 4
+        }
+      },
+      "sell_timing": {
+        "FERTILIZER": {
+          "first_day": 4,
+          "avg_batch": 4.9,
+          "orders": 200
+        },
+        "WHEAT": {
+          "first_day": 8,
+          "avg_batch": 12.4,
+          "orders": 200
+        },
+        "WOOL": {
+          "first_day": 6,
+          "avg_batch": 9.4,
+          "orders": 200
+        },
+        "MILK": {
+          "first_day": 11,
+          "avg_batch": 7.2,
+          "orders": 200
+        },
+        "MELON": {
+          "first_day": 10,
+          "avg_batch": 7.3,
+          "orders": 200
+        },
+        "STRAWBERRY": {
+          "first_day": 14,
+          "avg_batch": 14.6,
+          "orders": 200
+        },
+        "CARROT": {
+          "first_day": 23,
+          "avg_batch": 10.1,
+          "orders": 1
+        }
+      }
+    },
+    "losers": {
+      "n_players": 200,
+      "money_median": 78705.0,
+      "build_order": {
+        "first_land_order_median": 6,
+        "first_hire_order_median": 0,
+        "first_cow_order_median": 0,
+        "first_sheep_order_median": 0,
+        "early_crops": {
+          "WHEAT": 2206,
+          "MELON": 964,
+          "STRAWBERRY": 559,
+          "CARROT": 12
+        }
+      },
+      "sell_timing": {
+        "FERTILIZER": {
+          "first_day": 4,
+          "avg_batch": 4.6,
+          "orders": 200
+        },
+        "WHEAT": {
+          "first_day": 8,
+          "avg_batch": 12.3,
+          "orders": 200
+        },
+        "WOOL": {
+          "first_day": 6,
+          "avg_batch": 8.8,
+          "orders": 200
+        },
+        "MILK": {
+          "first_day": 11,
+          "avg_batch": 7.0,
+          "orders": 200
+        },
+        "MELON": {
+          "first_day": 10,
+          "avg_batch": 7.4,
+          "orders": 200
+        },
+        "STRAWBERRY": {
+          "first_day": 15,
+          "avg_batch": 13.6,
+          "orders": 200
+        },
+        "CARROT": {
+          "first_day": 27,
+          "avg_batch": 7.3,
+          "orders": 3
+        }
+      }
+    }
+  },
+  "score_dist": {
+    "count": 207,
+    "min": 3100.008603,
+    "median": 3127.917376,
+    "mean": 3135.6,
+    "max": 3217.352596
+  }
+}

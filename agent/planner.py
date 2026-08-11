@@ -238,13 +238,18 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
         if strawberry_target:
             strawberry_target += int(planner_config.get("ne_strawberry_tiles", 0))
     # v1h' (current_phase.md §v1h'): SW's WHEAT, gated on three things beyond the unlock.
-    # `snapshot.day > strawberry_last_plant_day` is the load-bearing one: _capacity_limited_
-    # targets trims whichever crop currently has the *largest* target, so a WHEAT target that
-    # appeared while STRAWBERRY was still being planted would be trimmed out of STRAWBERRY's
-    # budget instead of its own (STRAWBERRY's floor — what is already in the ground — only
-    # protects tiles that are planted *already*). STRAWBERRY has a hard planting deadline and
-    # WHEAT does not, so WHEAT waits. In practice SW is not affordable that early anyway; this
-    # keeps that a fact about the config rather than a fact about the bank balance.
+    # `wheat_first_plant_day` is the load-bearing one: _capacity_limited_targets trims whichever
+    # crop currently has the *largest* target, so a WHEAT target that appeared while STRAWBERRY
+    # was still being planted would be trimmed out of STRAWBERRY's budget instead of its own
+    # (STRAWBERRY's floor — what is already in the ground — only protects tiles that are planted
+    # *already*). STRAWBERRY has a hard planting deadline and WHEAT does not, so WHEAT waits.
+    # In practice SW is not affordable that early anyway; this keeps that a fact about the config
+    # rather than a fact about the bank balance.
+    #
+    # v1o.1: this used to read `snapshot.day > strawberry_last_plant_day`, which coupled the two
+    # windows — extending STRAWBERRY's replant window (the v1o.1 increment) would have moved
+    # WHEAT's first plant day with it and emptied SW for the season. `wheat_first_plant_day`
+    # defaults to the day that expression produced at the old strawberry_last_plant_day of 5.
     sw_land_unlocked = config.get("land", {}).get("enabled", False) and "SW" in snapshot.my_quadrants
     # The last WHEAT that can still be planted goes in on wheat_last_plant_day and is
     # harvest-ready max_yield_day later; after that SW is empty for the rest of the season.
@@ -256,7 +261,7 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
         if (
             sw_land_unlocked
             and phase != "LIQUIDATE"
-            and snapshot.day > int(planner_config["strawberry_last_plant_day"])
+            and snapshot.day >= int(planner_config.get("wheat_first_plant_day", 6))
             and snapshot.day <= int(planner_config.get("wheat_last_plant_day", 0))
         )
         else 0
@@ -309,9 +314,17 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
         # it alone: 8 hands without SW escaped 0 animals, and SW with 6 hands escaped 0. The
         # endgame is exactly the phase v1g's feed logistics were tuned for at 6 hands, so it
         # gets 6 hands back.
+        #
+        # v1o.2: the "drops back to 6" half is now its own knob, `endgame_hands_target`, and it
+        # only applies once SW's work is done — before SW exists the pre-SW `hands_target` is
+        # still what the crew is sized to. Splitting it is what makes the endgame crew screenable
+        # apart from the mid-season crew; at endgame_hands_target=6 this is the v1h' behaviour
+        # unchanged.
         hands_target=int(
             planner_config["sw_hands_target"]
             if sw_land_unlocked and snapshot.day <= sw_work_last_day
+            else planner_config["endgame_hands_target"]
+            if sw_land_unlocked
             else planner_config["hands_target"]
         ),
         sell_floor_price=_dynamic_sell_floors(

@@ -1,0 +1,375 @@
+{
+  "crew_size_ramp": {
+    "d10": {
+      "max": 14,
+      "median": 14,
+      "min": 14,
+      "n": 9,
+      "population_median": 14.0,
+      "std": 0.0
+    },
+    "d15": {
+      "max": 9,
+      "median": 9,
+      "min": 9,
+      "n": 9,
+      "population_median": 9.0,
+      "std": 0.0
+    },
+    "d20": {
+      "max": 14,
+      "median": 14,
+      "min": 14,
+      "n": 9,
+      "population_median": 14.0,
+      "std": 0.0
+    },
+    "d29": {
+      "max": 10,
+      "median": 10.0,
+      "min": 9,
+      "n": 9,
+      "population_median": 10.0,
+      "std": 0.47
+    },
+    "d5": {
+      "max": 3,
+      "median": 3,
+      "min": 3,
+      "n": 9,
+      "population_median": 3.0,
+      "std": 0.0
+    }
+  },
+  "engine_town_center_sell_interval": 24,
+  "gate": {
+    "passed": true,
+    "requirement": "profile reproduces across >=6 teams with a stated spread (ROADMAP S1)",
+    "teams_used": 9
+  },
+  "herd_composition_peak": {
+    "COW": {
+      "max": 10.0,
+      "median": 9.0,
+      "min": 9,
+      "n": 9,
+      "population_median": 9.0,
+      "std": 0.42
+    },
+    "GOOSE": {
+      "max": 0,
+      "median": 0,
+      "min": 0,
+      "n": 9,
+      "population_median": 0.0,
+      "std": 0.0
+    },
+    "SHEEP": {
+      "max": 5,
+      "median": 4.0,
+      "min": 4,
+      "n": 9,
+      "population_median": 4.0,
+      "std": 0.47
+    }
+  },
+  "herd_size_ramp": {
+    "d10": {
+      "max": 12,
+      "median": 12,
+      "min": 12,
+      "n": 9,
+      "population_median": 12.0,
+      "std": 0.0
+    },
+    "d15": {
+      "max": 12,
+      "median": 12,
+      "min": 12,
+      "n": 9,
+      "population_median": 12.0,
+      "std": 0.0
+    },
+    "d20": {
+      "max": 12,
+      "median": 12,
+      "min": 12,
+      "n": 9,
+      "population_median": 12.0,
+      "std": 0.0
+    },
+    "d29": {
+      "max": 14,
+      "median": 13.0,
+      "min": 13,
+      "n": 9,
+      "population_median": 13.0,
+      "std": 0.47
+    },
+    "d5": {
+      "max": 6,
+      "median": 6,
+      "min": 6,
+      "n": 9,
+      "population_median": 6.0,
+      "std": 0.0
+    }
+  },
+  "n_teams": 9,
+  "planted_tiles": {
+    "d10": {
+      "max": 60.0,
+      "median": 56,
+      "min": 55,
+      "n": 9,
+      "population_median": 56.0,
+      "std": 1.41
+    },
+    "d15": {
+      "max": 63,
+      "median": 62.0,
+      "min": 57,
+      "n": 9,
+      "population_median": 61.5,
+      "std": 1.72
+    },
+    "d17": {
+      "max": 63,
+      "median": 62.0,
+      "min": 57,
+      "n": 9,
+      "population_median": 61.5,
+      "std": 1.72
+    },
+    "d20": {
+      "max": 61,
+      "median": 60,
+      "min": 56,
+      "n": 9,
+      "population_median": 60.0,
+      "std": 1.49
+    },
+    "d24": {
+      "max": 61,
+      "median": 59.0,
+      "min": 56.0,
+      "n": 9,
+      "population_median": 61.0,
+      "std": 1.93
+    },
+    "d27": {
+      "max": 47,
+      "median": 45,
+      "min": 40.0,
+      "n": 9,
+      "population_median": 45.0,
+      "std": 1.76
+    },
+    "d29": {
+      "max": 7,
+      "median": 1,
+      "min": 0.0,
+      "n": 9,
+      "population_median": 1.0,
+      "std": 1.91
+    }
+  },
+  "quadrants": {
+    "final_count": {
+      "max": 3,
+      "median": 3,
+      "min": 3,
+      "n": 9,
+      "population_median": 3.0,
+      "std": 0.0
+    },
+    "first_extra_quadrant_day": {
+      "max": 6,
+      "median": 6,
+      "min": 6,
+      "n": 9,
+      "population_median": 6.0,
+      "std": 0.0
+    },
+    "third_quadrant_day": {
+      "max": 10,
+      "median": 10,
+      "min": 10,
+      "n": 9,
+      "population_median": 10.0,
+      "std": 0.0
+    }
+  },
+  "sell_calendar": {
+    "FERTILIZER": {
+      "batch_median": {
+        "max": 4.5,
+        "median": 4.0,
+        "min": 3.0,
+        "n": 9,
+        "population_median": 4.0,
+        "std": 0.47
+      },
+      "first_sell_day": {
+        "max": 2,
+        "median": 2,
+        "min": 2,
+        "n": 9,
+        "population_median": 2.0,
+        "std": 0.0
+      }
+    },
+    "MELON": {
+      "batch_median": {
+        "max": 6.0,
+        "median": 6,
+        "min": 6.0,
+        "n": 9,
+        "population_median": 6.0,
+        "std": 0.0
+      },
+      "first_sell_day": {
+        "max": 10,
+        "median": 10,
+        "min": 10,
+        "n": 9,
+        "population_median": 10.0,
+        "std": 0.0
+      }
+    },
+    "MILK": {
+      "batch_median": {
+        "max": 8,
+        "median": 6.0,
+        "min": 6.0,
+        "n": 9,
+        "population_median": 6.0,
+        "std": 0.94
+      },
+      "first_sell_day": {
+        "max": 9,
+        "median": 9,
+        "min": 9,
+        "n": 9,
+        "population_median": 9.0,
+        "std": 0.0
+      }
+    },
+    "STRAWBERRY": {
+      "batch_median": {
+        "max": 14,
+        "median": 14.0,
+        "min": 13.0,
+        "n": 9,
+        "population_median": 14.0,
+        "std": 0.47
+      },
+      "first_sell_day": {
+        "max": 14,
+        "median": 14,
+        "min": 14,
+        "n": 9,
+        "population_median": 14.0,
+        "std": 0.0
+      }
+    },
+    "WHEAT": {
+      "batch_median": {
+        "max": 7.0,
+        "median": 6.0,
+        "min": 4.5,
+        "n": 9,
+        "population_median": 6.0,
+        "std": 0.75
+      },
+      "first_sell_day": {
+        "max": 5,
+        "median": 5.0,
+        "min": 0,
+        "n": 9,
+        "population_median": 5.0,
+        "std": 1.57
+      }
+    },
+    "WOOL": {
+      "batch_median": {
+        "max": 12.0,
+        "median": 10.0,
+        "min": 8.0,
+        "n": 9,
+        "population_median": 10.0,
+        "std": 1.33
+      },
+      "first_sell_day": {
+        "max": 6,
+        "median": 6,
+        "min": 6,
+        "n": 9,
+        "population_median": 6.0,
+        "std": 0.0
+      }
+    }
+  },
+  "source_ids_file": "C:/Users/nikos/AppData/Local/Temp/claude/c--Python-Kaggriculture/396bfdac-e37c-4097-88d1-2c065b965caa/scratchpad/daily_0810_ids.txt",
+  "teams": [
+    "Abracadabra",
+    "Dmitry Larko",
+    "Ezzzzzekki",
+    "Hak",
+    "Jince",
+    "Kaito Fukami",
+    "Lev Neganov",
+    "Ueddy",
+    "Valmorlee"
+  ],
+  "tile_days_per_crop": {
+    "MELON": {
+      "dollars_per_tile_day_population": 88.7,
+      "dollars_per_tile_day_spread": {
+        "max": 98.2,
+        "median": 86.3,
+        "min": 84.0,
+        "n": 9,
+        "std": 4.29
+      },
+      "max": 190.0,
+      "median": 185.0,
+      "min": 180.0,
+      "n": 9,
+      "population_median": 180.0,
+      "std": 4.71
+    },
+    "STRAWBERRY": {
+      "dollars_per_tile_day_population": 39.7,
+      "dollars_per_tile_day_spread": {
+        "max": 51.8,
+        "median": 38.1,
+        "min": 18.3,
+        "n": 9,
+        "std": 9.19
+      },
+      "max": 581.0,
+      "median": 577.0,
+      "min": 502.0,
+      "n": 9,
+      "population_median": 577.0,
+      "std": 24.23
+    },
+    "WHEAT": {
+      "dollars_per_tile_day_population": 32.9,
+      "dollars_per_tile_day_spread": {
+        "max": 34.9,
+        "median": 33.2,
+        "min": 32.6,
+        "n": 9,
+        "std": 0.72
+      },
+      "max": 569.0,
+      "median": 559.0,
+      "min": 541.0,
+      "n": 9,
+      "population_median": 559.0,
+      "std": 7.91
+    }
+  }
+}

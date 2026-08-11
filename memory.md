@@ -2,11 +2,408 @@
 
 > Internal project memory, updated at the end of each working session. Newest entry on top.
 > Purpose: let a fresh session (human or assistant) pick up context fast — what changed, why,
-> and what's next — without re-reading the whole git history. Strategy/rules live in
-> [docs/MASTERPLAN.md](docs/MASTERPLAN.md); the current execution plan lives in
-> [current_phase.md](current_phase.md) (the old `plan.md`, Φάσεις 0-1, was deleted 2026-08-06 —
-> its full history lives in git).
-> This file only records **what happened**, not decisions that belong in those two.
+> and what's next — without re-reading the whole git history. Strategy, measurement protocol and
+> the current plan all live in [ROADMAP.md](ROADMAP.md) (which replaced `docs/MASTERPLAN.md` +
+> `current_phase.md` on 2026-08-11; `plan.md` had already gone on 2026-08-06 — full history in git).
+> This file only records **what happened**, not decisions that belong there.
+
+---
+
+## 2026-08-11 (β) — Session: **ROADMAP §4.3 S3 βήμα 1 — πρώτες αλλαγές σε `agent/` μετά το reset· `v1o_1` ✅ + `v1o_2` ✅ (GO=True και τα δύο), `sw_hands_target=12` ⛔ STOP**
+
+**Εντολή:** υλοποίηση του S3 βήματος 1 («production to profile»), με το πλήρες πρωτόκολλο §2.
+Πλήρες report: [baselines/2026-08-11/s3_step1_report.md](baselines/2026-08-11/s3_step1_report.md)
+(τοπικό, gitignored). `pytest tests/`: **226 → 229 passed**. Ζωντανό `main.py` ≡
+`checkpoints/v1o_2` (`774e5f6fb8d7fd83…`). **Καμία υποβολή στο Kaggle** (το S4 είναι άλλη
+συνεδρία).
+
+### E0 — το διαγνωστικό πριν από κάθε αλλαγή (νέο `analysis/e0_s3_blockers.py`)
+
+Ξαναπερνά κάθε παρατήρηση ώρας-0 μέσα από το `make_day_plan` και καταγράφει τους **raw** στόχους
+δίπλα στο τι έδειξε πραγματικά η φάρμα. 4 seeds × **και τις δύο θέσεις** vs `meta_route`.
+Επαλήθευση ότι μετράει το ίδιο πράγμα με το L2: `crop_tile_days` **413** (L2: 415), idle
+**28,1%** (L2: 27,8%).
+
+1. **Το πλήρωμα δεν το φρενάρουν τα λεφτά.** `days_hands_below_target` **κενό και στα 8 runs** —
+   ο στόχος πιάνεται **κάθε μέρα**. Το ταβάνι είναι η σταθερά `sw_hands_target`, όχι το fib().
+2. **Το idle δεν είναι ανταγωνισμός, είναι έλλειψη δουλειάς.** Το capacity gate κόβει **μόνο**
+   τις μέρες 0,1,2,11,12,13,16 — σε όλο το παράθυρο d14-d24 δίνει ό,τι ζητηθεί.
+3. **Το «κλείσιμο της φάρμας τη d17» είναι ΜΙΑ σταθερά.** `strawberry_last_plant_day = 5` ⇒ ο
+   raw στόχος STRAWBERRY μηδενίζεται τη **μέρα 6** και δεν ξαναγυρνά· τα 8 tiles των d0-5
+   σαπίζουν σε WEED γύρω στις d17-21 και **δεν ξαναφυτεύεται τίποτα** (ούτε DIG βγαίνει, γιατί
+   ο στόχος είναι 0). Κορυφή **26** φυτεμένα tiles, d20 **18**, d24 **11,5**, d28 **0** —
+   έναντι 62/60/59/45 του προφίλ. **Το ταβάνι είναι το ίδιο το target set**, όχι η γη (3
+   quadrants = 61 ελεύθερα tiles) ούτε το πλήρωμα.
+
+### v1o.1 ✅ — `strawberry_last_plant_day: 5 → 12` (+ αποσύζευξη του WHEAT)
+
+Το `wheat_target` ήταν γραμμένο ως `snapshot.day > strawberry_last_plant_day`, δηλαδή η σεζόν
+ολόκληρου του SW ήταν **παρενέργεια** του παραθύρου της φράουλας. Νέο δικό του knob
+`wheat_first_plant_day = 6` (ταυτόσημη συμπεριφορά στην παλιά τιμή). Guards:
+`test_v1o1_strawberry_is_replanted_past_the_old_day_5_window`,
+`test_v1o1_wheat_window_is_independent_of_the_strawberry_window`· το παλιό
+`test_v1h_wheat_waits_for_…_planting_window_to_close` ξαναγράφτηκε στο νέο knob.
+
+**Η κλίμακα τιμών (SMOKE, mirror vs `v1i`, `--town-pin basket`) λέει το αντίθετο απ' ό,τι η
+αριθμητική:**
+
+| τιμή | mean_diff | verdict | tile-days | idle | `clipped_production_ticks` |
+|---:|---:|---|---:|---:|---:|
+| 12 | +$603 | INCONCLUSIVE | 515 | 20,2% | **0** |
+| 16 | −$4.071 | REGRESSED | 568 | 15,8% | **1** ⛔ δομικό |
+| 20 | −$7.913 | REGRESSED | 615 | 14,3% | **1** ⛔ δομικό |
+
+Tile-days και idle βελτιώνονται **μονότονα** και το ταμείο πέφτει. Το `analysis/
+v1o1_product_split.py` (νέο, vs τον **μη-mirror** `meta_route`) βρήκε γιατί: **η STRAWBERRY δεν
+κορεσμένεται καθόλου** — 32 → **80 μονάδες** με την τιμή να **ανεβαίνει** ($232,9 → $259,0,
++$13.265) — αλλά **το WOOL χάνει 41% των μονάδων του και το FERTILIZER 27%**. `HARVEST` σε tile
+ζώου = priority 1, `COLLECT_FERTILIZER` = 3, `WATER` = **0**: κάθε νέο tile πληρώνεται από τα
+ζώα. **Δεν είναι πρόβλημα αγοράς, είναι πρόβλημα προτεραιότητας.**
+
+**Gate:** DEV acceptance vs `meta_route` **+$3.188,5 IMPROVED** CI [1.928· 4.449], 38-10
+(p=6,2e-5), `median_bank` **$56.290** έναντι **$54.552,5** του ίδιου του `v1i` στο ίδιο arm ⇒ και
+τα τρία κριτήρια του §2.1.4 κινούνται σωστά και με τη σωστή σειρά. DEV mirror +$987,3 IMPROVED.
+**HOLDOUT 100-147 UNPINNED, mirror vs `v1i`: +$1.253,1 IMPROVED** CI [422· 2.084], 29-19 seeds,
+57-39 episodes, δομικά όλα 0, ≤$5 **0,22%**, **`GO=True`** → `checkpoints/v1o_1`
+(`42c6e1ee29e03fdc…`).
+
+⚠️ **Δύο διαδικαστικά, καταγεγραμμένα ρητά.** (α) Το screen έτρεξε σε πρόχειρο checkpoint και το
+**σχόλιο** που γράφτηκε μετά άλλαξε το fingerprint ⇒ ξανατρέξαμε και τα δύο DEV arms πάνω στο
+τελικό `checkpoints/v1o_1` πριν το holdout (μάθημα: το σχόλιο γράφεται **πριν** το screen
+checkpoint). (β) Το πρώτο holdout pull γύρισε `metric_gate_passed=False` με
+`unexplained_metrics=['shed_overflow_burnt']` — μετρητής **0 στα pinned DEV και 289 unpinned**,
+οπότε δεν είχε εμφανιστεί σε κανένα screen. Μηχανισμός: unpinned towns τραβούν baskets χωρίς
+αγοραστή για προϊόν που κρατάμε ⇒ στοίβα πάνω από τα 100 slots. **Το baseline καίει
+περισσότερο (360 έναντι 289)**. Ξανατρέξαμε **μόνο** με τη δήλωση προστεθειμένη και
+`--allow-repeat-confirm` (`repeat_confirm_index=1`): **ίδιο fingerprint, καμία τιμή config δεν
+επιλέχθηκε κοιτώντας holdout**, όλοι οι αριθμοί ταυτόσημοι στα δύο pulls.
+
+### ⛔ `sw_hands_target = 12` — STOP στο acceptance priced gate
+
+Πρώτα βρέθηκε **γιατί** το v1j είχε μετρήσει «τα +2 χέρια δεν προσλαμβάνονται ποτέ»: screen
+10 → 12 → 14 **byte-ταυτόσημο** (`mean_diff` **ακριβώς $0,00**, CI [0, 0]). **Ένα HIRE είναι ένα
+market order, το `maxMarketOrdersPerTurn` είναι 10 και ό,τι περισσεύει το πετάει σιωπηλά η
+μηχανή** ([kaggriculture.py:538](engine_reference/kaggriculture.py#L538)), και τα χέρια σβήνουν
+κάθε νύχτα — άρα πλήρωμα χτισμένο ολόκληρο στην **ώρα 0** δεν περνά ποτέ τα 10. **Δεν ήταν ποτέ
+το κόστος**, όπως λέει σήμερα το ROADMAP §3.3.
+
+Με ξεκλειδωμένο τον μηχανισμό, το 12 έδωσε τα **καλύτερα δολάρια της συνεδρίας** (DEV acceptance
+`mean_diff` **+$4.144,7**, episodes 82-14, `median_bank` **$59.409**) και **κόπηκε**:
+`priced_loss_delta` **$477,6/ep** έναντι budget **$414,5** (περνά το σκέλος των $500, κόβεται στο
+10% του mean_diff — ο κανόνας είναι AND), με `animals_escaped` **87 vs 32**. **Δεν έγινε καμία
+επανα-ρύθμιση**· η τιμή γύρισε στο 10.
+
+### v1o.2 ✅ — ο μηχανισμός πρόσληψης μόνος του, με πλήρωμα αμετάβλητο στα 10
+
+`executor.hire_last_hour = 2` (τα HIRE συνεχίζουν σε επόμενα turns· ο μετρητής `hires_today` της
+μηχανής κουβαλά την κλιμάκωση fib μέσα στη μέρα) **+** το order-slot cap εφαρμόζεται πλέον
+**πάντα**, όχι μόνο στο sell-credit μονοπάτι. Επίσης `planner.endgame_hands_target` βγήκε ως
+ξεχωριστό knob (screen: το 10 **δεν** διόρθωσε τα water-weeds ⇒ μένει 6).
+
+⚠️ **Τα δύο μισά δεν χωρίζονται:** slot cap **χωρίς** αναβολή = **−$9.704/ep, REGRESSED, 0-24**,
+tile-days πίσω στα 415. Το review.md H8 είχε δίκιο ότι το HIRE δεν πρέπει να χάνει από το SELL —
+γίνεται ασφαλές **μόνο** επειδή η πρόσληψη γίνεται ένα turn αργότερα αντί για ποτέ.
+
+Στα 10 χέρια **δεν προσθέτει ούτε ένα χέρι**· σταματά τα 10 πρωινά HIRE να σπρώχνουν έξω από το
+όριο των 10 orders τα **SELL και τα BUY_SEED** της ημέρας — και φαίνεται στα tiles, όχι στο
+headcount.
+
+| στάδιο | arm | mean_diff | verdict | ep W-L | `median_bank_a` | tile-days A/B | escapes A/B | underfed A/B |
+|---|---|---:|---|---|---:|---:|---:|---:|
+| SMOKE | mirror vs `v1o_1` | +$5.339,8 | IMPROVED | 22-2 | $58.300,5 | 574/515 | **4/6** | 34,5/40,1 |
+| **DEV** | vs `meta_route` | **+$4.839,9** | **IMPROVED** | **84-12** | **$59.875,5** | 612/730 | **13/34** | 30,6/37,0 |
+| DEV | mirror vs `v1o_1` | +$5.063,6 | IMPROVED | 87-9 | $55.199,0 | 571/516 | **15/23** | 34,9/39,9 |
+| **HOLDOUT unpinned** | mirror vs `v1o_1` | **+$5.068,5** CI [3.956· 6.181] | **IMPROVED** | **83-13** · seeds **42-6** (p=1,0e-7) | **$56.481** | 562/518 | **8/25** | 36,7/40,6 |
+
+Holdout: overflow **257 vs 371**, water-weeds **192 vs 236**, δομικά 0, ≤$5 **0,18%**,
+`priced_loss_delta` **$0,0**, `repeat_confirm_index=0`, **`GO=True`** → `checkpoints/v1o_2`
+(`774e5f6fb8d7fd83…`). **Κάθε μετρητής απώλειας πέφτει ενώ τα tile-days ανεβαίνουν** — υπογραφή
+orders που εκτελούνται αντί να πετιούνται, όχι επιπλέον εργασίας.
+
+### Πού είμαστε και τι είναι το επόμενο increment
+
+`crop_tile_days` **413 → 562-612** (στόχος 1.316) · idle **28,2% → 16-18%** · `median_bank` έναντι
+`meta_route` **$54.552 → $59.875**. Κοπάδι και MELON **αμετάβλητα**.
+
+**Τα δύο εναπομείναντα βήματα της αρχικής σκάλας (κοπάδι 13, MELON) ΔΕΝ ξεκίνησαν, και ο λόγος
+είναι μετρημένος:** και τα δύο προσθέτουν δουλειά **ακριβώς στο tier που το STOP των 12 χεριών
+απέδειξε κορεσμένο**. Το επόμενο increment δεν είναι στην αρχική λίστα: **προστασία του
+pipeline FEED (+ το `PICKUP WHEAT` που το προηγείται) πάνω από το `WATER`**, με config flag ώστε
+να είναι screenable. Το ονομάζουν τρεις ανεξάρτητες μετρήσεις αυτής της συνεδρίας: το product
+split (WOOL −41%, FERTILIZER −27%), το STOP των 12 χεριών (87 escapes), και το screen του
+endgame πληρώματος (τα 10 χέρια **δεν** διόρθωσαν τα water-weeds ⇒ χάνονται σε προτεραιότητα,
+όχι σε headcount). Μετά από εκείνο το gate ξανανοίγουν **και τα τρία**: πλήρωμα >10, κοπάδι >10,
+`strawberry_last_plant_day` >12.
+
+---
+
+## 2026-08-11 — Session: **ROADMAP §4.3 S1+S2 — target profile με spread, donor extraction, replay-fidelity failure map**
+
+**Εντολή:** S1+S2 του ROADMAP §4.3 **μόνο** — research/diagnostic, καμία αλλαγή σε `agent/`,
+`main.py`, `submission.tar.gz` (επιβεβαιώθηκε). Πλήρες report:
+[baselines/2026-08-11/s1_s2_report.md](baselines/2026-08-11/s1_s2_report.md) (τοπικό,
+gitignored μαζί με όλο το `baselines/`).
+
+### S1.1 — target profile: PASS, με σχεδόν μηδενικό spread στη δομή
+
+Νέο `analysis/b3_target_profile.py` (πάνω στο b2), στα ίδια 120 seats/9 ομάδες του
+[b2-current](docs/meta/ladder_snapshots.md#b2-current). Gate ROADMAP S1 («αναπαράγεται σε ≥6
+ομάδες με δηλωμένη διασπορά») **PASS**: hands/animals/quadrants/first-sell-day έχουν std 0-0,5
+σε 9 ομάδες· η μόνη πραγματική διασπορά είναι στο **$/tile-day** (STRAWBERRY std 9,19,
+$18,3-$51,8) — επιβεβαιώνει άλλη μια φορά §4.1 (παραγωγή αντιγραμμένη, τιμή διαφοροποιεί).
+Πλήρες: `data/derived/b3_target_profile.json`.
+
+### S1.2 — donor extraction: bug βρέθηκε και διορθώθηκε, μετά PASS ακριβές
+
+Χρονολογικό πρωτόκολλο (v27): cutoff `EpisodeId 91476157` (min id του dataset που μετρά το
+προφίλ)· 3 donors (Kaito Fukami/Valmorlee/Ueddy, επεισόδια 90891564/91456307/90999409) **κάτω**
+από το cutoff. Provenance πλήρες (episode/seat/team/sha256) σε
+`baselines/2026-08-11/donors/*.json` — τοπικό, ποτέ commit (R11).
+
+🐛 **Εύρημα:** `replay["steps"][t]["action"]` είναι η ενέργεια που **παρήγαγε** το state στο
+index `t`, όχι αυτή που επιλέχθηκε βλέποντας το state `t` — αντίθετο απ' ό,τι υπέθεταν σιωπηλά
+τα b1/b2/replay_profile.py (αβλαβές εκεί, μέσα σε 24-step ημέρα)· **μοιραίο** για tape replay
+(κάθε action μία θέση λάθος, αθροιστικά). Διορθώθηκε: `action_stream[t] = steps[t+1][seat]
+["action"]`. Μετά τη διόρθωση, replay donor+opponent tape υπό το ίδιο seed αναπαράγει το
+καταγεγραμμένο bank **ακριβώς** (0,0000% σφάλμα, 3/3 donors) — πιο αυστηρό από το ζητούμενο ±2%.
+
+### S2 — replay fidelity vs διαφορετικό αντίπαλο: 18 matchups, 0 κάτω από το floor
+
+Νέο tape agent (`analysis/tape_agent.py`, δεν αγγίζει `agent/`) + `analysis/
+s2_replay_fidelity.py`. 3 donors × {meta_route, checkpoints/v1i, άλλο donor} × 2 seats.
+
+**Kill criterion (ROADMAP §4.3 S2) ΔΕΝ ενεργοποιείται: 0/18 matchup-seats κάτω από το
+$57.360 floor (v1h.2d live).** Χειρότερη περίπτωση $57.673 (Kaito vs Ueddy donor, −31,4% από
+το home bank του) — ακόμα πάνω. Το `meta_route` αποδείχθηκε μαλακός αντίπαλος (και οι 3 donors
+**καλύτερα** εκεί, +2,9% έως +57,2%)· `checkpoints/v1i` και donor-vs-donor είναι οι σκληρές
+δοκιμές (5/6 κάτω από home bank, −7,3% έως −37,1%). No-ops ξεκινούν μέρες **πριν** φανούν στο
+bank curve (πρώτη μέρα no-op 4-10, πρώτη μέρα ορατής απόκλισης 10-25) και είναι
+**ανεξάρτητα από τον αντίπαλο** — δηλαδή προκαλούνται από το ίδιο το route που αποσυγχρονίζεται
+από τη δική του πορεία, όχι από ανταγωνισμό στην αγορά. Πλήρες: `baselines/2026-08-11/
+s2_failure_map.json`.
+
+**Πρόταση για S3** (από τη μέτρηση, όχι εικασία): mostly-static parameterized planner με
+**ελαφρύ**, όχι βαρύ, repair layer — η tape δεν κατέρρευσε πουθενά (survives, όχι collapse κατά
+τη διάκριση του ίδιου του ROADMAP S2), απλά υποβαθμίζεται 7-37% έναντι σκληρών αντιπάλων.
+Συνεπές με την ήδη υπάρχουσα προτίμηση του §4.2 για profile αντί για tape· δεν αντικρούει κανένα
+gate/kill, άρα το ROADMAP §4.3 δεν χρειάστηκε διόρθωση.
+
+---
+
+## 2026-08-11 — Session: **Planning reset — ένα `ROADMAP.md` αντικαθιστά MASTERPLAN + current_phase· Phase A refresh· Phase B προφίλ της κορυφής**
+
+**Εντολή:** research / data-refresh / planning **μόνο**. Ρητό όριο: **καμία αλλαγή σε `agent/`,
+`main.py`, `submission.tar.gz`** — και τηρήθηκε (`git status` το επιβεβαιώνει). Αφορμή: κολλάμε
+στους ~600-700 ενώ η κορυφή είναι στους 3.100+, άρα λείπει κάτι **δομικό**, όχι παράμετρος.
+
+### Α — Ground truth (τι βρέθηκε, όχι τι υποτέθηκε)
+
+- **Engine: καμία αλλαγή.** Εγκατεστημένο `1.32.6` = PyPI latest `1.32.6`. `engine_reference/`
+  **byte-identical** και στα 4 αρχεία με το εγκατεστημένο πακέτο· `pytest tests/` **226 passed**.
+  Καμία αναβάθμιση, κανένα re-sync.
+- **Η ανακοινωμένη balance change είναι ΖΩΝΤΑΝΗ και πλήρης** — επαληθεύτηκε **στον εγκατεστημένο
+  κώδικα** σήμερα: `TOWN_CENTER_DEMAND_SCHEDULE` διαγραμμένο (flat `-= 1`),
+  `townCenterSellInterval` default **24**, το `not in unlocked` φίλτρο διαγραμμένο,
+  `MAX_SHOP_INSTANCES = 8` παρόν. ⚠️ **Δεν υπήρχε πουθενά στα DERIVED docs** — ζούσε μόνο στο
+  MASTERPLAN, δηλαδή στο αρχείο που διαγράφηκε. Καταγράφηκε ως **D27** στο
+  `docs/reference/engine_deltas.md` και το header του ξανα-pinαρίστηκε 1.32.5 → **1.32.6**.
+- **Deadline επαληθευμένο ζωντανά:** `2026-09-30 23:59` (Kaggle API `deadline`), entry deadline
+  09-23. Τελική κατάταξη: ~2 εβδομάδες episodes **μετά** το deadline, μετά **ένα** Bradley-Terry.
+- ⚠️ **Το discussion ΔΕΝ ελέγχεται προγραμματιστικά.** Η σελίδα είναι SPA (WebFetch → 5,6 KB
+  shell), τα internal `api/i/...` endpoints δίνουν 400/404 χωρίς browser XSRF token, και το
+  δημόσιο Kaggle API δεν εκθέτει discussions. Άρα ο μόνος αυτοματοποιήσιμος tripwire είναι
+  `pip index versions` + byte-diff· η ανάγνωση του forum **μένει χειροκίνητο βήμα**.
+- **Θέση μας σήμερα:** rank **2218/3811**, best `publicScore 652,5` (v1h). Ενεργό ζεύγος
+  `55414570` (v1i, 632,2) + `55409945` (v1m_d2, 626,1). Ladder #1 = **3187,7**.
+
+### Β — Notebooks: μια πραγματική διαδικαστική διόρθωση
+
+`kaggle kernels pull` κατεβάζει **μόνο source, χωρίς cell outputs**. Το έτρεξα σε 5 notebooks και
+**έσβησε τα outputs των τοπικών αντιγράφων**. Για 4 από αυτά τα νούμερα του προηγούμενου run
+σώζονται στα tracked `docs/source/notebooks/*.md`· για το `findings-from-zero-to-top-meta` δεν
+υπήρχε extract, οπότε εκείνο το run χάθηκε τοπικά (το kernel είναι δημόσιο, ξανακατεβαίνει).
+**Ο σωστός δρόμος είναι `kaggle kernels output <slug>`** — φέρνει kernel log + τα αρχεία που
+γράφει το notebook. Το `docs/INDEX.md` ενημερώθηκε με το σωστό flow και με το «το *visualized*
+notebook ΔΕΝ ανανεώνεται ποτέ» (κάθε `viz cell N` είναι αγκυρωμένο σε εκείνο το run).
+
+Εξήχθησαν 8 notebooks που δεν είχαν καθόλου extract. Διαγράφηκαν 5 `.ipynb` με τεκμηριωμένη
+αιτιολόγηση ανά αρχείο (ROADMAP Παράρτημα Α)· κρατήθηκαν **σκόπιμα 2 παλαιότερης γενιάς**
+(`v13-r3`, `177-180`) ως regression αναφορές.
+
+### Γ — Phase B: τι κάνει πραγματικά η κορυφή
+
+Νέα δομημένη πηγή: το `daily_meta-2026-08-10.json` που **γράφει το ίδιο** το *What the Top Farms
+Do* (run 08-11 09:20 UTC) — **207 επεισόδια / 414 seats, ζώνη Elo ≥ 3100**. Αντιγράφηκε στο
+`data/derived/`, καταγράφηκε ως dated εγγραφή
+[`ladder_snapshots#topfarms-0811`](docs/meta/ladder_snapshots.md#topfarms-0811).
+
+Τρία ευρήματα που αλλάζουν την ανάγνωση:
+
+1. **Modal top farm: 9 COW + 4 SHEEP · 10 hands · NE+NW+SW** (29% των seats), hire/cow/sheep
+   order **μέρα 0**, first land **μέρα 6**, median bank **$82.237**. Το v27 notebook δείχνει το
+   day-0 opening (**1 COW + 4 SHEEP, HIRE4, 26/30 ομάδες**) ⇒ **το κοπάδι χτίζεται μέσα στη
+   σεζόν**, δεν αγοράζεται μονομιάς. Εμείς: 4C+6S, 10 ζώα — και τα 12-14 μας έδωσαν 660-885
+   escapes. **Αντίφαση προς επίλυση, όχι δωρεάν αντιγραφή.**
+2. **Καμπύλη: d5 $543 · d10 $2.222 · d15 $11.400 · d20 $37.476 · τέλος $82.237** ⇒ **το 54% του
+   bank παράγεται μετά τη μέρα 20** — ακριβώς εκεί που το L2 μέτρησε ότι η δική μας φάρμα κλείνει
+   (0 φυτεμένα tiles τη d28).
+3. **Μέσα στην ελίτ, νικητές και ηττημένοι είναι ΤΑΥΤΟΣΗΜΟΙ** σε build order και early seeds. Οι
+   μόνες συστηματικές διαφορές (n=400): STRAWBERRY first sell **d14 vs d15**, batch **14,6 vs
+   13,6**· WOOL batch **9,4 vs 8,8**. **Η σύνθεση έπαψε να διαφοροποιεί· ο χρονισμός πώλησης όχι.**
+
+Επίσης: **και τα δύο κορυφαία notebooks δηλώνουν την ίδια αρχιτεκτονική** — παγωμένο πλήρες route
+719 actions (ίδιο σε δύο seats) + στενό overlay (WEED repair · town-conditional cow→sheep · WOOL
+release gates · price-impact ranking των υπαρχόντων SELL slots · **FERTILIZER relay 3-4 turns
+μπροστά** με ακριβές χρέος, gated σε public-state checkpoints στα steps 216/240/264). Το τελευταίο
+είναι η ίδια οικογένεια με το δικό μας `v1i`.
+⚠️ **Τα `main.py` / `submission.tar.gz` που εκδίδουν αυτά τα kernels ΔΕΝ ανοίχθηκαν** (clean-room).
+
+### Γ.2 — **Το μετρημένο προφίλ των πέντε, από τα δικά μας replays** ([b1-top5](docs/meta/ladder_snapshots.md#b1-top5))
+
+Δύο νέα εργαλεία: [`analysis/b0_fetch_top_replays.py`](analysis/b0_fetch_top_replays.py)
+(στοχευμένο κατέβασμα — το `scrape.py` τραβά τα **παλαιότερα** missing, όχι τα νεότερα) και
+[`analysis/b1_top5_profile.py`](analysis/b1_top5_profile.py) (προφίλ ανά μέρα + sell cadence +
+$/tile-day). **Μόνο aggregate state, καμία ακολουθία actions.** 66 replays κατέβηκαν στοχευμένα,
+**14 ανά ομάδα** για τις πέντε κορυφαίες.
+
+**Και οι πέντε είναι σχεδόν μία πολιτική, και διαφέρουν από εμάς με τους ίδιους 4 τρόπους:**
+
+| | THUNDER | Victor | Larko | Ueddy | Kaito | **εμείς** |
+|---|---:|---:|---:|---:|---:|---:|
+| Final bank | $120,0k | **$133,7k** | $121,9k | $119,4k | $124,2k | **$57,4k** |
+| Ζώα d5/d10/d15→τέλος | 6/12/**14** | 6/12/**14** | 6/12/**14** | 6/12/**14** | 6/12/**14** | **10 σταθερά** |
+| Hands d0/d10/d20 | 4/12/12 | 5/9/11 | 5/9/12 | 5/8/**14** | 5/8/**14** | —/—/10 |
+| Tiles d24 / **d27** | 39/**50** | 39/**50** | 39/**50** | 54/**53** | 55/**53** | **6 / 0 (d28)** |
+| Crop tile-days | 1.107 | 1.152 | 1.141 | 1.264 | 1.265 | **415** |
+| — STRAWBERRY | 669 | 670 | 670 | 691 | **692** | **136** |
+| — MELON | 225 | 261 | 250 | 250 | 250 | **0** |
+| — CARROT | 0 | 0 | 0 | 0 | 0 | **135** |
+
+Τρία που **αλλάζουν μετρημένα συμπεράσματά μας**:
+
+1. **Το κοπάδι είναι ΡΑΜΠΑ.** 6 ζώα ως d5 → 12 ως d10 → **14 ως d15**, σύνθεση **8 COW + 6 SHEEP**.
+   Το δικό μας ⚠️ε («12-14 ζώα → 660-885 escapes») τα αγόραζε **μαζικά**. Και η σύνθεσή τους είναι
+   **+4 cow πάνω στο δικό μας 4C+6S**, ενώ τα REGRESSED screens μας (`{8C,2S}`, `{10C,0S}`)
+   **αφαιρούσαν sheep** — **άλλο πείραμα**.
+2. **Το πλήρωμα κορυφώνεται στα 11-14**, όχι 10. Ueddy/Kaito πέφτουν σε **1 hand τη μέρα 5** και
+   μετά ανεβαίνουν σε 14 ως τη d20. Το `hands: 10` του topfarms JSON είναι modal **end-state**.
+3. **Χωράνε 1.100-1.265 tile-days και 14 ζώα στα ΙΔΙΑ 3 quadrants** που έχουμε κι εμείς για 415 και
+   10. **Η γη δεν είναι ο περιορισμός — η αξιοποίηση είναι.**
+
+Και ένα **ανεξήγητο**: THUNDER και Kaito πουλάνε **832 / 820 μονάδες WHEAT** από 213-323 tile-days
+— αδύνατο από παραγωγή (cap 6/tile) ⇒ **αγοράζουν wheat και το ξαναπουλάνε**. Οι άλλοι τρεις:
+191-401. Δύο διακριτές πολιτικές wheat μέσα στο ίδιο top-5 (→ **H7**, καθαρά διαγνωστικό).
+
+⚠️ **Φρεσκάδα:** ο metadata crawl είναι βαριά rate-limited (57 ok / 116 limited / **3.742
+deferred**), άρα το νεότερο γνωστό episode ανά ομάδα είναι 08-11 (Larko) … **08-06 (Victor)**. Για
+τις δύο παλαιότερες το προφίλ μπορεί να είναι προηγούμενου submission· η ομοιομορφία των πέντε
+είναι από μόνη της ένδειξη ότι δεν αλλοιώνει την εικόνα.
+
+⚠️ **Το `data/archive/teams.py` έσκαγε σιωπηλά** (`subprocess.run(..., text=True).stdout` = `None`
+όταν το Kaggle CLI αποτυγχάνει να τυπώσει non-cp1252 team name· το `scrape.py` το καλεί με
+`check=False`, άρα το `teams.csv` έμενε **5 ημερών παλιό χωρίς κανένα σφάλμα**). Ξανατρέχτηκε με
+`PYTHONUTF8=1` → **3.813 ομάδες**. Επίσης διορθώθηκε το `repack.py`: το `shutil.copy` σε
+ανύπαρκτο `data/episodes_dataset/` σκότωνε όλη την αλυσίδα μετά από πετυχημένο crawl (τώρα guarded).
+⚠️ **Και τα δύο αρχεία είναι untracked** (`data/archive/` είναι gitignored ολόκληρο) — ανοιχτό
+ερώτημα **R8** στο ROADMAP αν η αλυσίδα συλλογής πρέπει να μπει σε version control.
+
+⚠️ **Bug στο `.gitignore` που ακύρωνε το επιχείρημα του notebook audit:** το `notebooks/` (χωρίς
+leading slash) ταιριάζει σε **κάθε** φάκελο με αυτό το όνομα — άρα κατάπινε και το
+`docs/source/notebooks/`, δηλαδή τα tracked markdown extracts στα οποία δείχνει κάθε παραπομπή
+`viz cell N` του repo. 9 παλιά extracts ήταν tracked· τα 8 σημερινά ήταν **αόρατα**. Διορθώθηκε σε
+`/notebooks/` (η ρίζα παραμένει ignored, επαληθεύτηκε).
+
+### Δ — Ο ίδιος ο reset
+
+`docs/MASTERPLAN.md` (830 γρ.) και `current_phase.md` (1.185 γρ.) **διαγράφηκαν** αφού πρώτα
+εξήχθησαν οι διασωθείσες μετρήσεις. Ένα [`ROADMAP.md`](ROADMAP.md) στη ρίζα τα αντικαθιστά:
+§1 πού είμαστε + gates **2800/3000** · §2 η closed-loop μεθοδολογία ως **μόνιμος** κανόνας ·
+§3 carried-forward findings (engine, L1/L2, Θ1, όλα τα μετρημένα STOP, μεθοδολογικά μαθήματα) ·
+§4 **επτά falsifiable υποθέσεις H1-H7** με test και kill criterion η καθεμία · §5 Phase 2
+(heuristic vs RL) **ως ανοιχτή απόφαση, gated στο 2800+** · §6 εκκρεμότητες · §6bis submission ops.
+`docs/INDEX.md` (navigation + χάρτης παλιών ονομάτων) και `README.md` (Status + layout)
+ενημερώθηκαν. Οι παραπομπές `MASTERPLAN`/`current_phase` σε **σχόλια κώδικα (32 αρχεία) έμειναν
+ως έχουν** — είναι ιστορικές παραπομπές, και το να τις πειράξω θα άγγιζε το `agent/`.
+
+**Δεν υλοποιήθηκε καμία τακτική** σε αυτό το pass.
+
+### Ε — 🔴 Η διόρθωση που άλλαξε τα πάντα, και η απόφαση του χρήστη
+
+**Ο χρήστης αποφάσισε: αίρεται ο κανόνας «όχι route seeding από δημόσιο replay» (πρώην Ανοιχτό
+#11). Κατεύθυνση: ακολουθούμε το top-30 → παγωμένο optimum → μετά καινοτομούμε.**
+
+**Ο χρήστης έδωσε μετά το πλήρες κείμενο των κανόνων· το R10 ΕΚΛΕΙΣΕ.** Τι λένε στην πράξη:
+
+- ✅ **Η χρήση replays στην ανάπτυξη είναι καθαρά επιτρεπτή.** §2.11 («*a replay … which includes
+  the actions taken by your Submission … may be publicly available and downloadable*») · §2.4a
+  Competition Data «*for any purpose … including for participating in the Competition*» (licence
+  **Apache 2.0**) · §2.6a External Data «*publicly available and equally accessible to all
+  Participants at no cost*» — καλύπτεται και με τις δύο αναγνώσεις. §2.12 (no ingress/egress) αφορά
+  τον **τρέχοντα** agent, όχι δεδομένα ψημένα μέσα στο `main.py`. ⇒ **S1/S2 χωρίς ζήτημα.**
+- ⚠️ **Η έκθεση είναι στενή και βρίσκεται στο στάδιο του βραβείου, όχι της συμμετοχής:**
+  **§3.14a** εγγύηση «*your Submission is your own original work … sole and exclusive owner*»·
+  **§2.5/§2.8** ο νικητής αδειοδοτεί Submission **+ source** σε **CC-BY 4.0** και δηλώνει
+  «*unrestricted right to grant that license*» + δημοσιεύει αναπαραγώγιμη περιγραφή· **§2.4b**
+  απαγορεύει αναδιανομή Competition Data σε μη-συμμετέχοντες — **και το repo μας είναι δημόσιο**.
+  Με 10 ισόποσα βραβεία και στόχο top-10, αυτά είναι **ενεργά**, όχι θεωρητικά.
+- ⇒ **Απόφαση σχεδιασμού: αντιγράφουμε το *προφίλ*, όχι την *ταινία*.** Το §4.1 έδειξε ήδη ότι η
+  παραγωγή της κορυφής είναι **σταθερά** — δηλαδή ~20 αριθμοί (13 ζώα 9C+4S σε ράμπα 6/12/13,
+  quadrants d6/d10, ~577 strawberry / 559 wheat / 180 melon tile-days, tiles ως d24, ημερολόγιο
+  πώλησης). **Αυτοί είναι μετρήσεις** — καμία §3.14a εγγύηση δεν τεντώνεται, καμία §2.4b
+  αναδιανομή, τίποτα άβολο σε §2.8 write-up — και δίνουν την ίδια παραγωγή ~$82k. Είναι επίσης
+  **καλύτερη μηχανική**: παραμετρική πολιτική δεν αποσυγχρονίζεται όπως ταινία και δεν φθίνει όπως
+  το frozen v26 (**87/90 → 14/27**).
+- Αν παρ' όλα αυτά θέλουμε ταινία: επιτρεπτό, δική του απόφαση — τότε γίνονται **υποχρεωτικά**
+  provenance (episode/seat/team/sha256), **gitignored & local** το action stream (§2.4b, **R11**),
+  και αποδοχή ότι τα §3.14a/§2.5 λύνονται με τον Sponsor αν πιάσουμε top-10.
+- Ο κώδικας των competitor **notebooks** (`main.py`/`submission.tar.gz`) παραμένει εκτός — άλλο
+  ερώτημα, δεν το χρειάζεται το σχέδιο.
+
+**⚠️ Ελέγχοντας τη σκοπιμότητα του route-copy βρέθηκε ότι το B1 της ίδιας μέρας ήταν μολυσμένο.**
+Τα replays κουβαλούν το `configuration` τους: **56 από τα 66** του B1 είχαν
+`townCenterSellInterval: 12` — **προ-1.32.6 engine**. Η αλλαγή πέρασε στα ζωντανά episodes
+**μεταξύ 07 και 08 Αυγούστου** (08-05/06/07 → 12· 08-08+ → 24). Ξαναμετρήθηκε από τα **60 νεότερα
+επεισόδια του επίσημου** `kaggle/kaggriculture-episodes-2026-08-10` (**120 seats, 60/60
+επιβεβαιωμένα interval=24**) → [`b2-current`](docs/meta/ladder_snapshots.md#b2-current),
+`analysis/b2_current_engine_meta.py`. Median bank **$82.747** (vs $82.237 του topfarms JSON ⇒ ίδια
+ζώνη). Διορθώσεις: κοπάδι **13 (9C+4S)** όχι 14 (8C+6S)· **WHEAT 559 tile-days** όχι 213-323·
+**STRAWBERRY $39,7/tile-day** όχι $58-67. Επιβεβαιώθηκαν: 3 quadrants, **ράμπα** κοπαδιού,
+πλήρωμα >10, tiles φυτεμένα ως το τέλος (**61 τη d24**).
+
+**Και το εύρημα που ορίζει τη στρατηγική:** στο τρέχον engine η **παραγωγή της κορυφής είναι
+αντιγραμμένη σταθερά**. Εννέα ομάδες (≥6 seats): strawberry 502-581 tile-days, wheat 541-569,
+melon 180-190· πουλημένες μονάδες 245-286 / 439-473 / 108-114 / wool 132-138 / milk 218-225.
+**Winners vs losers (57/57) ΤΑΥΤΟΣΗΜΟΙ** σε tiles, hands, ζώα, quadrants, tile-days, μονάδες,
+πρώτη μέρα πώλησης, batch. Και όμως το final bank κυμαίνεται **$63.866 → $94.850 (1,49×)** — και
+**όλο** είναι realized τιμή, **μόνο** στα τρία ρηχά cliffs:
+
+| | STRAWBERRY (cliff 62) | WOOL (59) | MILK (76) | WHEAT (>2.000) | MELON |
+|---|---:|---:|---:|---:|---:|
+| spread $/μονάδα | **2,75×** | **3,70×** | **3,49×** | 1,12× | 1,17× |
+
+Ο Hak κερδίζει strawberry+wool· ο Ueddy κερδίζει milk και έχει το **χειρότερο** wool — **επιλέγουν
+ποιο premium κερδίζουν**. ⚠️ Τα δικά μας realized (Θ1): MILK $210,62 · WOOL $196,81 με **1,7×**
+τον όγκο τους ⇒ **το sell-side μας δεν είναι το πρόβλημα· η παραγωγή είναι** (415 vs 1.316
+tile-days).
+
+Το ROADMAP §4 ξαναγράφτηκε ως **πρόγραμμα S1→S5** (*replicate → freeze → innovate*):
+**S1** εξαγωγή του **target profile ως παραμέτρους** + 2-3 donor streams με provenance (**μόνο από
+episodes μετά τις 08-07**· χρονολογικό πρωτόκολλο v27: freeze cutoff, επιλογή από παλαιότερα,
+αξιολόγηση σε **αυστηρά μεταγενέστερα**) · **S2** πόσο αντέχει μια open-loop πολιτική στην επαφή —
+το make-or-break διαγνωστικό, **χρήσιμο και στα δύο μονοπάτια** γιατί ο χάρτης αποτυχιών λέει πόση
+runtime προσαρμοστικότητα χρειάζεται το προφίλ · **S3** παραγωγή στο προφίλ (ράμπα κοπαδιού,
+carrot→0, tiles ως d24) → repair → **market overlay, όπου μπαίνει το v1i** · **S4** freeze +
+υποβολή ως **challenger** · **S5** καινοτομία στον αγώνα premium τιμής.
+
+⚠️ **Το S3 βήμα 1 είναι το δύσκολο και έχουμε αποτύχει εκεί πριν** (v1j/v1k/v1l STOP). Τι άλλαξε:
+έχουμε **στόχο** από 120 current-engine seats αντί για εικασία, και η **ράμπα** εξηγεί γιατί το
+screen των 12-14 ζώων απέτυχε. Αλλαγή πληροφορίας, όχι εγγύηση.
+
+Νέα εργαλεία: `analysis/b0_fetch_top_replays.py --ids-file` και `analysis/b2_current_engine_meta.py`
+(το **επίσημο daily dataset** είναι η μόνη πηγή εγγυημένα σωστού engine — το `--expect-interval`
+πετάει έξω ό,τι δεν ταιριάζει αντί να τα ανακατεύει σιωπηλά).
+
+**Επόμενη συνεδρία: S1 + S2** — και τα δύο διαγνωστικά, κανένα `agent/` change.
 
 ---
 
