@@ -740,11 +740,13 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
                 0: {
                     "water_weeds_lost": 1, "plant_decay_units_lost": 2,
                     "crop_tile_days": 100, "worker_turns_idle": 10,
-                    "worker_turns_total": 100, "animals_underfed_days": 2,
+                    "worker_turns_total": 100, "worker_turns_moving": 60,
+                    "animals_underfed_days": 2,
                 },
                 1: {
                     "crop_tile_days": 80, "worker_turns_idle": 20,
-                    "worker_turns_total": 100, "animals_underfed_days": 3,
+                    "worker_turns_total": 100, "worker_turns_moving": 55,
+                    "animals_underfed_days": 3,
                 },
             }
         else:  # agent_a ("A") plays seat 1 this call
@@ -752,12 +754,14 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
             metrics = {
                 0: {
                     "crop_tile_days": 81, "worker_turns_idle": 21,
-                    "worker_turns_total": 101, "animals_underfed_days": 4,
+                    "worker_turns_total": 101, "worker_turns_moving": 56,
+                    "animals_underfed_days": 4,
                 },
                 1: {
                     "water_weeds_lost": 3, "plant_decay_units_lost": 4,
                     "crop_tile_days": 101, "worker_turns_idle": 11,
-                    "worker_turns_total": 101, "animals_underfed_days": 5,
+                    "worker_turns_total": 101, "worker_turns_moving": 61,
+                    "animals_underfed_days": 5,
                 },
             }
         return SimpleNamespace(rewards=rewards, metrics=metrics)
@@ -772,6 +776,11 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
     assert result.crop_tile_days_b == 80 + 81
     assert result.worker_turns_idle_a == 10 + 11
     assert result.worker_turns_total_a == 100 + 101
+    # R15 (ROADMAP §6): worker_turns_moving must be aggregated the same way as
+    # worker_turns_idle/_total — it used to be absent from _V1K_REPORT_METRICS entirely, so no
+    # gate artefact could report the commute share the S3 step 1c work is judged on.
+    assert result.worker_turns_moving_a == 60 + 61
+    assert result.worker_turns_moving_b == 55 + 56
     assert result.animals_underfed_days_a == 2 + 5
     assert result.metric_gate_passed is False
 

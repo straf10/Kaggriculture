@@ -297,6 +297,12 @@ _V1K_REPORT_METRICS = (
     "crop_tile_days",
     "worker_turns_idle",
     "worker_turns_total",
+    # R15 (ROADMAP §6): worker_turns_idle/_total were aggregated here but worker_turns_moving
+    # was not, so the commute share — the number ROADMAP §4.3 S3 step 1c's throughput work is
+    # judged on (57-62% of every unit-turn) — was invisible in every gate artefact ever produced.
+    # analysis/v1o3_visit_efficiency.py had to recover it per episode with its own separate
+    # play() calls because of this gap.
+    "worker_turns_moving",
     "animals_underfed_days",
     "crop_revenue",
 )
@@ -411,6 +417,8 @@ class CompareResult:
     worker_turns_idle_b: Optional[int] = None
     worker_turns_total_a: Optional[int] = None
     worker_turns_total_b: Optional[int] = None
+    worker_turns_moving_a: Optional[int] = None  # R15 (ROADMAP §6)
+    worker_turns_moving_b: Optional[int] = None
     animals_underfed_days_a: Optional[int] = None
     animals_underfed_days_b: Optional[int] = None
     crop_revenue_a: Optional[int] = None

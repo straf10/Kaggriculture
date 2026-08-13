@@ -266,6 +266,10 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **shop-adaptive sell floor** | −$1.103 to −$24.762/ep, 0/8 wins | The agent is production-constrained, never glut-constrained; a demand-sized floor has no price to win, only volume to lose |
 | **herd re-composition toward cow** | `{8C,2S}` −$5.093, `{10C,0S}` −$6.845 + hard-gate fail | And the damage was **larger** in towns *with* a YARN_STORE ⇒ the constraint is **MILK saturation in mirror**, not the rare buyer |
 | **shed-access routing fix** (1.32.5 D26) | Net-negative, reverted | The old `(4,4)` distance over-estimate was accidentally inflating WHEAT PICKUP urgency. Needs routing-distance decoupled from urgency-distance in `assign()` first |
+| **v1p.1 herd compaction** (config-only PASTURE reorder, S3 step 1c) | ⛔ STOP at SMOKE, −$875,4 INCONCLUSIVE | `worker_turns_moving` fell as designed (61,7%→53,6%) but `animals_escaped` went 2→48 — **exactly 2 every single one of 24 orientations**, always the same two COW at (3,2)/(3,3) (untouched by the change), always day 2. Root cause: reassigning two SHEEP PASTURE slots to distance-1 tiles (closer than *any* COW slot) lets SHEEP win the whole initial multi-day PLACE race in `assign()`'s type-blind greedy loop, delaying COW's first feed past `consecutive_unfed >= 2`. Intrinsic to the tile choice (any arm using those two tiles for SHEEP hits it), not screened further. Config reverted, mechanism documented in place |
+| **v1p.2 zone assignment** (`assign()` eligible-units filter by quadrant, S3 step 1c) | ⛔ STOP at SMOKE, −$6.966,0 REGRESSED (p=4,9e-4) | The increment's own kill criterion fired at the first screen: `worker_turns_moving` barely moved (60,0%→58,7%, nowhere near the ~55% target). Also broke a structural hard-zero counter, `plant_decay_units_lost` 0→17. Likely mechanism: the zone partition has no memory across turns, so a unit already `committed` (C1 stickiness) to a task can be re-zoned *out* of eligibility for it the next turn as the task-count mix shifts — reproducing the exact commitment-thrash class of bug `committed` was built to prevent, from outside the mechanism that protects against it. Code kept inert at `zone_assignment_enabled: False`; hands off to deferred item ④ (min-cost matching), gated on deferred item ③ (travel-ratio diagnostic) per its own control's result below |
+| **v1p.1b herd compaction, both untested controls** (arm A1: COW instead of SHEEP on the same two tiles; arm B: `carrot_tiles` 3→1 alone, PASTURE untouched — S3 step 1c) | ⛔ STOP at SMOKE, both arms | **Closes the "convert a CARROT tile to compact the herd" family for good.** Arm A1: `animals_escaped_a` **48** (vs its own paired baseline 0), same magnitude as arm A but now a *mixed* COW/SHEEP pair — **refutes v1p.1's own type-blind-race root cause**, since giving COW the close tiles instead of SHEEP does not fix it. Arm B: `animals_escaped_a` **12** (vs its own paired baseline 2), seed-dependent, with **zero PASTURE change** — dropping `carrot_tiles` below 3 is itself destabilizing, independent of what the freed land becomes. Analytically confirmed separately: the ten currently-claimed PASTURE slots are already the ten nearest of the 13 available (distances 2,2,2,3,3,4,4,5,6,6,7,7,8) — there is no free reorder inside the existing pool; proximity can only be bought by converting a crop tile, and across both tested splits that purchase does not pay for itself |
+| **v1p.2b sticky zone assignment** (`committed` threaded into `_zone_partition`, pin-first — S3 step 1c) | ⛔ STOP at SMOKE, −$2.688,6 REGRESSED (p=6,3e-3) | The untested control v1p.2's own root cause implied. Fixed exactly what it targeted: `plant_decay_units_lost` **0** (was 17, structural), `animals_escaped` back to parity (5 vs 5, was 20 vs 6). But `worker_turns_moving` **58,9%→60,3%**, essentially the same ~1,4pp non-movement as v1p.2's own original screen — the kill criterion's own restated third exit fires: **the constraint genuinely is not which tasks a unit is offered.** Code kept, inert at `zone_assignment_enabled: False`; hands off to deferred item ③ (travel-ratio diagnostic), not directly to ④ (min-cost matching) |
 
 ### 3.4 Standing methodological lessons
 
@@ -562,6 +566,154 @@ straight at the standing §3.3 item, *"routing-distance decoupled from urgency-d
 unit-turns rather than redistributing them. The standing v1k re-test still rides on MELON, which
 still sits behind whatever fixes throughput.
 
+#### S3 step 1c — ⛔ both increments run, and STOPPED (2026-08-13)
+
+Full report: `baselines/2026-08-13/s3_step1c_report.md` (local). `pytest tests/`: **237 → 244
+passed**. **No submission** — live `main.py` ≡ `checkpoints/v1p_1`, verified behaviour-identical
+to `checkpoints/v1o_2` (mirror compare, SMOKE 0-11 both seats, `mean_diff` exactly $0,00, 12/12
+ties). R15 landed first (`worker_turns_moving` now in every gate artefact via
+`_V1K_REPORT_METRICS`), which is what made both STOPs below measurable directly from their gate
+output.
+
+- **v1p.1 (herd compaction, config-only)** reordered `animal_structure_tiles["PASTURE"]` to move
+  the two farthest SHEEP slots onto the two NW CARROT tiles freed by `carrot_tiles: 3→1` —
+  distance 1 instead of 6, herd Σdistance 39→27. ⛔ **STOPPED at SMOKE**: `worker_turns_moving`
+  fell exactly as designed (61,7%→53,6%) but `animals_escaped` went 2→48, **deterministically
+  (2 in all 24 orientations)**, always the same two COW at (3,2)/(3,3) — tiles the change never
+  touched. Root cause: making two SHEEP slots closer than *every* COW slot lets SHEEP win the
+  whole initial multi-day PLACE race in `assign()`'s type-blind greedy loop, delaying COW's first
+  feed past the escape threshold. Intrinsic to the tile choice, not the specific arm — the
+  original brief's arms B and C share the same two tiles and would hit the identical race, so
+  neither was screened separately. See §3.3.
+- **v1p.2 (zone assignment, `agent/scheduler.py`)** added `scheduler._zone_partition` — a
+  proportional, deterministic split of units across owned quadrants, applied in `assign()` as a
+  filter on `eligible_units` (never on tasks), with `allowed_unit` tasks and WHEAT-carriers
+  exempt and an explicit fallback to the global pool. 7 new `test_v1p2_*` guards pin the
+  partition algorithm and the filter in isolation. ⛔ **STOPPED at SMOKE**, and the increment's
+  own kill criterion fired: `worker_turns_moving` barely moved (60,0%→58,7%, nowhere near the
+  ~55% target), while a structural hard-zero counter broke (`plant_decay_units_lost` 0→17).
+  Likely mechanism: the zone partition has no memory across turns, so a unit already `committed`
+  to a task (the C1 stickiness fix) can be re-zoned *out* of eligibility for it the next turn as
+  the task-count mix shifts — reproducing, from outside `committed`, the exact oscillation class
+  of bug it was built to prevent. See §3.3.
+
+**Both STOPs point the same direction.** v1p.1 shows a purely geometric win (Σdistance 39→27)
+can be erased by a second-order scheduling interaction (animal-type placement racing); v1p.2
+shows that restricting `assign()`'s candidate pool without giving it a continuity guarantee
+reproduces the exact commitment-thrash class of bug `committed` exists to prevent. Neither
+result says throughput can't be raised — both say the fix has to live *inside* `assign()`'s own
+greedy structure (or be paired with a stickiness-aware zone extension), not bolted on as a static
+tile reshuffle or a stateless pre-filter.
+
+**⚠️ Neither STOP above was actually final** — each root cause, read closely, implied a control
+that was never run. v1p.1's diagnosis ("SHEEP wins the type-blind PLACE race because it got the
+close tiles") implied the one-line reorder of giving COW the close tiles instead. v1p.2's
+diagnosis ("the zone partition has no memory across turns") implied threading `committed`
+through it. ROADMAP §2's STOP protocol was updated to say so explicitly: *a STOP is only final
+once its own stated mechanism has no untested implication left.*
+
+#### S3 step 1c — both untested controls run, both STOP too (2026-08-13, continued)
+
+Full report: `baselines/2026-08-13/s3_step1c_controls_report.md` (local). `pytest tests/`:
+**244 → 248 passed** (4 new `test_v1p2b_*` guards). Checkpoints created before each screen —
+`checkpoints/v1p1b_armA1`, `checkpoints/v1p1b_armB`, `checkpoints/v1p2b` — all `compare` calls
+below run against these, never against `main.py` directly (unlike v1p.1/v1p.2's own SMOKE
+screens, whose fingerprints match no checkpoint on disk — see §6 R16). Live `main.py` reverts to
+exactly `v1o_2`'s measured behaviour again: `gates/v1p1b_v1p2b_final_inertness_check`,
+SMOKE 0-11 both seats, `--metrics`, `mean_diff` exactly $0,00, 12/12 ties, every counter
+byte-equal (`crop_tile_days`, `worker_turns_idle`, `worker_turns_moving`,
+`animals_underfed_days`, `crop_revenue` on both sides). **No submission.**
+
+- **v1p.1b — herd compaction, both controls (config only).** Arm A1 (`checkpoints/v1p1b_armA1`):
+  same tile set as arm A, but COW gets the two distance-1 tiles instead of SHEEP.
+  `animals_escaped_a` **48** (vs its own paired `v1o_2` mirror at 0) — the *same magnitude* as
+  arm A's original failure, but now a **mixed** pair, (4,2) COW and (3,2) SHEEP, at the same day
+  2 / step ~48 timing (`gates/v1p1b_armA1_smoke_mirror`). `worker_turns_moving` still fell as
+  designed (60,3%→46,0%). **This refutes v1p.1's own root cause**: the race was never
+  specifically SHEEP-vs-COW — reordering which type gets the close tiles does not fix it, so the
+  mechanism must be something about the shared, type-blind PLACE queue itself (which two of the
+  ten claimed slots finish *last*), not a property of SHEEP in particular. Arm B
+  (`checkpoints/v1p1b_armB`, the confound control arm A never ran): `carrot_tiles` 3→1 alone,
+  `animal_structure_tiles["PASTURE"]` **completely untouched** — no geometry change at all.
+  `animals_escaped_a` **12** (vs its own paired baseline 2), seed/orientation-dependent (6 of 24
+  orientations, not deterministic) rather than arm A1's 100%-reproducible pattern
+  (`gates/v1p1b_armB_smoke_mirror`). **Dropping `carrot_tiles` below 3 is itself destabilizing to
+  the feed pipeline, independent of what the freed land becomes** — a second, distinct mechanism
+  from v1p.1's. Excess-over-own-paired-baseline decomposition (approximate — §2.1.1 paired
+  baselines legitimately drift seed-to-seed under the shared weed-spawn RNG): arm A1 excess ≈48,
+  arm B excess ≈10, geometry-only ≈38. **Closes the "convert a CARROT tile to compact the herd"
+  family for good** — confirmed analytically alongside the two screens: NW is fully allocated (3
+  CARROT + 8 STRAWBERRY + 13 PASTURE + 1 COOP = 25) and the 13 PASTURE tiles sorted by distance
+  are 2,2,2,3,3,4,4,5,6,6,7,7,8 — **the ten currently-claimed slots are already the ten
+  nearest**, so there is no free reorder left inside the existing pool; proximity can only be
+  bought by converting a crop tile, and neither tested split makes that purchase pay for itself.
+- **v1p.2b — sticky zone assignment** (`checkpoints/v1p2b`, `agent/scheduler.py`). Threaded
+  `committed` into `scheduler._zone_partition`: a unit with a live commitment whose task still
+  exists is pinned to that task's zone before any quota is computed, so quotas become a soft
+  target for the remaining, uncommitted units only — closing exactly the memory gap v1p.2's STOP
+  diagnosed. New mandatory guard (`test_v1p2b_zone_partition_pins_a_committed_unit_to_its_own
+  _task_zone`) plus 3 more `test_v1p2b_*` tests pin the pinning, the quota-exclusion, the
+  stale-commitment fallback, and an end-to-end two-turn `assign()` reproduction of v1p.2's exact
+  STOP scenario. SMOKE 0-11, both seats, `--town-pin basket`, mirror vs `checkpoints/v1o_2`
+  (`gates/v1p2b_smoke_mirror`): `mean_diff` **-$2.688,6 REGRESSED** (CI [-3.832,5, -1.544,8],
+  p=6,3e-3), episodes 2-22. **The fix worked at the structural level**: `plant_decay_units_lost`
+  **0** (was 17, a structural hard-zero break under v1p.2), `animals_escaped` back to parity
+  with baseline (5 vs 5, was 20 vs 6). **But the number the whole increment is judged on did not
+  move**: `worker_turns_moving` **58,9%→60,3%**, essentially the same ~1,4pp non-movement as
+  v1p.2's own original screen (58,7%→60,0%). Per this increment's own restated kill criterion
+  (below), stickiness in place and `worker_turns_moving` still flat means the constraint
+  genuinely is not *which* tasks a unit is offered — zoning was never the lever, however
+  correctly built. `mean_diff`'s regression is now driven by a *different, smaller* loss
+  pattern than v1p.2's (`water_weeds_lost`/`unexpected_weeds_lost` 226 vs 61,
+  `shed_overflow_burnt` 18 vs 0) — the thrash-driven structural break is gone, but the
+  underlying commute cost the increment exists to cut is not.
+
+**Restated kill criterion, as specified going in, applied:** stickiness in place,
+`worker_turns_moving` still does not fall below ~55% (or move meaningfully at all) ⇒ the
+hypothesis is **genuinely refuted**, not just under-delivering — the constraint is not which
+tasks a unit is offered. Both v1p.2b's own two structural fixes (decay, escapes) and its
+continued failure to move the commute number are consistent with the same reading: the fix
+closed the *symptom* (thrash discarding progress) without touching the *cause* (the greedy
+one-at-a-time algorithm still routinely strands a unit next to a task it has just given away).
+
+**Both families are now closed with their own diagnosed root causes intact and confirmed, not
+merely stopped one variable short.** Neither result says throughput can't be raised — both say
+the fix has to live *inside* `assign()`'s own greedy matching structure, not in what tasks are
+offered to which unit (zoning) or in where the herd's claimed tiles sit (compaction).
+
+**Deferred, recorded, not implemented this pass** (ROADMAP §2 — candidates, not decisions),
+renumbered now that v1p.2b's own kill criterion has resolved which one goes first:
+
+- **③ The travel-ratio diagnostic — run this *before* anyone commits to a matching rewrite.**
+  Instrument, for each completed op, the distance a unit actually travelled to reach it versus
+  the distance to the nearest task that was available when it set out. Ratio near 1 ⇒ the
+  commute is geometric and only territory or tour construction can touch it (the case v1p.1b's
+  analytical finding — the ten claimed PASTURE slots are already the ten nearest — is consistent
+  with). Ratio well above 1 ⇒ the assignment is losing real turns and ④ is justified.
+  `analysis/v1o3_visit_efficiency.py` is the template. This turns the next decision from a hunch
+  into a measurement, cheaply — exactly the gap v1p.2b's SMOKE just widened, since it proved
+  stickiness alone does not move `worker_turns_moving` and left open *why*.
+- **④ Min-cost matching inside `assign()`** (Hungarian/auction replacing the greedy loop).
+  `assign()` commits the single best (unit, task) pair, deletes that unit and every unrestricted
+  task at that position, then re-scans — a routine that routinely strands a unit next to a task
+  it has just given away. A Hungarian/auction assignment over ~11 units × ~100 tasks is
+  microseconds and fully deterministic, and it cuts total travel from *inside* the algorithm
+  rather than by narrowing which tasks a unit is offered. Contingent on ③, not settled: it
+  optimises a single turn's total distance, while the commute accumulates across the ~5-6 ops a
+  unit performs in a day — a tour problem, which per-turn optimal matching does not solve. Has
+  to re-establish G13 determinism and must not re-break `committed`'s stickiness (the mechanism
+  that stopped v1b's oscillation, and the exact mechanism v1p.2b just proved is not sufficient
+  on its own).
+- **⑤ `sw_hands_target` 12/14, gated on ③/④ actually moving `worker_turns_moving`,** not on
+  v1p.2b (which did not pass, so this stays dormant). It STOPPED with idle rising 25,2%→31,8%
+  under global assignment — smaller effective territories from a working matching fix are
+  exactly the condition that would make extra hands usable, and the top-30 profile runs 14
+  hands. Re-run against whichever baseline ③/④ produces, not against the old numbers.
+- §3.3's standing item — routing-distance decoupled from urgency-distance in `assign()` (the
+  reverted 1.32.5 D26 shed-access fix) — remains last in line: smallest of the levers, best
+  attempted once ③/④ has moved `worker_turns_moving` so its own effect is visible instead of
+  buried.
+
 ---
 
 **S4 — Freeze, submit, measure on the real ladder.**
@@ -663,7 +815,8 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R6** | Leave the `MASTERPLAN.md` / `current_phase.md` citations in code comments alone (32 files under `agent/`, `harness/`, `tests/`, `analysis/`) | They are *historical* citations for why a line exists; rewriting them would touch `agent/` (out of scope) and would not make them more true. [docs/INDEX.md](docs/INDEX.md) "Χάρτης παλιών ονομάτων" resolves them, and git has the originals |
 | **R12** | **Write the final config comment *before* creating a screen checkpoint.** A comment edited after the screen changes the package fingerprint, so the `stage=dev-screen` artefact no longer keys to the agent being confirmed and `prior_dev_screen_found` goes False at holdout | Cost one full DEV re-run (2 × 96 episodes) in v1o.1 |
 | **R13** | **Declare a mechanism for every counter that *can* be non-zero, not only the ones a pinned screen happened to show.** `shed_overflow_burnt` is 0 under `--town-pin basket` and ~290 unpinned, so v1o.1's first holdout pull failed the metric gate on a counter no screen had exposed | Cost a `repeat_confirm_index=1` re-pull. The re-pull changed no code and no config — only the declaration — and both pulls returned identical numbers, but the confirm ledger correctly records it as a second look |
-| **R15** | **`harness/compare.py` aggregates `worker_turns_idle` and `worker_turns_total` but not `worker_turns_moving`**, so the commute share — now the single most decision-relevant utilisation number we have (57-62%) — is invisible in every gate artefact ever produced. `analysis/v1o3_visit_efficiency.py` recovers it per episode; it belongs in `_V1K_REPORT_METRICS` | The v1o.3 screen could not tell "the bundle is being taken" from "the bundle is a no-op" without writing a separate tool |
+| **R15** ✅ | Added `worker_turns_moving` to `_V1K_REPORT_METRICS` (2026-08-13, S3 step 1c) — `harness/compare.py` aggregation, `CompareResult` fields, `results.json` keys and the CLI summary line are all generic over that tuple, so this was a 3-line change plus a print line. Pinned by extending `test_compare_metrics_reads_agent_a_seat_in_each_orientation` rather than a parallel test | Both v1p.1 and v1p.2's SMOKE STOPs below were decided directly from this number in the gate artefact, with no separate script needed |
+| **R16** ✅ | **Checkpoint-naming convention, decided 2026-08-13 (S3 step 1c controls pass).** `<version>` names a candidate that was actually **screened** (`compare` run against its `checkpoints/<version>/main.py`, never against live `main.py`) — `checkpoints/v1p1b_armA1`, `_armB`, `v1p2b` above. An **inert post-STOP state** (live `main.py` reverted, behaviour-identical to an already-immutable baseline) gets **no checkpoint at all** — it is definitionally the baseline it reverts to, and creating one would just be a second, redundant immutable copy of `v1o_2`. `checkpoints/v1p_1` (2026-08-13, earlier this same day) predates this decision and is the case the convention exists to stop repeating: it is a post-STOP inert state that *did* get a checkpoint, inverting `v1o_3`'s naming (a stopped variant that also got one) from the pass before it — left as-is, not renamed, since a checkpoint's whole point is immutability once created | v1p.1 and v1p.2's own SMOKE screens ran against live `main.py` directly and then reverted it — fingerprints `bb9d173c…`/`06ebef7c…` in `gates/v1p1_armA_smoke_mirror`/`gates/v1p2_smoke_mirror` match no checkpoint on disk and can never be re-derived |
 | **R14** ✅ | **`checkpoints/` was gitignored wholesale**, contradicting the invariant the directory exists to enforce: [harness/checkpoint.py](harness/checkpoint.py) records (review H2) that checkpoints were *moved out of* `runs/` precisely because being gitignored "erased the only record of every accepted regression baseline from git history" — and then the same was done to `checkpoints/`. **Decided 2026-08-11 by the user: track the manifests only.** `.gitignore` is now `/checkpoints/**` + `!/checkpoints/**/` + `!/checkpoints/*/manifest.json` (that order is required — git cannot re-include a file whose parent directory is excluded). 20 manifests for v0…v1o_2 now carry every accepted baseline's fingerprint in history; the packages stay out | Same class as R3b: an argument the repo relies on ("immutable, verifiable baselines") was not true on disk |
 | **R7** | Unresolved: submission `55387820` (2026-08-09 18:58, score 613,0) corresponds to no checkpoint or gate in this repo; its description ("4th attempt…") is hand-written, so it was almost certainly a manual upload | It occupied an active slot and pushed v1g out. Harmless, but the two active slots are the final-ranking lineup |
 
@@ -716,7 +869,7 @@ max 12,6ms ⇒ `max×3 < 1s` · G13 determinism (identical action-stream sha256 
 
 ## 7. Where this stands
 
-*(Updated 2026-08-11 (β). The paragraph this replaces — "nothing under `agent/` has been
+*(Updated 2026-08-13. The paragraph this replaces — "nothing under `agent/` has been
 touched" — was true up to and including S1/S2; it no longer is.)*
 
 The plan is set and running: **§4.3 S1 → S5, replicate → freeze → innovate**, with the target
@@ -739,10 +892,44 @@ else's tape.
   rate. **Tier 0 is saturated 100% of the day**, so nothing inside it can be reordered profitably.
   The mechanism is retained in `agent/`, switched off, with live `main.py` verified
   behaviour-identical to `v1o_2` (`mean_diff` $0,00, 4/4 ties).
-- **Next: throughput, not order.** `worker_turns_moving` is **57-62%** of all unit-turns — three
-  in five spent walking. Crew, herd and the strawberry window are all gated on raising usable
-  unit-turns, which points at §3.3's *"routing-distance decoupled from urgency-distance in
-  `assign()`"*. Whatever the next increment is, it has to earn its acceptance arm against
+- **S3 step 1c — ⛔ both increments run and stopped (2026-08-13).** Herd compaction (v1p.1,
+  config-only) cut the herd's summed shed distance 39→27 and did lower `worker_turns_moving`
+  (61,7%→53,6%) but deterministically escaped 2 COW/episode via an animal-type placement race in
+  `assign()`'s greedy PLACE competition — 100% reproducible, always the same two tiles, tiles the
+  change never touched. Zone assignment (v1p.2, `agent/scheduler.py`) filtered `assign()`'s
+  eligible units by quadrant and hit its own pre-specified kill criterion at the first SMOKE:
+  `worker_turns_moving` barely moved (60,0%→58,7%) and a structural counter broke
+  (`plant_decay_units_lost` 0→17), most likely because the zone partition has no memory across
+  turns and can re-zone a `committed` unit out of eligibility for its own in-flight task. Both
+  kept in `agent/`, switched off, live `main.py` verified behaviour-identical to `checkpoints
+  /v1o_2` (`mean_diff` $0,00, 12/12 ties). `pytest tests/` **237 → 244 passed**. Full report:
+  `baselines/2026-08-13/s3_step1c_report.md`.
+- **S3 step 1c, continued — ⛔ both untested controls run, both STOP too (2026-08-13, same
+  day).** Neither original STOP was actually final — each root cause implied a control that was
+  never run (ROADMAP §2's STOP protocol was updated to say so explicitly). v1p.1b ran both:
+  arm A1 (COW instead of SHEEP on the same two distance-1 tiles) still escaped **48** animals,
+  same magnitude as arm A but now a *mixed* COW/SHEEP pair — **refuting v1p.1's own
+  type-blind-race root cause**. Arm B (`carrot_tiles` 3→1 alone, PASTURE untouched, the confound
+  control arm A never ran) escaped **12** with zero geometry change at all — dropping
+  `carrot_tiles` is itself destabilizing, a second, independent mechanism. Closes the "convert a
+  CARROT tile to compact the herd" family for good, confirmed analytically: the ten claimed
+  PASTURE slots are already the ten nearest of the 13 available. v1p.2b threaded `committed`
+  into `scheduler._zone_partition` (pin-first, quotas as a soft target for uncommitted units
+  only) — it fixed both structural symptoms v1p.2 broke (`plant_decay_units_lost` 17→0,
+  `animals_escaped` back to parity) but `worker_turns_moving` still barely moved (58,9%→60,3%,
+  same ~1,4pp non-movement as before) — its own restated kill criterion's third exit: **the
+  constraint genuinely is not which tasks a unit is offered.** Both kept in `agent/`, switched
+  off, live `main.py` re-verified behaviour-identical to `v1o_2` (`mean_diff` $0,00, 12/12
+  ties). `pytest tests/` **244 → 248 passed**. Full report:
+  `baselines/2026-08-13/s3_step1c_controls_report.md`.
+- **Next: the travel-ratio diagnostic (§4.3 deferred item ③), before min-cost matching
+  (④).** v1p.2b proved stickiness alone does not move `worker_turns_moving`, which leaves open
+  *why* — whether the 62% commute share is a geometric floor (territory/tour-construction is the
+  only lever) or the greedy one-at-a-time matching is genuinely losing turns (in which case ④,
+  Hungarian/auction assignment over the full unit×task pool, is justified). Cheap to measure,
+  expensive to guess wrong on: ④ has to re-establish G13 determinism and must not re-break
+  `committed`'s stickiness. §3.3's *"routing-distance decoupled from urgency-distance in
+  `assign()`"* stays last in line. Whatever it is, it has to earn its acceptance arm against
   `meta_route`: v1o.3 passed mirror at p=3,3e-6 and was worth nothing there.
 
 - **S4 — first submission of this line made, 2026-08-11:** `55438252` (v1o.2), PENDING, full

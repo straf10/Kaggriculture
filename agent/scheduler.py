@@ -519,6 +519,130 @@ def _build_animal_tasks(
     return tasks
 
 
+# v1p.2 (ROADMAP §4.3 S3 step 1c, zone assignment). Quadrant boundaries mirror the engine's own
+# `_quadrant_of` (engine_reference/kaggriculture.py:114-116) at boardSize=10 — the same hardcoded
+# geometry every other constant in this module already assumes (SHED_ACCESS, target_tiles, ...).
+_QUADRANT_ORDER = ("NW", "NE", "SW", "SE")
+# SHED_ACCESS is documented as "four inner-corner tiles around the shed, in NWSE order"
+# (engine_reference/kaggriculture.py:119-122) — reused directly as each quadrant's near-shed
+# anchor point instead of inventing separate constants that could drift out of sync with it.
+_QUADRANT_ANCHOR = dict(zip(_QUADRANT_ORDER, SHED_ACCESS))
+
+
+def _tile_quadrant(pos: tuple[int, int]) -> str:
+    x, y = pos
+    return ("N" if y < 5 else "S") + ("W" if x < 5 else "E")
+
+
+def _zone_partition(
+    tasks: list[Task],
+    snapshot: Snapshot,
+    config: dict,
+    committed: dict[int, str] | None = None,
+) -> dict[int, str]:
+    """Which quadrant each unit is zoned to this turn, or `{}` if zoning has no effect.
+
+    ROADMAP §4.3 S3 step 1c: `assign()`'s global argmin can pull a unit standing in one
+    quadrant to a task in another, a commute of up to ~12 turns to perform one 1-turn action.
+    This computes a proportional split of units across the quadrants we currently own, sized by
+    that turn's actual task count per quadrant (not a fixed ratio, which would re-break the
+    moment a tile-count knob moves) — a pure function of `tasks`/`snapshot`/`config`/`committed`
+    alone, so two processes with different PYTHONHASHSEED produce identical zones (G13). The
+    caller (`assign()`) turns this into a *filter on eligible_units*, never on tasks themselves,
+    with an explicit fallback to the full unit pool when a task's own zone has nobody in it — a
+    task must never become unservable just because its zone is momentarily empty.
+
+    v1p.2b (ROADMAP §4.3 S3 step 1c): v1p.2's own SMOKE STOP diagnosed why the plain version of
+    this function above was never safe to ship — it recomputed zones fresh every turn from the
+    *current* snapshot alone, so a unit already `committed` to a task (the C1 stickiness fix
+    `assign()`'s own docstring describes at length) could be re-zoned OUT of eligibility for that
+    exact task the moment the day's task-count mix shifted by one — silently discarding a walk
+    already paid for, reproducing the class of oscillation `committed` exists to prevent, one
+    layer up from where `committed` can see it. **Pin first**: a unit whose `committed` task still
+    exists in `tasks` keeps the zone that task lives in, unconditionally, before any quota is
+    computed — a pinned unit is never displaced by quota exhaustion, because quotas are a soft
+    target for the *remaining*, uncommitted units only. This is what lets `committed`'s stickiness
+    survive zoning instead of being bypassed by a hard eligibility exclusion.
+
+    Only tasks assign() will actually apply the filter to are counted toward a quadrant's
+    workload: `allowed_unit` tasks (PICKUP WHEAT, liquidation DROP — one per unit by
+    construction) already go to one named unit regardless of zone, so counting them would scale
+    a quadrant's quota with total unit count instead of real contested workload.
+    """
+    if not config["scheduler"].get("zone_assignment_enabled", False):
+        return {}
+    owned = tuple(q for q in _QUADRANT_ORDER if q in snapshot.my_quadrants)
+    if len(owned) <= 1:
+        return {}
+
+    committed = committed or {}
+    unit_positions = (snapshot.farmer_pos, *snapshot.hand_positions)
+    num_units = len(unit_positions)
+    if num_units == 0:
+        return {}
+
+    # Pin first (v1p.2b): a unit with a live commitment whose task still exists this turn keeps
+    # the zone that task lives in, unconditionally — this is the guard that would have caught
+    # v1p.2's STOP. Iterate `committed` in sorted unit-index order, never dict order (G13).
+    tasks_by_id = {task.id: task for task in tasks}
+    zones: dict[int, str] = {}
+    pinned_units: set[int] = set()
+    for unit_index in sorted(committed):
+        if unit_index >= num_units:
+            continue
+        committed_task = tasks_by_id.get(committed[unit_index])
+        if committed_task is None:
+            continue
+        zones[unit_index] = _tile_quadrant(committed_task.pos)
+        pinned_units.add(unit_index)
+
+    counts: dict[str, int] = {q: 0 for q in owned}
+    for task in tasks:
+        if task.allowed_unit is not None:
+            continue
+        quadrant = _tile_quadrant(task.pos)
+        if quadrant in counts:
+            counts[quadrant] += 1
+    total = sum(counts.values())
+
+    remaining_units = [unit_index for unit_index in range(num_units) if unit_index not in pinned_units]
+    if total == 0 or not remaining_units:
+        return zones
+
+    # Largest-remainder apportionment (Hamilton's method), over the remaining (unpinned) units
+    # only — quotas are a soft target for units without a live commitment. Floor each quadrant's
+    # exact share, then hand the leftover units to the quadrants with the largest fractional
+    # remainder, ties broken by _QUADRANT_ORDER position — deterministic regardless of dict
+    # iteration.
+    num_remaining = len(remaining_units)
+    exact = {q: num_remaining * counts[q] / total for q in owned}
+    quota = {q: int(exact[q]) for q in owned}
+    leftover = num_remaining - sum(quota.values())
+    by_remainder = sorted(owned, key=lambda q: (-(exact[q] - quota[q]), _QUADRANT_ORDER.index(q)))
+    for q in by_remainder[:leftover]:
+        quota[q] += 1
+
+    # Assign each remaining unit (in fixed unit_index order) to its nearest quadrant that still
+    # has quota left, so a unit already working near a quadrant tends to stay zoned there instead
+    # of thrashing turn to turn. Ties (equal distance, equal quota availability) break on
+    # _QUADRANT_ORDER, never on set iteration.
+    remaining_quota = dict(quota)
+    for unit_index in remaining_units:
+        pos = unit_positions[unit_index]
+        ranked = sorted(
+            owned,
+            key=lambda q: (
+                0 if remaining_quota.get(q, 0) > 0 else 1,
+                abs(pos[0] - _QUADRANT_ANCHOR[q][0]) + abs(pos[1] - _QUADRANT_ANCHOR[q][1]),
+                _QUADRANT_ORDER.index(q),
+            ),
+        )
+        zone = ranked[0]
+        remaining_quota[zone] = remaining_quota.get(zone, 0) - 1
+        zones[unit_index] = zone
+    return zones
+
+
 def make_ledger(snapshot: Snapshot) -> ResourceLedger:
     return ResourceLedger(
         seeds=dict(snapshot.seeds),
@@ -578,6 +702,12 @@ def assign(
     unassigned_units = set(range(len(unit_positions)))
     seeds_remaining = dict(snapshot.seeds)
     new_commitments: dict[int, str] = {}
+    # v1p.2: computed once from the original (pre-loop) task list, not `remaining_tasks` — the
+    # day's zoning is a single decision, not something that reshapes itself as tasks get
+    # assigned away turn-by-turn within this same call. v1p.2b: `committed` (this same turn's
+    # incoming stickiness map) is threaded through so a unit already walking toward a task keeps
+    # its zone pinned to that task, surviving this call's own zoning decision.
+    zones = _zone_partition(tasks, snapshot, config, committed)
 
     def _carries_cargo(unit_index: int) -> bool:
         # plan.md §5.1 v1d / plan.md G5: unlike PLANT's seeds (a shared private-state pool
@@ -592,6 +722,15 @@ def assign(
             return inventory.get(task.item, 0) > 0
         return True
 
+    def _carries_wheat(unit_index: int) -> bool:
+        # v1p.2: a unit already holding WHEAT is zone-exempt regardless of task kind. The feed
+        # round's PICKUP is itself allowed_unit-restricted (already zone-exempt, one task per
+        # unit), so this only ever matters for the FEED/CARE/HARVEST/COLLECT_FERTILIZER tasks
+        # downstream of it — decided explicitly rather than left implicit, per ROADMAP §4.3 S3
+        # step 1c: "decide explicitly whether carriers are zone-exempt while holding WHEAT."
+        inventory = snapshot.inventories[unit_index] if unit_index < len(snapshot.inventories) else {}
+        return inventory.get("WHEAT", 0) > 0
+
     while remaining_tasks and unassigned_units:
         candidates = []
         for task in remaining_tasks:
@@ -601,6 +740,18 @@ def assign(
                 if (task.allowed_unit is None or task.allowed_unit == unit_index)
                 and _carries_cargo(unit_index)
             ]
+            # v1p.2: a zone is a filter on eligible_units, never on tasks — allowed_unit tasks
+            # are already exempt (their eligible_units is at most one unit, unaffected below),
+            # and a task whose own zone has nobody in it falls back to the full pool rather than
+            # going unservable (a task quietly starving forever is a bug, not an outcome).
+            if zones and task.allowed_unit is None:
+                task_zone = _tile_quadrant(task.pos)
+                zoned_units = [
+                    unit_index for unit_index in eligible_units
+                    if zones.get(unit_index) == task_zone or _carries_wheat(unit_index)
+                ]
+                if zoned_units:
+                    eligible_units = zoned_units
             if not eligible_units:
                 continue
             best_distance = min(

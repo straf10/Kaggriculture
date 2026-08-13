@@ -106,6 +106,8 @@ def _results_json_dict(result) -> dict:
         "worker_turns_idle_b": result.worker_turns_idle_b,
         "worker_turns_total_a": result.worker_turns_total_a,
         "worker_turns_total_b": result.worker_turns_total_b,
+        "worker_turns_moving_a": result.worker_turns_moving_a,  # R15 (ROADMAP §6)
+        "worker_turns_moving_b": result.worker_turns_moving_b,
         "animals_underfed_days_a": result.animals_underfed_days_a,
         "animals_underfed_days_b": result.animals_underfed_days_b,
         "crop_revenue_a": result.crop_revenue_a,
@@ -239,6 +241,13 @@ def _cmd_compare(args):
             f"({100.0 * result.worker_turns_idle_a / max(1, result.worker_turns_total_a):.1f}%) "
             f"B={result.worker_turns_idle_b}/{result.worker_turns_total_b} "
             f"({100.0 * result.worker_turns_idle_b / max(1, result.worker_turns_total_b):.1f}%); "
+            # R15 (ROADMAP §6): worker_turns_moving was aggregated by _V1K_REPORT_METRICS but
+            # never surfaced in the CLI summary — the commute share had to be recovered by a
+            # separate script (analysis/v1o3_visit_efficiency.py) every time it mattered.
+            f"worker_moving A={result.worker_turns_moving_a}/{result.worker_turns_total_a} "
+            f"({100.0 * result.worker_turns_moving_a / max(1, result.worker_turns_total_a):.1f}%) "
+            f"B={result.worker_turns_moving_b}/{result.worker_turns_total_b} "
+            f"({100.0 * result.worker_turns_moving_b / max(1, result.worker_turns_total_b):.1f}%); "
             f"animals_underfed_days/ep A={result.animals_underfed_days_a / episodes:.1f} "
             f"B={result.animals_underfed_days_b / episodes:.1f}; "
             f"crop_revenue/ep A={result.crop_revenue_a / episodes:.1f} "

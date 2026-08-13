@@ -1520,6 +1520,284 @@ def test_v1o3_the_animal_priority_ladder_is_config_not_literals():
     assert pickups and all(task.priority == -1 for task in pickups)
 
 
+def _v1p2_config(**overrides):
+    """v1p.2's zone assignment is off by default (ROADMAP §4.3 S3 step 1c) — every guard below
+    drives `zone_assignment_enabled` explicitly, matching the `_v1o3_config` convention above."""
+    config = copy.deepcopy(CONFIG)
+    config["scheduler"].update(zone_assignment_enabled=True, **overrides)
+    return config
+
+
+def test_v1p2_zone_partition_is_inert_when_disabled_or_single_quadrant():
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((1, 1), (6, 1)))
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+    tasks = [Task("t1", "WATER", (1, 1), priority=0, deadline_step=23)]
+
+    # Flag off (the shipped default): no zoning at all, regardless of quadrant count.
+    off_config = copy.deepcopy(CONFIG)
+    assert off_config["scheduler"]["zone_assignment_enabled"] is False
+    assert _zone_partition(tasks, snapshot, off_config) == {}
+
+    # Flag on but only NW owned: nothing to zone against, so still a no-op.
+    single_quadrant = parse(_minimal_observation(hands=((1, 1), (6, 1))))
+    assert _zone_partition(tasks, single_quadrant, _v1p2_config()) == {}
+
+
+def test_v1p2_zone_partition_splits_units_proportionally_to_task_count():
+    """ROADMAP §4.3 S3 step 1c: 'proportional, not fixed' — sized by that turn's actual task
+    count per quadrant. 3 NW tasks + 1 NE task over 4 units divides exactly 3:1, and each unit
+    here is already geometrically closest to the zone its quota assigns it to, so the result is
+    unambiguous: farmer and both near-NW hands land in NW, the NE hand lands in NE."""
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((1, 1), (6, 1), (0, 0)))
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)  # farmer at (4, 4): SHED_ACCESS's own NW anchor
+    tasks = [
+        Task("nw1", "WATER", (1, 1), priority=0, deadline_step=23),
+        Task("nw2", "WATER", (2, 2), priority=0, deadline_step=23),
+        Task("nw3", "WATER", (1, 2), priority=0, deadline_step=23),
+        Task("ne1", "WATER", (6, 1), priority=0, deadline_step=23),
+    ]
+
+    zones = _zone_partition(tasks, snapshot, _v1p2_config())
+
+    assert zones == {0: "NW", 1: "NW", 2: "NE", 3: "NW"}
+
+
+def test_v1p2_zone_partition_ignores_allowed_unit_tasks_in_the_workload_count():
+    """`allowed_unit` tasks (PICKUP WHEAT, liquidation DROP) already go to one named unit
+    regardless of zone — counting them toward a quadrant's workload would scale its quota with
+    total unit count instead of real contested work, exactly the distortion the docstring warns
+    about. A pile of NW-restricted PICKUPs must not out-vote a single real NE task."""
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((1, 1), (6, 1), (0, 0)))
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+    tasks = [
+        Task(f"pickup:{i}", "PICKUP", (4, 4), priority=0, deadline_step=23, allowed_unit=i)
+        for i in range(4)
+    ] + [Task("ne1", "WATER", (6, 1), priority=0, deadline_step=23)]
+
+    zones = _zone_partition(tasks, snapshot, _v1p2_config())
+
+    # Only the one un-restricted NE task counts, so every quadrant's-worth of quota (all 4
+    # units) piles onto NE despite three of the four units sitting right next to NW.
+    assert set(zones.values()) == {"NE"}
+
+
+def test_v1p2_zone_partition_quota_overrides_raw_distance_once_exhausted():
+    """Once a quadrant's proportional quota is spent, the next unit in index order takes
+    whichever owned quadrant still has room — never raw nearest-quadrant alone, or the split
+    stops being proportional. Processed in unit_index order, so the farmer (index 0) claims the
+    single NW slot and every hand after it — even ones standing right next to NW — is zoned NE."""
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((1, 1), (2, 2), (6, 1)))
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)  # farmer at (4, 4)
+    tasks = [Task("nw1", "WATER", (1, 1), priority=0, deadline_step=23)] + [
+        Task(f"ne{i}", "WATER", (6, 1), priority=0, deadline_step=23) for i in range(3)
+    ]
+
+    zones = _zone_partition(tasks, snapshot, _v1p2_config())
+
+    assert zones == {0: "NW", 1: "NE", 2: "NE", 3: "NE"}
+
+
+def test_v1p2_assign_restricts_a_task_to_its_own_zone_with_global_fallback():
+    """The core mechanism: a zone is a filter on eligible_units, never on tasks. An NW task must
+    prefer an NW-zoned unit over a geometrically closer NE-zoned one — and if nobody at all is
+    zoned to the task's own quadrant, the task must still be servable from the global pool
+    rather than starving. `_zone_partition` itself is exercised separately above; this patches
+    it to a fixed result so the *filter* logic in `assign()` is tested in isolation."""
+    import agent.scheduler as scheduler_module
+    from unittest.mock import patch
+
+    config = _v1p2_config()
+    task = Task("care:2:2", "CARE", (2, 2), priority=1, deadline_step=23)  # NW position
+
+    # farmer far from the task, hand very close — without zoning the hand would win easily.
+    observation = _minimal_observation(hands=((1, 1),))
+    observation["farms"][0]["farmer"] = [9, 9]
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+
+    with patch.object(scheduler_module, "_zone_partition", return_value={0: "NW", 1: "NE"}):
+        farmer_action, hand_actions, _ = assign([task], snapshot, config=config)
+    # The far farmer (zoned NW, matching the task) is chosen over the near hand (zoned NE).
+    assert farmer_action != ["PASS"]
+    assert hand_actions == [["PASS"]]
+
+    # Now nobody is zoned NW at all — the task must fall back to the global pool (the near
+    # hand) instead of going unserved.
+    with patch.object(scheduler_module, "_zone_partition", return_value={0: "NE", 1: "NE"}):
+        farmer_action2, hand_actions2, _ = assign([task], snapshot, config=config)
+    assert hand_actions2 != [["PASS"]]
+
+
+def test_v1p2_assign_exempts_allowed_unit_tasks_from_zoning():
+    """allowed_unit tasks are exempt — a per-unit PICKUP WHEAT must still go to its named unit
+    even when that unit is zoned to a different quadrant than the task's own position."""
+    import agent.scheduler as scheduler_module
+    from unittest.mock import patch
+
+    config = _v1p2_config()
+    observation = _minimal_observation(hands=())
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    observation["farms"][0]["farmer"] = [6, 1]  # deep in NE, far from the NW-positioned task
+    snapshot = parse(observation)
+    pickup = Task(
+        "pickup:0", "PICKUP", (4, 4), priority=0, item="WHEAT", count=1,
+        deadline_step=23, allowed_unit=0,
+    )
+
+    with patch.object(scheduler_module, "_zone_partition", return_value={0: "NE"}):
+        farmer_action, _, _ = assign([pickup], snapshot, config=config)
+    assert farmer_action != ["PASS"]  # the farmer (unit 0) is still offered its own task
+
+
+def test_v1p2_assign_treats_a_wheat_carrier_as_zone_exempt():
+    """ROADMAP §4.3 S3 step 1c: 'decide explicitly whether carriers are zone-exempt while
+    holding WHEAT' — decided yes. A unit zoned to the *wrong* quadrant but already holding
+    WHEAT must stay eligible for an unrestricted task (CARE, not FEED — FEED's own
+    `_carries_cargo` check already narrows to wheat-carriers, which would make this exemption
+    look like a no-op there) outside its own zone, or a legitimate delivery would be stranded
+    mid-route. A correctly-zoned but empty-handed farmer sits far away; the wrong-zoned,
+    wheat-carrying hand sits right next to the task and must still be allowed to win it."""
+    import agent.scheduler as scheduler_module
+    from unittest.mock import patch
+
+    config = _v1p2_config()
+    observation = _minimal_observation(hands=((1, 1),))
+    observation["farms"][0]["farmer"] = [9, 9]
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    observation["private"]["inventories"] = [{}, {"WHEAT": 2}]  # farmer empty, hand carrying
+    snapshot = parse(observation)
+    task = Task("care:2:2", "CARE", (2, 2), priority=1, deadline_step=23)  # NW position
+
+    with patch.object(scheduler_module, "_zone_partition", return_value={0: "NW", 1: "NE"}):
+        farmer_action, hand_actions, _ = assign([task], snapshot, config=config)
+    assert farmer_action == ["PASS"]
+    assert hand_actions != [["PASS"]]
+
+
+def test_v1p2b_zone_partition_pins_a_committed_unit_to_its_own_task_zone():
+    """ROADMAP §4.3 S3 step 1c (v1p.2b) — the mandatory guard. v1p.2's own SMOKE STOP diagnosed
+    that the plain zone partition had no memory across turns, so a unit already `committed` to a
+    task could be re-zoned OUT of eligibility for that exact task the moment the day's
+    task-count mix shifted. A unit deep in NE, `committed` to an NW task that still exists, must
+    be pinned to NW regardless of what the raw quota split alone would say — here, 3 NE tasks
+    against 1 NW task would otherwise push every unit toward NE."""
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((6, 1), (6, 2), (6, 3)))
+    observation["farms"][0]["farmer"] = [6, 0]
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+    nw_task = Task("nw1", "WATER", (1, 1), priority=0, deadline_step=23)
+    tasks = [nw_task] + [
+        Task(f"ne{i}", "WATER", (6, i), priority=0, deadline_step=23) for i in range(3)
+    ]
+    committed = {0: "nw1"}  # farmer mid-walk toward the NW task from deep in NE
+
+    zones = _zone_partition(tasks, snapshot, _v1p2_config(), committed)
+
+    assert zones[0] == "NW"
+
+
+def test_v1p2b_zone_partition_excludes_pinned_units_from_quota_apportionment():
+    """A pinned unit must not consume a slot in the quota split computed for the remaining,
+    uncommitted units — quotas are a soft target for unpinned units only. 4 units, unit 0
+    pinned to NW via a live commitment; the 3 remaining units, apportioned only among
+    themselves against a workload of 1 NW task vs 9 NE tasks, all land on NE."""
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((1, 1), (6, 1), (6, 2)))
+    observation["farms"][0]["farmer"] = [1, 0]
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+    nw_task = Task("nw1", "WATER", (1, 1), priority=0, deadline_step=23)
+    # 9 NE tasks (x in {6, 7}, y in 0-4 so every one actually lands in NE, not SE) against 1 NW
+    # task, over the 3 real (unpinned) remaining units.
+    tasks = [nw_task] + [
+        Task(f"ne{i}", "WATER", (6 + i // 5, i % 5), priority=0, deadline_step=23)
+        for i in range(9)
+    ]
+    committed = {0: "nw1"}
+
+    zones = _zone_partition(tasks, snapshot, _v1p2_config(), committed)
+
+    assert zones == {0: "NW", 1: "NE", 2: "NE", 3: "NE"}
+
+
+def test_v1p2b_zone_partition_does_not_pin_a_commitment_whose_task_is_gone():
+    """A commitment only pins if its task still exists this turn — a stale `committed` entry
+    (the task completed or vanished) must fall back into the normal apportioned pool instead of
+    being pinned to a zone with no real task in it."""
+    from agent.scheduler import Task, _zone_partition
+
+    observation = _minimal_observation(hands=((6, 1),))
+    observation["farms"][0]["farmer"] = [1, 1]
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+    tasks = [Task("ne1", "WATER", (6, 1), priority=0, deadline_step=23)]
+    committed = {0: "nw1-no-longer-exists"}
+
+    zones = _zone_partition(tasks, snapshot, _v1p2_config(), committed)
+
+    # With no NW workload at all and the stale pin dropped, both units land on the one owned
+    # quadrant with any real task in it.
+    assert zones == {0: "NE", 1: "NE"}
+
+
+def test_v1p2b_assign_keeps_a_committed_unit_eligible_when_the_zone_mix_shifts():
+    """Integration-level reproduction of v1p.2's actual STOP mechanism, across two consecutive
+    `assign()` calls. Turn 1: only an NW task exists, and the hand (unit 1, one step away) wins
+    it and becomes `committed`. Turn 2: 3 new NE tasks appear. Under the pre-v1p.2b partition
+    (no memory of `committed`), the single NW quota slot goes to the farmer (parked exactly on
+    the NW shed-access anchor) instead of the hand — the hand gets re-zoned NE and loses
+    eligibility for the very task it was already one step from finishing, and the far-away
+    farmer wins it instead. With `committed` threaded through, the hand stays pinned to NW and
+    keeps the task."""
+    from agent.scheduler import Task
+
+    config = _v1p2_config()
+    nw_task = Task("nw1", "WATER", (1, 1), priority=0, deadline_step=23)
+
+    observation = _minimal_observation(hands=((1, 2), (6, 6)))
+    observation["farms"][0]["farmer"] = [4, 4]  # exactly the NW SHED_ACCESS anchor
+    observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE"]
+    snapshot = parse(observation)
+
+    farmer_action1, hand_actions1, commitments1 = assign([nw_task], snapshot, config=config)
+    assert farmer_action1 == ["PASS"]
+    assert hand_actions1[0] != ["PASS"]  # hand 0 (unit index 1) walks toward nw1
+    assert commitments1 == {1: "nw1"}
+
+    ne_tasks = [
+        Task(f"ne{i}", "WATER", (6 + i % 2, 1 + i), priority=0, deadline_step=23)
+        for i in range(3)
+    ]
+    farmer_action2, hand_actions2, commitments2 = assign(
+        [nw_task, *ne_tasks], snapshot, committed=commitments1, config=config,
+    )
+
+    # The pin, not the fallback: with only 3 units and 4 tasks, the farmer will always find
+    # *some* task once nw1 and one NE task are claimed (assign()'s zone-empty fallback keeps
+    # units from sitting idle), so the decisive check is *which* task each unit ends up on, not
+    # whether the farmer is idle. Pre-v1p.2b, the farmer (zoned NW by raw proximity to the NW
+    # shed-access anchor) would have won nw1 directly and hand 0 (unit index 1) would have been
+    # re-zoned NE, losing the task it was already one step from finishing.
+    assert commitments2.get(1) == "nw1"  # hand 0 keeps its committed task
+    assert commitments2.get(0) != "nw1"  # the farmer must not take it over
+    assert hand_actions2[0] != ["PASS"]  # hand 0 is still actively working toward nw1
+
+
 def test_v1h_wheat_planting_stops_in_time_to_still_mature():
     """WHEAT is one-shot: HARVEST empties the tile, and yield only peaks at max_yield_day. A
     seed planted past wheat_last_plant_day is a tile watered for the rest of the season and

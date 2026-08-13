@@ -11,6 +11,61 @@ CONFIG = {
         # comment below), so it was the first place cut when 11 more PASTURE tiles were needed
         # for the v1g animal-mass increment (current_phase.md v1g). NE's carrot mirror tiles
         # (ne_carrot_tiles) are untouched.
+        #
+        # ⛔ v1p.1 (ROADMAP §4.3 S3 step 1c, herd compaction — arm A) STOPPED at SMOKE, kept at 3.
+        # Tried: reassign (3, 4) and (4, 3) — the two remaining NW CARROT tiles here besides
+        # (4, 4), distance 1 from the (4,4) shed spawn and otherwise idle land (CARROT is
+        # $34,9/tile-day, the worst crop in the game — §3.2(6) — and §4.3 already wants it at
+        # zero) — from CARROT to PASTURE's two farthest SHEEP slots ((0, 2)/(2, 0), distance 6
+        # each: the same tail that lost animals in v1h', v1o.2 and v1o.3). carrot_tiles would
+        # drop 3 -> 1 and the herd's summed shed distance 39 -> 27 across all 10 claimed slots.
+        #
+        # SMOKE 0-11, both seats, `--town-pin basket`, mirror vs `checkpoints/v1o_2`:
+        # `animals_escaped_a` **48 vs 2** (100% reproducible — every single one of the 24
+        # orientations, `mean_diff` -$875,4 INCONCLUSIVE, `metric_gate_passed` False,
+        # `crop_tile_days`/ep 494,0 vs 616,2. `worker_turns_moving` DID fall (61,7% -> 53,6%,
+        # confirming the geometry change itself works as intended) but the animal side broke
+        # completely differently from every prior escape STOP: the loss is not the measured tail
+        # ((0,3) etc., §3.3) but two **COW** at (3, 2)/(3, 3) — tiles this change never touched —
+        # escaping at exactly step 48 (day 2) in every single seed and both seat orientations
+        # (analysis dump: escapes/analysis_v1p1_armA_escape_diag, local). Root cause, traced
+        # directly against the replay: `assign()`'s greedy loop has no notion of animal type, only
+        # priority + distance (scheduler.py's sort key) — PLACE is priority 1 for every animal
+        # name, so on day 0 the two new distance-1 SHEEP slots out-race COW's own distance-2/3
+        # slots for every unit as they free up, and COW's PLACE (and the FEED cycle that only
+        # starts once an animal is actually placed) is pushed back far enough to cross the
+        # `consecutive_unfed >= 2` escape threshold — a structural side effect of making some
+        # PASTURE slots closer to spawn than *any* of COW's own slots, not a `strawberry_last
+        # _plant_day`/`sw_hands_target`-style economic trade. It is intrinsic to reassigning
+        # distance-1 tiles to SHEEP specifically (arms B and C in the original screen share the
+        # same two tiles and would hit the identical race), not a bookkeeping detail of this one
+        # arm, so no further variant of "give SHEEP the freed CARROT tiles" was screened. See
+        # ROADMAP §3.3 and memory.md 2026-08-13.
+        #
+        # ⛔ v1p.1b (ROADMAP §4.3 S3 step 1c) STOPPED at SMOKE, kept at 3 — this closes the
+        # "convert a CARROT tile to compact the herd" family for good. Two untested controls
+        # v1p.1's own root cause implied, both run: arm A1 (same tile set as arm A, COW instead
+        # of SHEEP gets the two distance-1 tiles — see animal_structure_tiles["PASTURE"] below)
+        # and arm B (carrot_tiles 3 -> 1 alone, PASTURE completely untouched — the confound
+        # control arm A never ran). Both fail. Arm A1: `animals_escaped_a` **48** (vs its own
+        # paired `v1o_2` mirror at 0), the same magnitude as arm A's original 48 — but now a
+        # *mixed* pair, (4,2) COW and (3,2) SHEEP, not the pure-COW pair arm A hit, at the same
+        # day 2 / step ~48 timing (`worker_turns_moving` did fall, 60,3% -> 46,0%, confirming the
+        # geometry itself still works). **This refutes v1p.1's own root cause**: giving COW the
+        # close tiles instead of SHEEP does not fix the race, so it was never a type-blind
+        # SHEEP-vs-COW contest specifically. Arm B: `animals_escaped_a` **12** (vs its own paired
+        # baseline 2), seed/orientation-dependent (6 of 24) rather than deterministic, with **zero
+        # PASTURE change at all** — dropping carrot_tiles below 3 is *itself* destabilizing to the
+        # feed pipeline, independent of what the freed land becomes. Excess-over-own-baseline
+        # decomposition (§2.1.1: paired baselines legitimately differ seed-to-seed under RNG
+        # coupling, so this is approximate): arm A1 excess ~48, arm B excess ~10, geometry-only
+        # ~38. Analytically confirmed separately: NW is fully allocated (3 CARROT + 8 STRAWBERRY
+        # + 13 PASTURE + 1 COOP = 25) and the 13 PASTURE tiles sorted by distance are
+        # 2,2,2,3,3,4,4,5,6,6,7,7,8 — the ten currently-claimed slots are already the ten
+        # nearest, so there is no free reorder left inside the existing PASTURE pool; proximity
+        # can only be bought by converting a crop tile, and that purchase does not pay for
+        # itself. Checkpoints `checkpoints/v1p1b_armA1` / `checkpoints/v1p1b_armB`. See ROADMAP
+        # §3.3 and memory.md 2026-08-13.
         "carrot_tiles": 3,
         # plan.md §5 v1e: reduced from 16 to 15 to free tile (3, 0) for GOOSE's COOP structure
         # — all 25 NW tiles were already fully allocated (7 CARROT + 16 STRAWBERRY + 2 PASTURE),
@@ -226,6 +281,70 @@ CONFIG = {
         # nearest-first, preserving both C1/§1.2's far-but-urgent fix and v1b's efficient
         # default ordering.
         "urgency_slack_margin": 2,
+        # ⛔ v1p.2 (ROADMAP §4.3 S3 step 1c, zone assignment) STOPPED at SMOKE, kept at False.
+        # `assign()`'s global argmin takes no account of *where* a unit already is relative to
+        # where the rest of the day's work is — a hand standing in one owned quadrant can be
+        # pulled to a task in another, a commute of up to ~12 turns to perform one 1-turn action.
+        # `worker_turns_moving` measured 57-62% of every unit-turn
+        # (analysis/v1o3_visit_efficiency.py, ROADMAP §3.3), and v1o.3 already showed that
+        # nothing *inside* a saturated priority tier can be reordered profitably — this instead
+        # narrowed *which units* a task is even offered, via scheduler._zone_partition (kept, see
+        # its docstring for the full mechanism: proportional to that turn's real task counts per
+        # quadrant, a filter on eligible units never on tasks, explicit fallback to the global
+        # pool, WHEAT-carriers zone-exempt).
+        #
+        # SMOKE 0-11, both seats, `--town-pin basket`, mirror vs `checkpoints/v1o_2`:
+        # `mean_diff` **-$6.966,0, REGRESSED, p=4,9e-4**, episodes 0-24. The roadmap's own kill
+        # criterion (§4.3 S3 step 1c: "if the best arm does not move worker_turns_moving below
+        # ~55%, zoning is not binding") fired at the very first screen — `worker_turns_moving`
+        # barely moved (60,0% -> 58,7%, B vs A), nowhere near the target, so the commute share
+        # this increment exists to cut was essentially untouched. Worse, it broke a *structural*
+        # hard-zero counter: `plant_decay_units_lost` **17** (0 at baseline; ROADMAP §2.1.5, a
+        # STOP on its own regardless of the dollar verdict), alongside `animals_escaped` 20 vs 6
+        # and `shed_overflow_burnt` 12 vs 0.
+        #
+        # WHY, most likely (not re-tuned against, only documented — ROADMAP §2's STOP protocol):
+        # the zone partition is a pure function of the *current* snapshot, recomputed fresh every
+        # `assign()` call, with no memory of which zone a unit was in the turn before. A unit
+        # mid-walk toward a task it is already `committed` to (the C1 stickiness mechanism this
+        # module's docstring describes at length, built to stop exactly this class of thrash) can
+        # be re-zoned OUT of eligibility for that same task the very next turn, as soon as the
+        # day's task-count mix shifts by one WATER or FEED task finishing elsewhere — silently
+        # discarding progress on a walk already paid for. `committed`'s switching bonus lives
+        # *inside* the eligible set; a hard exclusion from that set bypasses it entirely. This is
+        # consistent with the observed pattern: the counters that broke are exactly the ones with
+        # a hard multi-turn deadline (WATER's decay clock, FEED's `consecutive_unfed`), and the
+        # damage is sparse and seed/day-dependent (occurs on 4 of 12 SMOKE seeds) rather than the
+        # 100%-reproducible mechanism v1p.1 found — consistent with a timing-dependent
+        # re-zoning race, not a fixed geometric flaw. A zone-aware stickiness extension (folding
+        # `committed` into `_zone_partition` so a unit already walking toward a task keeps its
+        # eligibility) is a plausible fix but was not built or screened — that would be tuning
+        # against this specific measured failure, not the next independently-motivated
+        # increment. Hands off to ROADMAP §4.3's deferred item ③ (min-cost matching inside
+        # `assign()` itself) per the kill criterion's own instruction.
+        #
+        # ⛔ v1p.2b (ROADMAP §4.3 S3 step 1c) STOPPED at SMOKE, kept at False — the untested
+        # control v1p.2's own root cause implied, now run. `scheduler._zone_partition` threads
+        # `committed` through and pins a unit with a live commitment to its own task's zone
+        # before any quota is computed (see that function's docstring), closing exactly the
+        # thrash class v1p.2's STOP diagnosed. It worked at the structural level: the hard-zero
+        # break is gone (`plant_decay_units_lost` 0, was 17) and `animals_escaped` is back to
+        # parity with baseline (5 vs 5, was 20 vs 6). But the number the whole increment is
+        # judged on did not move: SMOKE 0-11, both seats, `--town-pin basket`, mirror vs
+        # `checkpoints/v1o_2`: `worker_turns_moving` **58,9% -> 60,3%** (candidate vs baseline),
+        # essentially the same ~1,4pp non-movement as v1p.2's own original screen (58,7% vs
+        # 60,0%), nowhere near the roadmap's ~55% target. `mean_diff` -$2.688,6, REGRESSED
+        # (CI [-3.832,5, -1.544,8]), driven by `water_weeds_lost`/`unexpected_weeds_lost` 226 vs
+        # 61 and new `shed_overflow_burnt` 18 vs 0 — the fix removed the thrash-driven structural
+        # break but not the underlying commute cost, and traded it for a different, smaller loss
+        # pattern. Per this increment's own restated kill criterion (ROADMAP §4.3 S3 step 1c):
+        # stickiness in place and `worker_turns_moving` still does not fall means the constraint
+        # genuinely is not *which* tasks a unit is offered — zoning was never the lever.
+        # **Refuted, not just under-delivering**: hands off to the deferred travel-ratio
+        # diagnostic (ROADMAP §4.3 item ③), not directly to min-cost matching (item ④), per the
+        # kill criterion's own instruction — that diagnostic decides whether ④ is even
+        # justified. Checkpoint `checkpoints/v1p2b`. See ROADMAP §3.3 and memory.md 2026-08-13.
+        "zone_assignment_enabled": False,
         # ======================================================================================
         # ⛔ v1o.3 (ROADMAP §4.3 S3 step 1b) — "protect the animal-upkeep pipeline". **STOPPED on
         # the acceptance arm.** Every value below is at its pre-v1o.3 default, so this whole block
@@ -322,6 +441,9 @@ CONFIG = {
             # reclaimed for PASTURE (see carrot_tiles comment above). The 3 nearest NW tiles
             # stay CARROT so late-game planting (after STRAWBERRY's window closes, before NE
             # unlock) still has a target.
+            #
+            # ⛔ v1p.1 tried reassigning (3, 4)/(4, 3) to PASTURE — STOPPED, see the carrot_tiles
+            # comment above. Left at their original 3 NW positions.
             "CARROT": (
                 (4, 4), (3, 4), (4, 3),
                 # plan.md §5 v1c: NE mirror (x' = 9 - x) of the original 7 NW tiles, appended
@@ -388,6 +510,23 @@ CONFIG = {
         # shed-first across the claimed slots (FEED/CARE is a recurring daily commute cost
         # ×10 now, review_89d99f0_2026-08-05.md C1 §1.3).
         "animal_structure_tiles": {
+            # ⛔ v1p.1 (ROADMAP §4.3 S3 step 1c) tried swapping (0, 2)/(2, 0) — the two farthest
+            # SHEEP slots, distance 6 each — for (3, 4)/(4, 3), the two NW CARROT tiles freed by
+            # the carrot_tiles comment above (distance 1 each), cutting the herd's summed shed
+            # distance 39 -> 27. STOPPED at SMOKE: `animals_escaped_a` 48 vs 2 over 24
+            # orientations, 100% reproducible — not the (0,2)/(0,3)/(2,0) tail these two tiles
+            # were meant to fix, but two **COW** at (3, 2)/(3, 3) (untouched by this change)
+            # escaping at day 2 every single episode. Root cause: `assign()`'s greedy PLACE
+            # competition (scheduler.py) has no notion of animal type, only priority + distance —
+            # making two SHEEP slots closer than *any* COW slot lets SHEEP win every early PLACE
+            # race, pushing COW's first placement/feed cycle back far enough to cross
+            # `consecutive_unfed >= 2`. Full mechanism in the carrot_tiles comment above; kept at
+            # the original geometry.
+            #
+            # ⛔ v1p.1b arm A1 tried the untested control — COW instead of SHEEP on the same two
+            # distance-1 tiles — and STOPPED too: `animals_escaped_a` 48, same magnitude, now a
+            # mixed COW/SHEEP pair. Refutes v1p.1's own type-blind-race root cause; see the
+            # carrot_tiles comment above. Kept at the original geometry.
             "PASTURE": (
                 # COW block (4): distances 2,2,2,3 from the (4,4) shed spawn.
                 (4, 2), (3, 3), (2, 4), (3, 2),
