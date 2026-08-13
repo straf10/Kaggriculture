@@ -662,7 +662,11 @@ def test_v1h2d_feed_pickup_reserves_delivery_slack_and_inherits_escape_risk():
     shed = engine._shed_access_tiles(10)[0]
     delivery_distance = abs(shed[0]) + abs(shed[1])
     assert all(task.deadline_step == day_deadline - delivery_distance - 1 for task in pickups)
-    assert all(task.priority == -1 for task in pickups)
+    # v1o.3: the value itself now lives in config (`feed_at_risk_priority`); what this guard is
+    # about is that the predecessor *inherits* the escape risk, not what number it inherits.
+    at_risk_priority = CONFIG["scheduler"]["feed_at_risk_priority"]
+    assert at_risk_priority < CONFIG["scheduler"]["feed_priority"]
+    assert all(task.priority == at_risk_priority for task in pickups)
 
 
 def test_g8_harvest_offered_every_turn_product_is_held_not_just_at_cap():
@@ -1318,6 +1322,202 @@ def test_v1o1_wheat_window_is_independent_of_the_strawberry_window():
     observation["farms"][0]["unlocked_quadrants"] = ["NW", "NE", "SW"]
     plan = make_day_plan(parse(observation), config)
     assert plan.plant_targets.get("WHEAT", 0) > 0
+
+
+def _v1o3_config(**overrides):
+    """v1o.3's ladder is SHIPPED OFF (ROADMAP §3.3 — the acceptance arm stopped it twice), so
+    every guard below drives the knobs explicitly instead of reading the live values. What is
+    still being pinned is that the mechanism works when switched on: the code is retained,
+    disabled, as the artefact the recorded numbers refer to, and a silent rot would make those
+    numbers unreproducible."""
+    config = copy.deepcopy(CONFIG)
+    config["scheduler"].update(overrides)
+    return config
+
+
+def _fed_animal_needing_everything_else(step=10, farmer=(4, 2)):
+    """A COW already fed today that still owes CARE, HARVEST and COLLECT_FERTILIZER, with the
+    farmer standing on it. This is the exact state v1o.3's bundling targets: the visit is half
+    done and the unit is already there."""
+    observation = _minimal_observation(step=step)
+    observation["farms"][0]["farmer"] = list(farmer)
+    tile = _animal_tile("COW", fed_today=True, cared_today=False, yield_units=2)
+    tile["fertilizer_available"] = True
+    observation["farms"][0]["tiles"][farmer[1]][farmer[0]] = tile
+    return observation
+
+
+def test_v1o3_a_standing_unit_finishes_the_animal_visit_instead_of_leaving_for_water():
+    """ROADMAP §4.3 S3 step 1b. assign() drops every unrestricted task at an assigned position
+    and only sets `committed` when a unit MOVES, so a unit standing on an animal tile did one op
+    and then re-competed from scratch — losing to the nearest priority-0 WATER every time, since
+    task.priority leads the sort key absolutely. With ~60 planted tiles the tier-0 pool never
+    empties inside a day, so tier-1 CARE/HARVEST and tier-3 COLLECT_FERTILIZER starved
+    deterministically (WOOL -41% of units, FERTILIZER -27%, analysis/v1o1_product_split.py).
+
+    Bundling promotes only the tile the unit is *already standing on*, so it can never induce a
+    commute — it can only finish one."""
+    config = _v1o3_config(bundle_animal_visits=True)
+    observation = _fed_animal_needing_everything_else()
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, config)
+
+    tasks = build_tasks(snapshot, plan, config)
+    animal_tasks = {task.kind: task for task in tasks if task.pos == (4, 2)}
+    assert set(animal_tasks) == {"CARE", "HARVEST", "COLLECT_FERTILIZER"}
+    bundle_priority = config["scheduler"]["bundle_priority"]
+    assert all(task.priority == bundle_priority for task in animal_tasks.values())
+
+    # …and the promotion is what actually keeps the unit there: a far WATER task at the same
+    # tier loses on distance, where at the un-bundled tier it would have won on priority alone.
+    water = Task("water:0:0", "WATER", (0, 0), priority=0, deadline_step=23)
+    farmer_action, _, _ = assign([water, animal_tasks["CARE"]], snapshot)
+    assert farmer_action == ["CARE"]
+
+    unbundled = Task("care:4:2", "CARE", (4, 2), priority=1, deadline_step=23)
+    farmer_action, _, _ = assign([water, unbundled], snapshot)
+    assert farmer_action != ["CARE"]
+
+
+def test_v1o3_bundling_never_outranks_an_unfed_animals_own_feed_task():
+    """The guard that keeps the fix from cannibalising the pipeline it exists to protect.
+    assign()'s position dedup removes *every* unrestricted task at an assigned position, so a
+    bundled CARE at a still-unfed tile would take that tile's FEED out of the turn's pool. A
+    visit therefore only bundles once the animal is fed."""
+    config = _v1o3_config(bundle_animal_visits=True)
+    observation = _fed_animal_needing_everything_else()
+    observation["farms"][0]["tiles"][2][4]["fed_today"] = False
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, config)
+
+    tasks = {task.kind: task for task in build_tasks(snapshot, plan, config) if task.pos == (4, 2)}
+    assert tasks["FEED"].priority == config["scheduler"]["feed_priority"]
+    assert tasks["CARE"].priority > tasks["FEED"].priority
+    assert tasks["COLLECT_FERTILIZER"].priority > tasks["FEED"].priority
+
+
+def test_v1o3_the_feed_round_outranks_the_bundle_rather_than_suppressing_it():
+    """The shape of the shipped fix, pinned. Variant A put the bundle at tier 0 on top of the
+    unchanged ladder and made the animal side *worse* (escapes 15 vs 6, underfed 51,6 vs 36,1)
+    even though the bundle itself worked: PICKUP WHEAT and FEED also sat at tier 0, always at
+    distance >= 1, so a unit standing on any already-fed tile out-competed the whole round.
+
+    The fix is a tier of its own for the feed round, not a weaker bundle — so with an unfed animal
+    on the farm the bundle still exists, and still loses to it."""
+    config = _v1o3_config(bundle_animal_visits=True, feed_priority=-1, feed_at_risk_priority=-2)
+    observation = _fed_animal_needing_everything_else()
+    observation["farms"][0]["tiles"][3][0] = _animal_tile("SHEEP", fed_today=False)
+    observation["private"]["shed"]["WHEAT"] = 4
+    snapshot = parse(observation)
+    tasks = build_tasks(snapshot, make_day_plan(snapshot, config), config)
+
+    bundled = [task for task in tasks if task.pos == (4, 2)]
+    feed = [task for task in tasks if task.kind in ("FEED", "PICKUP")]
+    assert bundled and feed
+    assert max(task.priority for task in feed) < min(task.priority for task in bundled)
+
+
+def test_v1o3_the_feed_round_veto_still_works_when_it_is_switched_on():
+    """`bundle_yields_to_feed_round` is off in the shipped config because it was measured to do
+    nothing (+$26/ep, INCONCLUSIVE, every counter at baseline) — the feed round is open 100% of
+    the hours of a median day from day 9, so a bundle that waits for it never fires. The knob is
+    kept because that is a measured answer rather than an assumption, so it has to keep working:
+    with it on, one unfed animal anywhere suppresses the bundle everywhere."""
+    config = _v1o3_config(bundle_animal_visits=True, bundle_yields_to_feed_round=True)
+
+    observation = _fed_animal_needing_everything_else()
+    observation["farms"][0]["tiles"][3][0] = _animal_tile("SHEEP", fed_today=False)
+    snapshot = parse(observation)
+    tasks = {task.kind: task
+             for task in build_tasks(snapshot, make_day_plan(snapshot, config), config)
+             if task.pos == (4, 2)}
+
+    ladder = config["scheduler"]["animal_task_priority"]
+    assert tasks["CARE"].priority == ladder["CARE"]
+    assert tasks["COLLECT_FERTILIZER"].priority == ladder["COLLECT_FERTILIZER"]
+    assert all(task.allowed_unit is None for task in tasks.values())
+
+
+def test_v1o3_a_decaying_crop_keeps_its_standing_against_the_promoted_feed_round():
+    """The hole the FEED promotion opens, and the guard that closes it. engine _decay_plants
+    (:738-752) strips one yield_unit every second step once `max_lifespan_step` is reached, so
+    crop HARVEST is the only *other* task in the game with a hard yield deadline — and lifting
+    FEED to -1 put it above that. Measured: `plant_decay_units_lost` 4 (variant C) and 14
+    (variant D), a structural counter that is hard-zero under ROADMAP §2.1.5. With the guard both
+    hard deadlines sit in the same tier and compete on urgency and distance instead."""
+    config = _v1o3_config(feed_priority=-1, feed_at_risk_priority=-2,
+                          crop_harvest_at_risk_priority=-1)
+    day = 4
+    observation = _minimal_observation(step=day * 24 + 3)
+    observation["farms"][0]["tiles"][4][4] = {
+        "kind": "PLANT", "crop": "CARROT", "planted_day": 0, "yield_units": 3,
+        "watered_today": False, "consecutive_unwatered": 0,
+        # already inside its decay window: the engine is taking a unit every second step today.
+        "max_lifespan_step": day * 24,
+    }
+    snapshot = parse(observation)
+    tasks = build_tasks(snapshot, make_day_plan(snapshot, config), config)
+
+    harvest = next(task for task in tasks if task.kind == "HARVEST" and task.pos == (4, 4))
+    assert harvest.priority == config["scheduler"]["crop_harvest_at_risk_priority"]
+    assert harvest.priority <= config["scheduler"]["feed_priority"]
+
+
+def test_v1o3_a_bundled_task_never_removes_a_competing_task_at_its_own_tile():
+    """assign() drops every *unrestricted* task at an assigned position, but dedups
+    allowed_unit-restricted ones by id — so pinning the bundle to the unit already standing there
+    is what keeps it from evicting that tile's other work from the turn's pool. The restriction
+    also makes the distance-0 claim structural rather than incidental."""
+    config = _v1o3_config(bundle_animal_visits=True)
+    observation = _fed_animal_needing_everything_else()
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, config)
+
+    bundled = [task for task in build_tasks(snapshot, plan, config) if task.pos == (4, 2)]
+    assert bundled and all(task.allowed_unit == 0 for task in bundled)
+
+
+def test_v1o3_bundling_only_applies_where_a_unit_is_already_standing():
+    """The whole economic argument is that the bundle is free because the unit is already there
+    (1 turn instead of 2*distance + 1). An empty tile must keep the base ladder — otherwise this
+    is a global re-tiering, which is zero-sum against WATER."""
+    config = _v1o3_config(bundle_animal_visits=True)
+    observation = _fed_animal_needing_everything_else(farmer=(4, 2))
+    observation["farms"][0]["farmer"] = [0, 0]
+    snapshot = parse(observation)
+    plan = make_day_plan(snapshot, config)
+
+    tasks = {task.kind: task for task in build_tasks(snapshot, plan, config) if task.pos == (4, 2)}
+    ladder = config["scheduler"]["animal_task_priority"]
+    assert tasks["CARE"].priority == ladder["CARE"]
+    assert tasks["HARVEST"].priority == ladder["HARVEST"]
+    assert tasks["COLLECT_FERTILIZER"].priority == ladder["COLLECT_FERTILIZER"]
+
+
+def test_v1o3_the_animal_priority_ladder_is_config_not_literals():
+    """Every arm of the v1o.3 screen is a config edit, so the ladder has to be readable from
+    config — including FEED and its mandatory PICKUP WHEAT predecessor, which move together
+    (`_carries_cargo` makes FEED eligible only for a unit already holding WHEAT, so promoting
+    FEED alone does nothing on the turns where nobody has any)."""
+    config = copy.deepcopy(CONFIG)
+    config["scheduler"]["bundle_animal_visits"] = False
+    config["scheduler"]["animal_task_priority"] = {"CARE": -5, "HARVEST": -6, "COLLECT_FERTILIZER": -7}
+    config["scheduler"]["feed_priority"] = -1
+    config["scheduler"]["feed_at_risk_priority"] = -2
+
+    observation = _fed_animal_needing_everything_else()
+    observation["farms"][0]["tiles"][2][4]["fed_today"] = False
+    observation["private"]["shed"]["WHEAT"] = 4
+    snapshot = parse(observation)
+    tasks = build_tasks(snapshot, make_day_plan(snapshot, config), config)
+
+    by_kind = {task.kind: task for task in tasks if task.pos == (4, 2)}
+    assert by_kind["CARE"].priority == -5
+    assert by_kind["HARVEST"].priority == -6
+    assert by_kind["COLLECT_FERTILIZER"].priority == -7
+    assert by_kind["FEED"].priority == -1
+    pickups = [task for task in tasks if task.kind == "PICKUP" and task.item == "WHEAT"]
+    assert pickups and all(task.priority == -1 for task in pickups)
 
 
 def test_v1h_wheat_planting_stops_in_time_to_still_mature():

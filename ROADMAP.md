@@ -23,7 +23,8 @@
 | | Value | Source |
 |---|---|---|
 | Our best public score | **652,5** (`55383610`, v1h) | `kaggle competitions submissions` |
-| Our active pair | `55414570` v1i **632,2** · `55409945` v1m_d2 **626,1** | same |
+| Our active pair | **`55438252` v1o.2 (PENDING, submitted 2026-08-11 17:06 UTC)** · `55414570` v1i **618,4** | same |
+| ⚠️ Rating decay, observed | `55414570` **632,2 → 618,4** and `55409945` **626,1 → 625,3** between 08-10 and 08-11 with no code change — a frozen agent's score falls as the meta moves (§4.4#1), so a score is only comparable to others read the same day | same |
 | Our rank | **2218 / 3811 teams** | `kaggle competitions list -s kaggriculture -v` |
 | Ladder #1 | **3187,7** (THUNDER THUNDER) | leaderboard, 2026-08-11 |
 | Starting rating of any new submission | 600,1 | `current_phase.md` §0 (retired) |
@@ -254,6 +255,8 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **v1c** land expansion, ×3 variants | STOP | Capacity/routing, not land, was the blocker |
 | **v1j** wheat 12→24 tiles + crew 10→12 | STOP, −$759 | +2 hands never hired; land-only ⇒ escapes 0→8. 🔴 **Cause corrected 2026-08-11 (v1o.2):** the hands were not unaffordable — **one HIRE is one market order, `maxMarketOrdersPerTurn` is 10, and the engine silently drops the rest** ([kaggriculture.py:538](engine_reference/kaggriculture.py#L538)); hands are wiped nightly, so a crew rebuilt entirely in hour 0 cannot exceed 10 whatever `hands_target` says. Screening 10→12→14 measured **byte-identical** results (`mean_diff` exactly $0,00, CI [0,0]). Do not cite cost as the reason again |
 | **v1o.2 `sw_hands_target` 12** (after the order cap was lifted) | STOP on the **acceptance priced gate** | Best dollars of the session — `mean_diff` **+$4.144,7**, IMPROVED, episodes 82-14, `median_bank` **$59.409** — and `priced_loss_delta` **$477,6/ep against a $414,5 budget** (clears the $500 leg, fails the 10%-of-mean_diff leg; the rule is AND), driven by `animals_escaped` **87 vs 32**. 12 hands on ~594 crop tile-days emit more priority-0 `WATER` than the same tier's `FEED` survives. **The crew cannot be raised past this until feed priority is protected** |
+| **v1o.3 animal-upkeep protection** (S3 step 1b — bundling, feed-round re-tiering, and both together), 7 screened variants | ⛔ **STOP on the acceptance arm, twice** | The best SMOKE variant (**E**: visit bundling + FEED/PICKUP at −1/−2 + a decay guard on crop HARVEST) went to DEV against the non-mirror bench and returned `median_bank` **$59.469,5 vs the baseline's $59.875,5**, `mean_diff` **+$61,6 vs +$4.839,9**, episodes **50-46 vs 84-12** — all three §2.1.4 numbers the wrong way — plus `plant_decay_units_lost` **14** (structural). Bundling alone (**A3**) was **−$3.793,4 REGRESSED**, escapes **77 vs 5**. **E worked exactly as designed and that is the point:** `animals_escaped` **13 → 0**, the pipeline fully protected, paid for out of `crop_tile_days` 612 → 574. 13 escapes ≈ $135/ep; the production ≈ $1.180/ep. **Any reallocation toward animals loses at our production level** (574 tile-days against 1.316) however cleanly it is implemented. ⚠️ The **mirror** arm said **+$4.877,5 IMPROVED, 40-8, p=3,3e-6** — the sharpest §3.4 demonstration in the repo |
+| **The feed round never closes** (measured, not an increment) | Standing fact | Per-hour count of animals with `fed_today=False`, 8 runs vs `meta_route`: **≥1 animal is unfed for 100% of the hours of a median day from d9 onward** (≥70% every day from d7). There is no moment in the season when the crew is free of tier-0 work ⇒ "wait for a quiet moment" is not an available strategy, and **any reordering inside tier 0 is strictly zero-sum** |
 | **v1o.1 `strawberry_last_plant_day` 16 and 20** | STOP, structural | Both break `clipped_production_ticks` (1) — an animal's yield left uncollected past its cap — and lose $4,1k/$7,9k per episode **while producing more** tile-days. Same mechanism as the row above |
 | **v1k** late-season replant window | STOP, −$166,9 (CI spans 0) | Mechanism **worked** (413→539 tile-days, idle 28,2%→23,8%) and paid **nothing** — we filled tiles with a cheap crop. **On the shelf, not disproved:** mandatory re-test with the first increment that introduces a crop >$50/tile-day. |
 | **v1l** wheat→carrot by $/tile-day | STOP, −$7.161/ep | See the WHEAT caveat in §3.2(6) |
@@ -527,11 +530,37 @@ and "MELON in / CARROT to zero" both add work to priority tiers 0-1 — exactly 
 3. The endgame-crew screen: `endgame_hands_target` 6 → 10 did **not** fix water-weeds ⇒ the tiles
    are lost to **priority**, not to headcount.
 
-So S3 step 1 gains a stage **1b — protect the FEED pipeline** (`FEED` and its mandatory
-`PICKUP WHEAT` predecessor lifted one tier above `WATER`, behind a screenable config flag).
-Crew >10, herd >10 and `strawberry_last_plant_day` >12 are **all three** blocked on that gate and
-all three become worth re-measuring immediately after it — including the standing v1k re-test
-(§3.3), whose trigger condition (a crop above $50/tile-day) MELON will satisfy.
+So S3 step 1 gained a stage **1b — protect the FEED pipeline**.
+
+#### S3 step 1b — ⛔ run, and STOPPED (2026-08-11 γ)
+
+Seven variants screened on SMOKE, two taken to the DEV acceptance arm, both refused. Full tables
+in `baselines/2026-08-11/s3_step1_report.md`; the STOP row is in §3.3. **The diagnosis above was
+correct and the fix is still not worth taking**, which is a different outcome from either "it
+worked" or "we were wrong", and it is the one that changes the plan:
+
+- **The mechanism is real and the fix works.** Variant E drove `animals_escaped` **13 → 0** and
+  recovered the starved line exactly as predicted — `COLLECT_FERTILIZER` ops 123 → 193/ep,
+  FERTILIZER units 123 → 191/ep, `worker_turns_moving` 62,0% → 57,5%.
+- **And it costs more than it earns.** It was paid for out of `crop_tile_days` (612 → 574).
+  13 prevented escapes ≈ $135/ep; the production forgone ≈ $1.180/ep. At 574 crop tile-days
+  against the profile's 1.316, a unit-turn is worth roughly an order of magnitude more on a tile
+  than on an animal — so **every** reallocation toward animals loses, however cleanly built.
+- **The reason it cannot be tuned around:** the feed round is open **100% of the hours of a median
+  day** from d9 (§3.3). Tier 0 is saturated all season, so reordering inside it is zero-sum, and
+  "wait for a quiet moment" is not an available strategy.
+
+**Consequence for the three items that were said to be blocked behind this gate.** Crew >10,
+herd >10 and `strawberry_last_plant_day` >12 are **not unblocked — and they were never blocked by
+priority.** They are blocked by what S3 step 1b ran into: work added at tiers 0-1 has nowhere to
+go in an already-saturated tier. **The constraint is unit-turn supply and routing, not order.**
+
+**The number that now defines the next increment: `worker_turns_moving` is 57-62% of all
+unit-turns** — three in five spent walking, against 19% idle and only ~23% working. That points
+straight at the standing §3.3 item, *"routing-distance decoupled from urgency-distance in
+`assign()`"* (the reverted 1.32.5 D26 shed-access fix), and at anything else that raises usable
+unit-turns rather than redistributing them. The standing v1k re-test still rides on MELON, which
+still sits behind whatever fixes throughput.
 
 ---
 
@@ -634,7 +663,8 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R6** | Leave the `MASTERPLAN.md` / `current_phase.md` citations in code comments alone (32 files under `agent/`, `harness/`, `tests/`, `analysis/`) | They are *historical* citations for why a line exists; rewriting them would touch `agent/` (out of scope) and would not make them more true. [docs/INDEX.md](docs/INDEX.md) "Χάρτης παλιών ονομάτων" resolves them, and git has the originals |
 | **R12** | **Write the final config comment *before* creating a screen checkpoint.** A comment edited after the screen changes the package fingerprint, so the `stage=dev-screen` artefact no longer keys to the agent being confirmed and `prior_dev_screen_found` goes False at holdout | Cost one full DEV re-run (2 × 96 episodes) in v1o.1 |
 | **R13** | **Declare a mechanism for every counter that *can* be non-zero, not only the ones a pinned screen happened to show.** `shed_overflow_burnt` is 0 under `--town-pin basket` and ~290 unpinned, so v1o.1's first holdout pull failed the metric gate on a counter no screen had exposed | Cost a `repeat_confirm_index=1` re-pull. The re-pull changed no code and no config — only the declaration — and both pulls returned identical numbers, but the confirm ledger correctly records it as a second look |
-| **R14** | ⚠️ **`checkpoints/` is gitignored (`.gitignore:11`), which contradicts the invariant the directory exists to enforce.** [harness/checkpoint.py](harness/checkpoint.py) records (review H2) that checkpoints were *moved out of* `runs/` precisely because being gitignored "erased the only record of every accepted regression baseline from git history" — and then the same thing was done to `checkpoints/`. Every accepted baseline v0…v1o_2 exists only on this disk. Not changed unilaterally: un-ignoring it commits ~20 copies of the agent package, which may well be the deliberate trade. **Needs a decision, not a silent fix** | The same class of bug as R3b, and with the same consequence: an argument the repo relies on ("immutable, verifiable baselines") is not actually true on disk |
+| **R15** | **`harness/compare.py` aggregates `worker_turns_idle` and `worker_turns_total` but not `worker_turns_moving`**, so the commute share — now the single most decision-relevant utilisation number we have (57-62%) — is invisible in every gate artefact ever produced. `analysis/v1o3_visit_efficiency.py` recovers it per episode; it belongs in `_V1K_REPORT_METRICS` | The v1o.3 screen could not tell "the bundle is being taken" from "the bundle is a no-op" without writing a separate tool |
+| **R14** ✅ | **`checkpoints/` was gitignored wholesale**, contradicting the invariant the directory exists to enforce: [harness/checkpoint.py](harness/checkpoint.py) records (review H2) that checkpoints were *moved out of* `runs/` precisely because being gitignored "erased the only record of every accepted regression baseline from git history" — and then the same was done to `checkpoints/`. **Decided 2026-08-11 by the user: track the manifests only.** `.gitignore` is now `/checkpoints/**` + `!/checkpoints/**/` + `!/checkpoints/*/manifest.json` (that order is required — git cannot re-include a file whose parent directory is excluded). 20 manifests for v0…v1o_2 now carry every accepted baseline's fingerprint in history; the packages stay out | Same class as R3b: an argument the repo relies on ("immutable, verifiable baselines") was not true on disk |
 | **R7** | Unresolved: submission `55387820` (2026-08-09 18:58, score 613,0) corresponds to no checkpoint or gate in this repo; its description ("4th attempt…") is hand-written, so it was almost certainly a manual upload | It occupied an active slot and pushed v1g out. Harmless, but the two active slots are the final-ranking lineup |
 
 ---
@@ -669,11 +699,18 @@ Bradley-Terry tournament runs. They must be **champion + a challenger differenti
 own list of common mistakes puts it plainly: *"two near-identical active submits → meta shift kills
 both."* In the final week before 2026-09-30, both are frozen.
 
-⚠️ **Standing debt:** the active pair is currently `55414570` (v1i) + `55409945` (v1m_d2), which
-differ only in market-order emission ordering — same herd (4C/6S), same tiles, same sell-side
-thresholds. That is the exact pattern the rule warns about. Θ1 (§3.2.8) measured that **no
-sell-side lever can fix it**; differentiation has to be productive. §4.3 resolves this directly —
-a profile-matched agent beside our current one is the most differentiated pair we have ever had.
+✅ **Standing debt cleared, 2026-08-11.** It read: *"the active pair is `55414570` (v1i) +
+`55409945` (v1m_d2), which differ only in market-order emission ordering — same herd (4C/6S),
+same tiles, same sell-side thresholds. That is the exact pattern the rule warns about."* Θ1
+(§3.2.8) had already measured that **no sell-side lever could fix it**; differentiation had to be
+productive, and §4.3 S3 step 1 produced it. The active pair is now **`55438252` (v1o.2) +
+`55414570` (v1i)**, differing in **production** — 562-612 crop tile-days against 413, a 1,4×
+gap — which is the most differentiated pair this repo has ever fielded.
+
+Pre-upload checklist for `55438252`, all green: G12 loader contract · timing **both seats**
+max 12,6ms ⇒ `max×3 < 1s` · G13 determinism (identical action-stream sha256 under two
+`PYTHONHASHSEED` values) · mirror smoke `clean=True` · `pytest` 229 · `KAGGRI_DEBUG` off ·
+53 KB. **4 submissions remaining that day.**
 
 ---
 
@@ -692,22 +729,32 @@ else's tape.
   structural spread (`data/derived/b3_target_profile.json`), and S2's kill criterion did **not**
   fire — 0/18 donor matchup-seats fell below the $57.360 floor.
 - **S3 step 1 — in progress.** Two increments gated and accepted (`checkpoints/v1o_1`,
-  `checkpoints/v1o_2`, both `GO=True` on unpinned holdout); two STOPs recorded in §3.3. Crop
-  tile-days **413 → 562-612** against a target of 1.316; idle unit-turns **28,2% → 16-18%**.
-  Live `main.py` ≡ `checkpoints/v1o_2`, `pytest tests/` **229 passed**.
-- **Next: S3 step 1b — protect the FEED pipeline from crop watering.** Not on the original list;
-  named by three independent measurements this session (§4.3). Herd size, crew size and the
-  strawberry replant window are **all three** blocked behind that one gate, so it is worth
-  strictly more than any of them.
+  `checkpoints/v1o_2`, both `GO=True` on unpinned holdout); **five** STOPs now recorded in §3.3.
+  Crop tile-days **413 → 562-612** against a target of 1.316; idle unit-turns **28,2% → 16-18%**.
+  Live `main.py` ≡ `checkpoints/v1o_2`, `pytest tests/` **237 passed**.
+- **S3 step 1b — ⛔ run and stopped (2026-08-11 γ).** Seven variants screened, two taken to the DEV
+  acceptance arm, both refused. The diagnosis was right — bundling recovered FERTILIZER 123 → 191
+  units/ep and the feed-round promotion took `animals_escaped` **13 → 0** — and the fix still
+  costs more than it earns, because it is paid for out of crop tile-days at ~10× the exchange
+  rate. **Tier 0 is saturated 100% of the day**, so nothing inside it can be reordered profitably.
+  The mechanism is retained in `agent/`, switched off, with live `main.py` verified
+  behaviour-identical to `v1o_2` (`mean_diff` $0,00, 4/4 ties).
+- **Next: throughput, not order.** `worker_turns_moving` is **57-62%** of all unit-turns — three
+  in five spent walking. Crew, herd and the strawberry window are all gated on raising usable
+  unit-turns, which points at §3.3's *"routing-distance decoupled from urgency-distance in
+  `assign()`"*. Whatever the next increment is, it has to earn its acceptance arm against
+  `meta_route`: v1o.3 passed mirror at p=3,3e-6 and was worth nothing there.
 
-**No Kaggle submission has been made from this line.** The two active slots are still
-`55414570` (v1i) + `55409945` (v1m_d2), and the §6bis differentiation debt is unchanged — but
-`v1o_2` is now the most differentiated challenger this repo has ever had (1,4× the crop
-tile-days of either active submission), which is what S4 exists to exploit.
+- **S4 — first submission of this line made, 2026-08-11:** `55438252` (v1o.2), PENDING, full
+  §6bis checklist green. It went in as the **challenger**, holding `55414570` (v1i) as champion
+  until the ladder rules on it — the reading recorded here before the run, now executed. The
+  differentiation debt in §6bis is cleared: the pair now differs in production, not in
+  market-order ordering.
 
-One thing to settle before S4: whether the profile-matched agent goes into the **champion** or
-**challenger** slot on first submission (§6bis). My reading is challenger, holding our current
-agent as champion until the ladder rules on it.
+**The next ladder read is an L-series diagnostic on `55438252` once it has episodes**, done
+exactly as L1/L2 were (§3.2). It is the only thing that can tell us whether +$5k/ep of local
+production transfers — and §1's newly-recorded rating decay (632,2 → 618,4 on a frozen agent in
+one day) is the reason it must be read against same-day opponents, never against a stored score.
 
 ---
 

@@ -8,7 +8,19 @@ submission.tar.gz
 # Experiment/run output — regenerated locally, not source code
 baselines/
 gates/
-checkpoints/
+
+# checkpoints/: immutable local baselines (ROADMAP R14, decided 2026-08-11). The agent packages
+# themselves stay out of git — ~20 near-identical copies of agent/ — but every manifest.json IS
+# tracked, so the fingerprint of each accepted baseline is recoverable from history and any gate
+# artefact that cites one can still be checked. This is the compromise between the invariant
+# harness/checkpoint.py names (review H2: checkpoints were moved out of runs/ precisely so
+# accepted baselines would not vanish from git) and not committing the packages.
+#
+# The three lines below must stay in this order: git cannot re-include a file whose parent
+# directory is itself excluded, so the directories are un-ignored before the manifests are.
+/checkpoints/**
+!/checkpoints/**/
+!/checkpoints/*/manifest.json
 
 # Kaggle notebooks — large embedded outputs, not part of the agent/harness source.
 # Leading slash matters: a bare `notebooks/` also swallowed docs/source/notebooks/,

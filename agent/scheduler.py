@@ -75,6 +75,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
         return []
 
     tasks = []
+    crop_harvest_at_risk_priority = config["scheduler"].get("crop_harvest_at_risk_priority")
     turns_per_day = config["runtime"]["turns_per_day"]
     day_deadline = (snapshot.day + 1) * turns_per_day - 1
     target_tiles_by_crop = config["scheduler"]["target_tiles"]
@@ -133,15 +134,30 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             harvest_ready_age = _HARVEST_READY_AGE[crop]
             harvest_due = age >= harvest_ready_age
             if harvest_due and tile.get("yield_units", 0) > 0:
+                harvest_priority = (
+                    0
+                    if crop == "STRAWBERRY" or tile.get("watered_today") or age > harvest_ready_age
+                    else 1
+                )
+                # v1o.3: crop HARVEST is the one priority-0 task with a hard *yield* deadline —
+                # engine _decay_plants (:738-752) takes one yield_unit every second step from
+                # max_lifespan_step onward, so a strawberry at its 4-unit cap is stripped bare in
+                # eight steps. FEED's at-risk tier (-1) therefore outranks it, and the v1o.3
+                # screen measured exactly that: promoting FEED/PICKUP above WATER broke
+                # `plant_decay_units_lost` (4 in variant C, 14 in D) — a structural counter, hard
+                # zero under ROADMAP §2.1.5 — while fixing the animals. Give a tile that is
+                # actually losing yield today the same at-risk standing, so the two hard
+                # deadlines compete with each other on urgency and distance instead of one
+                # silently always winning. None (the default) is a strict no-op.
+                lifespan_step = tile.get("max_lifespan_step", -1)
+                decaying_today = isinstance(lifespan_step, int) and 0 <= lifespan_step <= day_deadline
+                if crop_harvest_at_risk_priority is not None and decaying_today:
+                    harvest_priority = min(harvest_priority, int(crop_harvest_at_risk_priority))
                 tasks.append(Task(
                     id=f"harvest:{x}:{y}",
                     kind="HARVEST",
                     pos=(x, y),
-                    priority=(
-                        0
-                        if crop == "STRAWBERRY" or tile.get("watered_today") or age > harvest_ready_age
-                        else 1
-                    ),
+                    priority=harvest_priority,
                     deadline_step=min(day_deadline, tile.get("max_lifespan_step", day_deadline)),
                 ))
             continue
@@ -261,6 +277,17 @@ def _build_animal_tasks(
     if not config.get("animals", {}).get("enabled", False):
         return []
     tasks = []
+    scheduler_config = config["scheduler"]
+    # v1o.3: the priority ladder for animal upkeep is config, not literals, so a variant is one
+    # edit and every arm is reversible. Defaults reproduce the pre-v1o.3 numbers exactly.
+    animal_priority = scheduler_config.get("animal_task_priority", {})
+    feed_priority = int(scheduler_config.get("feed_priority", 0))
+    feed_at_risk_priority = int(scheduler_config.get("feed_at_risk_priority", -1))
+    bundle_enabled = bool(scheduler_config.get("bundle_animal_visits", False))
+    bundle_priority = int(scheduler_config.get("bundle_priority", 0))
+    bundle_yields_to_feed_round = bool(
+        scheduler_config.get("bundle_yields_to_feed_round", True)
+    )
     spawn = SHED_ACCESS[0]
     structure_tiles = config["scheduler"].get("animal_structure_tiles", {})
     # Structures/animal-onboarding are one-time, episode-scoped setup, not a daily-reset
@@ -381,7 +408,10 @@ def _build_animal_tasks(
             for unit_index in range(len(unit_positions)):
                 tasks.append(Task(
                     id=f"pickup:WHEAT:{unit_index}", kind="PICKUP", pos=spawn,
-                    priority=-1 if at_risk_positions else 0,
+                    # v1o.3: PICKUP moves with FEED, always. `_carries_cargo` makes a FEED task
+                    # eligible only for a unit that already holds WHEAT, so promoting FEED alone
+                    # does nothing on the turns where nobody has any — the two are one knob.
+                    priority=feed_at_risk_priority if at_risk_positions else feed_priority,
                     item="WHEAT", count=pickup_count,
                     deadline_step=pickup_deadline, allowed_unit=unit_index,
                 ))
@@ -416,25 +446,75 @@ def _build_animal_tasks(
                 # WATER costs a replantable tile, a second missed FEED costs $400-500 of placed
                 # capital and its remaining production. Only the at-risk tier is promoted; a
                 # normally-fed animal stays at 0 and keeps competing on the merits.
-                priority=-1 if at_risk else 0,
+                priority=feed_at_risk_priority if at_risk else feed_priority,
                 deadline_step=min(day_deadline, feed_deadline),
             ))
 
+    # v1o.3: which unit (if any) may bundle the rest of a tile's visit. `unfed_positions` is the
+    # day's still-open feed round; see the note in the loop for why it is a veto and not a
+    # tiebreak. `allowed_unit` is what makes a bundled task safe on top of that — assign() dedups
+    # allowed_unit tasks by id instead of by position, so a bundled CARE can never take the same
+    # tile's FEED (or anything else there) out of the turn's pool the way an unrestricted one does.
+    feed_round_open = bool(unfed_positions)
+    bundle_unit_by_position: dict[tuple[int, int], int] = {}
+    if bundle_enabled and not (feed_round_open and bundle_yields_to_feed_round):
+        for unit_index, unit_pos in enumerate(unit_positions):
+            bundle_unit_by_position.setdefault(unit_pos, unit_index)
+
     for (x, y), needed in animal_needs.items():
-        if "CARE" in needed:
+        # v1o.3 (ROADMAP §4.3 S3 step 1b) — **animal-visit bundling**. An animal tile needs up to
+        # four ops a day (FEED/CARE/HARVEST/COLLECT_FERTILIZER), but assign() drops *every*
+        # unrestricted task at an assigned position once one of them is taken, and its `committed`
+        # stickiness is only set when a unit MOVES — so a unit standing on an animal tile performs
+        # exactly one op, then re-competes from scratch next turn and is pulled away by the nearest
+        # priority-0 WATER. With ~60 planted tiles the tier-0 pool no longer empties inside a day
+        # (`sw_hands_target=12` STOP, ROADMAP §3.3), so tier-1 CARE/HARVEST and tier-3
+        # COLLECT_FERTILIZER starve deterministically: analysis/v1o1_product_split.py measured WOOL
+        # losing 41% of its units and FERTILIZER 27% purely from added WATER work.
+        #
+        # Promoting those tasks globally would be **zero-sum** — every unit-turn they win above
+        # WATER is one WATER loses, trading $300 weed tiles for $1.000 escapes and nothing else.
+        # Promoting them only where a unit is ALREADY STANDING is not: the marginal cost of the
+        # next op is 1 turn instead of `2*distance + 1`, so the bundle can never induce a commute,
+        # only finish one. At distance 2-6 from the shed that is ~80 unit-turns/day for ten animals
+        # instead of ~160.
+        #
+        # ⚠️ WHY THE BUNDLE IS NOT ENOUGH ON ITS OWN, MEASURED. The first screen (variant A) put
+        # the bundle at tier 0 on top of the unchanged ladder. It was demonstrably taken —
+        # `worker_turns_moving` 62,0% -> 57,5%, COLLECT_FERTILIZER ops 123 -> 193/ep, FERTILIZER
+        # units 123 -> 191/ep, bank +$8.806 against the non-mirror bench — and it still made the
+        # animal side *worse*: `animals_escaped` 15 vs 6, `animals_underfed_days` 51,6 vs 36,1.
+        #
+        # The reason is not this tile. Both halves of the feed round — the aggregated
+        # `PICKUP WHEAT` and every `FEED` — sat at priority 0 with a distance of at least 1, while
+        # a bundled task at the unit's own feet has distance 0 and the same priority. So a unit
+        # standing on ANY already-fed animal tile out-competed the whole round, for as many turns
+        # as that tile had work left. The fix that ships is therefore not to weaken the bundle but
+        # to give the feed round a tier of its own (config `feed_priority` -1) so the bundle has
+        # something to sit under — with the crop-HARVEST decay guard in build_tasks closing the
+        # hole that opens up when -1 also starts outranking the only other hard yield deadline.
+        #
+        # The obvious alternative — suppress the bundle while any animal is unfed
+        # (`bundle_yields_to_feed_round`) — was measured and does *nothing*: the feed round is open
+        # 100% of the hours of a median day from day 9 onward, so the bundle simply never fires.
+        bundle_unit = None if "FEED" in needed else bundle_unit_by_position.get((x, y))
+        bundled = bundle_unit is not None
+
+        for kind, default_priority, task_id in (
+            ("CARE", 1, f"care:{x}:{y}"),
+            ("HARVEST", 1, f"harvest_animal:{x}:{y}"),
+            ("COLLECT_FERTILIZER", 3, f"fertilizer:{x}:{y}"),
+        ):
+            if kind not in needed:
+                continue
+            priority = int(animal_priority.get(kind, default_priority))
+            if bundled:
+                # min(), not assignment: a bundle may only ever promote a task, never demote one.
+                priority = min(priority, bundle_priority)
             tasks.append(Task(
-                id=f"care:{x}:{y}", kind="CARE", pos=(x, y),
-                priority=1, deadline_step=day_deadline,
-            ))
-        if "HARVEST" in needed:
-            tasks.append(Task(
-                id=f"harvest_animal:{x}:{y}", kind="HARVEST", pos=(x, y),
-                priority=1, deadline_step=day_deadline,
-            ))
-        if "COLLECT_FERTILIZER" in needed:
-            tasks.append(Task(
-                id=f"fertilizer:{x}:{y}", kind="COLLECT_FERTILIZER", pos=(x, y),
-                priority=3, deadline_step=day_deadline,
+                id=task_id, kind=kind, pos=(x, y),
+                priority=priority, deadline_step=day_deadline,
+                allowed_unit=bundle_unit,
             ))
     return tasks
 

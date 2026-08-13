@@ -226,6 +226,97 @@ CONFIG = {
         # nearest-first, preserving both C1/§1.2's far-but-urgent fix and v1b's efficient
         # default ordering.
         "urgency_slack_margin": 2,
+        # ======================================================================================
+        # ⛔ v1o.3 (ROADMAP §4.3 S3 step 1b) — "protect the animal-upkeep pipeline". **STOPPED on
+        # the acceptance arm.** Every value below is at its pre-v1o.3 default, so this whole block
+        # is behaviourally inert and live `main.py` remains behaviour-identical to
+        # `checkpoints/v1o_2` (verified: mirror compare, mean_diff exactly $0,00, all ties). The
+        # code is kept, disabled, as the artefact these numbers refer to — the same treatment
+        # `dynamic_sell_floor` gets, and for the same reason. `checkpoints/v1o_3` is retained as
+        # the *stopped* variant E that `gates/v1o3_dev_*` keys to; it is not the shipped agent.
+        #
+        # WHAT IT WAS FOR. assign()'s sort key leads with task.priority, so a tier-1 task never
+        # beats a tier-0 one at any distance. With v1o.1/v1o.2's ~60 planted tiles the tier-0
+        # WATER pool no longer empties inside a day, and everything at tier >= 1 starves
+        # deterministically: analysis/v1o1_product_split.py measured WOOL losing 41% of its units
+        # and FERTILIZER 27% while STRAWBERRY volume rose 2,5x at a *higher* realised price, and
+        # the sw_hands_target=12 STOP measured escapes 87 vs 32 on the same mechanism.
+        #
+        # ⚠️ The measurement that shaped the design, and that no earlier screen had made: **the
+        # feed round is open 100% of the hours of a median day from day 9 onward** (>=70% every
+        # day from day 7; 8 runs vs meta_route, per-hour count of animals with fed_today false).
+        # There is no moment in the season when the crew is free of tier-0 work — so "wait for a
+        # quiet moment" is not an available strategy, and any reordering inside that tier is
+        # strictly zero-sum.
+        #
+        # THE LADDER — SMOKE 0-11, both seats, `--town-pin basket`, mirror vs `checkpoints/v1o_2`:
+        #
+        #  variant                              | mean_diff | verdict      | esc A/B | underfed | decay
+        #  A  bundle only                       |   +$3.198 | IMPROVED     |  15 / 6 | 51,6/36,1|  0
+        #  B  A + fertilizer 3->2               |     +$644 | INCONCLUSIVE |  23 / 6 | 52,2/36,6|  6
+        #  C  A + FEED/PICKUP -1/-2             |   -$1.036 | INCONCLUSIVE |   1 / 2 | 36,1/35,0|  4
+        #  D  B + C                             |   +$3.121 | IMPROVED     |   1 / 8 | 36,6/35,4| 14
+        #  A2 A + bundle yields to feed round   |      +$26 | INCONCLUSIVE |   5 / 4 | 35,4/34,9|  0
+        #  E  A + C + crop-harvest decay guard  |   +$4.445 | IMPROVED     |   1 / 2 | 35,2/34,7|  0
+        #  F  E + fertilizer 3->2               |   +$3.548 | IMPROVED     |   0 / 3 | 36,2/34,4|  7
+        #
+        # ⛔ AND THEN THE ACCEPTANCE ARM SAID NO, TWICE. DEV 0-47, both seats, pinned, vs the
+        # non-mirror `meta_route` bench, `--arm-role acceptance`, against `v1o_2`'s own numbers on
+        # the identical arm ($59.875,5 median_bank / +$4.839,9 mean_diff / 84-12 episodes):
+        #
+        #   E  (the SMOKE winner)  | median_bank $59.469,5 | mean_diff   +$61,6 | 50-46 | decay 14
+        #   A3 (bundle alone)      | median_bank $58.258,5 | mean_diff -$3.793,4| 34-62 | escapes 77
+        #
+        # E worked *exactly as designed* and that is what makes the result decisive:
+        # `animals_escaped` went 13 -> **0**, the pipeline was fully protected — and it was paid
+        # for out of production (`crop_tile_days` 58.749 -> 55.099, `crop_revenue` -$2.361/ep),
+        # while `animals_underfed_days` still got *worse* (2.942 -> 3.198). Thirteen prevented
+        # escapes are worth ~$271/ep. The watering they cost is worth ~$2.361/ep. The exchange
+        # rate inside the saturated tier is simply bad, because ROADMAP §3.2(5) still holds: the
+        # whole gap to the top-30 is in plants, and we are at 573 crop tile-days against 1.316.
+        #
+        # ⚠️ AND THE MIRROR ARM SAID YES: +$4.877,5, IMPROVED, 40-8 seeds, p=3,3e-6, 79-17
+        # episodes. This is the sharpest demonstration this repo has produced of ROADMAP §3.4's
+        # "the mirror loop optimises inside a ceiling it cannot see" — a change that beats its own
+        # predecessor decisively and buys nothing at all against a stronger opponent. Had the
+        # acceptance arm not existed, v1o.3 would have shipped.
+        # ======================================================================================
+        "animal_task_priority": {"CARE": 1, "HARVEST": 1, "COLLECT_FERTILIZER": 3},
+        # FEED and its mandatory PICKUP WHEAT predecessor. They move together or not at all —
+        # _carries_cargo makes a FEED task eligible only for a unit that already holds WHEAT, so
+        # promoting FEED alone does nothing on the turns where nobody has any. (0, -1) is the
+        # v1h' ladder: FEED merely *shares* tier 0 with WATER and only an already-missed animal
+        # jumps ahead. Screened at (-1, -2): variant C alone -$1.036 with water_weeds 46 -> 120,
+        # and inside variant E it drove escapes to 0 at the cost of production. Left at v1h'.
+        "feed_priority": 0,
+        "feed_at_risk_priority": -1,
+        # The tier a crop HARVEST claims once its own tile is actually losing yield today (engine
+        # _decay_plants, :738-752, strips one yield_unit every second step past max_lifespan_step
+        # — a strawberry at its 4-unit cap is bare in eight steps). None is a strict no-op. It
+        # only has a job when FEED is promoted above tier 0, because -1 would then outrank the
+        # only *other* task in the game with a hard yield deadline: variants C and D broke
+        # `plant_decay_units_lost` (4 and 14 on 24 episodes) on exactly that. Setting it to -1
+        # took SMOKE decay to 0 but only made it rarer, not absent — DEV measured 14 (acceptance)
+        # and 22 (mirror) on 96 episodes, still a structural failure under ROADMAP §2.1.5.
+        "crop_harvest_at_risk_priority": None,
+        # Animal-visit bundling: promote this tile's remaining CARE/HARVEST/COLLECT_FERTILIZER to
+        # `bundle_priority` for the unit ALREADY STANDING on it, so a visit is finished in place
+        # (1 turn) instead of re-commuted (2*distance + 1). The mechanism is real and was measured
+        # working against the non-mirror bench: `worker_turns_moving` 62,0% -> 57,5%,
+        # COLLECT_FERTILIZER ops 123 -> 193/ep, FERTILIZER units 123 -> 191/ep.
+        #
+        # ⛔ Off, because it has nowhere safe to sit. At tier 0 it out-competes the tier-0 feed
+        # round itself — PICKUP WHEAT and FEED are always at distance >= 1, a bundle is always at
+        # distance 0 — and DEV acceptance measured that as **-$3.793,4, REGRESSED, 34-62, escapes
+        # 77 vs 5, animals_underfed_days 57,6 vs 31,5** (variant A3). Below the feed round it needs
+        # the feed round promoted above WATER, which is variant E and its own STOP above.
+        "bundle_animal_visits": False,
+        "bundle_priority": 0,
+        # The third option: suppress the bundle entirely while any animal is still unfed.
+        # Measured and rejected (variant A2): +$26/ep, INCONCLUSIVE, every counter back at
+        # baseline. It does not under-perform — it does *nothing*, because the feed round is open
+        # 100% of the hours of a median day, so a bundle that waits for it never fires at all.
+        "bundle_yields_to_feed_round": False,
         "target_tiles": {
             # v1g: (3, 3)/(2, 4)/(2, 3)/(4, 0) — the 4 farthest-from-shed of the original 7 —
             # reclaimed for PASTURE (see carrot_tiles comment above). The 3 nearest NW tiles
