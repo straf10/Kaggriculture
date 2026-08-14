@@ -841,6 +841,85 @@ def test_v1g_animal_slot_ranges_carves_contiguous_blocks_per_name():
     assert ranges["SHEEP"] == ((3, 3), (2, 4))
 
 
+def _in_flight_animal_snapshot(money, shed_cow):
+    """A day-0 snapshot with COW's four PASTURE slots built and empty, `shed_cow` COWs sitting
+    in the shed (bought on earlier turns, not yet placed), 0 placed, WHEAT priced at 25."""
+    from agent.scheduler import animal_slot_ranges
+
+    tiles = [[None] * 10 for _ in range(10)]
+    for x, y in animal_slot_ranges(CONFIG)["COW"]:
+        tiles[y][x] = {"kind": "PASTURE"}  # built, empty
+    observation = _minimal_observation(step=6, hands=((4, 3), (3, 3)))
+    observation["farms"][0]["money"] = money
+    observation["farms"][0]["tiles"] = tiles
+    observation["private"]["shed"] = {"COW": shed_cow}
+    observation["private"]["inventories"] = [{}, {}, {}]
+    observation["market"]["prices"] = {"WHEAT": 25}
+    return parse(observation)
+
+
+def _buy_cow(snapshot, plan, **executor_overrides):
+    from agent.executor import market_orders
+    from agent.scheduler import make_ledger
+
+    config = copy.deepcopy(CONFIG)
+    config["executor"].update(executor_overrides)
+    orders = market_orders(snapshot, plan, make_ledger(snapshot), [], config)
+    return sum(order[2] for order in orders if order[0] == "BUY_ANIMAL" and order[1] == "COW")
+
+
+def test_v1r_feed_reserve_counts_in_flight_animals():
+    """ROADMAP §4.3 S3 step 1e — the located defect. The v1g feed-cash reserve is
+    `(total_placed + buy_target) * wheat_price * FEED_RESERVE_DAYS`; it counts animals on tiles
+    plus this order's additions but NOT the herd already bought and sitting carried/in the shed,
+    each of which eats one WHEAT/day once placed. Purchases spread across turns then bypass it.
+
+    Constructed snapshot: 0 placed, 3 COW in flight (shed), one open COW slot free (headroom 1,
+    so buy_target = 1), $500, WHEAT @ $25, FEED_RESERVE_DAYS 2. The four config-gated variants
+    price the reserve differently and must decide the *same* purchase differently:
+
+      default              reserve (0+1)*25*2   =  50  -> spendable 450 -> BUYS   (the undercount)
+      counts_in_flight=T   reserve (0+3+1)*25*2 = 200  -> spendable 300 -> blocks (arm C1 fix)
+      horizon="target"     reserve  10*25*2     = 500  -> spendable   0 -> blocks (arm C2 fix)
+      feed_reserve_days=3  reserve (0+1)*25*3   =  75  -> spendable 425 -> BUYS   (arm X: raising
+                           the horizon alone leaves the undercount, so it does NOT fix this)
+    """
+    from agent.planner import DayPlan
+
+    snapshot = _in_flight_animal_snapshot(money=500, shed_cow=3)
+    plan = DayPlan(hands_target=2, animal_purchases={"COW": 10})
+
+    assert _buy_cow(snapshot, plan) == 1  # shipped undercount buys the 4th COW
+    assert _buy_cow(snapshot, plan, feed_reserve_counts_in_flight=True) == 0  # C1
+    assert _buy_cow(snapshot, plan, feed_reserve_horizon="target") == 0  # C2
+    assert _buy_cow(snapshot, plan, feed_reserve_days=3) == 1  # X does not fix the undercount
+
+
+def test_v1r_c2_reserves_for_the_full_target_herd_not_just_in_flight():
+    """Arm C2 (`feed_reserve_horizon="target"`) reserves for the full intended herd, so it keeps
+    binding when the target grows past what has been bought yet (the §4.0 herd-13 case). At
+    $650 with 3 COW in flight and a target of 10, C1 (in-flight liability $200) can afford the
+    next COW while C2 (full-target liability $500) cannot — this is exactly the difference that
+    matters as the target scales."""
+    from agent.planner import DayPlan
+
+    snapshot = _in_flight_animal_snapshot(money=650, shed_cow=3)
+    plan = DayPlan(hands_target=2, animal_purchases={"COW": 10})
+
+    assert _buy_cow(snapshot, plan, feed_reserve_counts_in_flight=True) == 1  # C1 affords it
+    assert _buy_cow(snapshot, plan, feed_reserve_horizon="target") == 0  # C2 reserves full herd
+
+
+def test_v1r_feed_reserve_defaults_are_inert():
+    """The three feed_reserve_* keys ship at values that reproduce the pre-v1r behaviour exactly:
+    days 2, count-in-flight off, horizon by-what's-in-flight. A checkpoint built at the defaults
+    must be behaviour-identical to the shipped agent (confirmed live: mean_diff 0.0 vs
+    checkpoints/v1q_base). Pin the defaults so a later edit can't flip one silently."""
+    assert CONFIG["executor"]["feed_reserve_days"] == 2
+    assert CONFIG["executor"]["feed_reserve_counts_in_flight"] is False
+    assert CONFIG["executor"]["feed_reserve_horizon"] == "in_flight"
+
+
 def test_v1g_animal_daily_demand_sums_every_slot_not_just_one_per_name():
     """v1f's _animal_daily_demand charged one (distance + 1 + 1) term per unique animal name
     (there was only ever one slot each). v1g must charge one such term per reserved slot —

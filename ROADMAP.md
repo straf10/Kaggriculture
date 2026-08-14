@@ -116,6 +116,13 @@ These are not restated theory — each one was paid for with a measured failure.
    **notebook source** — the `main.py` / `submission.tar.gz` those kernels publish — is still **not
    opened, extracted or executed**; that is their code, not game data, and no part of the plan needs
    it. Notebook markdown, tables and printed statistics are read freely as evidence.
+9. **A confirmed mechanism and a viable increment are different claims.** Every report states
+   both, in that order: *(a)* what the arm proved about how the game works, *(b)* whether the arm
+   is takeable in dollars. Never let (a) stand in for (b) — v1o.3's variant E confirmed the
+   animal-upkeep mechanism perfectly (escapes 13 → 0) while its dollars stayed REGRESSED against
+   production forgone; v1p.2b confirmed the `committed`-in-zoning mechanism the same way. Both
+   were reported once, correctly, and re-read wrong the second time by someone skimming only the
+   mechanism half.
 
 ---
 
@@ -268,8 +275,30 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **shed-access routing fix** (1.32.5 D26) | Net-negative, reverted | The old `(4,4)` distance over-estimate was accidentally inflating WHEAT PICKUP urgency. Needs routing-distance decoupled from urgency-distance in `assign()` first |
 | **v1p.1 herd compaction** (config-only PASTURE reorder, S3 step 1c) | ⛔ STOP at SMOKE, −$875,4 INCONCLUSIVE | `worker_turns_moving` fell as designed (61,7%→53,6%) but `animals_escaped` went 2→48 — **exactly 2 every single one of 24 orientations**, always the same two COW at (3,2)/(3,3) (untouched by the change), always day 2. Root cause: reassigning two SHEEP PASTURE slots to distance-1 tiles (closer than *any* COW slot) lets SHEEP win the whole initial multi-day PLACE race in `assign()`'s type-blind greedy loop, delaying COW's first feed past `consecutive_unfed >= 2`. Intrinsic to the tile choice (any arm using those two tiles for SHEEP hits it), not screened further. Config reverted, mechanism documented in place |
 | **v1p.2 zone assignment** (`assign()` eligible-units filter by quadrant, S3 step 1c) | ⛔ STOP at SMOKE, −$6.966,0 REGRESSED (p=4,9e-4) | The increment's own kill criterion fired at the first screen: `worker_turns_moving` barely moved (60,0%→58,7%, nowhere near the ~55% target). Also broke a structural hard-zero counter, `plant_decay_units_lost` 0→17. Likely mechanism: the zone partition has no memory across turns, so a unit already `committed` (C1 stickiness) to a task can be re-zoned *out* of eligibility for it the next turn as the task-count mix shifts — reproducing the exact commitment-thrash class of bug `committed` was built to prevent, from outside the mechanism that protects against it. Code kept inert at `zone_assignment_enabled: False`; hands off to deferred item ④ (min-cost matching), gated on deferred item ③ (travel-ratio diagnostic) per its own control's result below |
-| **v1p.1b herd compaction, both untested controls** (arm A1: COW instead of SHEEP on the same two tiles; arm B: `carrot_tiles` 3→1 alone, PASTURE untouched — S3 step 1c) | ⛔ STOP at SMOKE, both arms | **Closes the "convert a CARROT tile to compact the herd" family for good.** Arm A1: `animals_escaped_a` **48** (vs its own paired baseline 0), same magnitude as arm A but now a *mixed* COW/SHEEP pair — **refutes v1p.1's own type-blind-race root cause**, since giving COW the close tiles instead of SHEEP does not fix it. Arm B: `animals_escaped_a` **12** (vs its own paired baseline 2), seed-dependent, with **zero PASTURE change** — dropping `carrot_tiles` below 3 is itself destabilizing, independent of what the freed land becomes. Analytically confirmed separately: the ten currently-claimed PASTURE slots are already the ten nearest of the 13 available (distances 2,2,2,3,3,4,4,5,6,6,7,7,8) — there is no free reorder inside the existing pool; proximity can only be bought by converting a crop tile, and across both tested splits that purchase does not pay for itself |
+| **v1p.1b herd compaction, both untested controls** (arm A1: COW instead of SHEEP on the same two tiles; arm B: `carrot_tiles` 3→1 alone, PASTURE untouched — S3 step 1c) | ⛔ STOP at SMOKE, both arms | **Closes the "convert a CARROT tile to compact the herd" family for good.** Arm A1: `animals_escaped_a` **48** (vs its own paired baseline 0) — 🔴 **corrected 2026-08-14 (S3 step 1d race):** `mean_diff` **−$7.711,5 REGRESSED**, episodes 0-12 (0-24 orientations), not merely "the same magnitude as arm A" (arm A's own original screen was **−$875,4 INCONCLUSIVE** — the escape count matches, the dollars do not; COW-first reordering made everything substantially worse) — now a *mixed* COW/SHEEP pair — **refutes v1p.1's own type-blind-race root cause**, since giving COW the close tiles instead of SHEEP does not fix it. Arm B: `animals_escaped_a` **12** (vs its own paired baseline 2), seed-dependent, with **zero PASTURE change** — dropping `carrot_tiles` below 3 is itself destabilizing, independent of what the freed land becomes. Analytically confirmed separately: the ten currently-claimed PASTURE slots are already the ten nearest of the 13 available (distances 2,2,2,3,3,4,4,5,6,6,7,7,8) — there is no free reorder inside the existing pool; proximity can only be bought by converting a crop tile, and across both tested splits that purchase does not pay for itself |
 | **v1p.2b sticky zone assignment** (`committed` threaded into `_zone_partition`, pin-first — S3 step 1c) | ⛔ STOP at SMOKE, −$2.688,6 REGRESSED (p=6,3e-3) | The untested control v1p.2's own root cause implied. Fixed exactly what it targeted: `plant_decay_units_lost` **0** (was 17, structural), `animals_escaped` back to parity (5 vs 5, was 20 vs 6). But `worker_turns_moving` **58,9%→60,3%**, essentially the same ~1,4pp non-movement as v1p.2's own original screen — the kill criterion's own restated third exit fires: **the constraint genuinely is not which tasks a unit is offered.** Code kept, inert at `zone_assignment_enabled: False`; hands off to deferred item ③ (travel-ratio diagnostic), not directly to ④ (min-cost matching) |
+
+⚠️ **The `animals_escaped` noise floor, recorded 2026-08-14 (S3 step 1d race).** The baseline's own
+`animals_escaped_b` read **0, 2, 4 and 5** across the four comparisons above (v1p.1, v1p.2,
+v1p.1b, v1p.2b) — same agent, same seeds, same pin. That is §2.1.1 occupancy coupling changing
+the *opponent's* farm via the shared per-day weed-spawn RNG, not noise in the mechanism under
+test. Pairing within a single comparison stays valid, but on 24 SMOKE episodes this counter has a
+noise floor of roughly **±5**. Read against it: v1p.1/v1p.1b arm A1's escape counts (48, both
+times, deterministic in 24/24 orientations) are signal, far outside the floor. v1p.1b arm B's 12
+vs. its own paired baseline of 2 is a **hypothesis**, not a result — inside the floor, seed/
+orientation-dependent (6 of 24), and should not be carried forward as "a second independent,
+established mechanism" without a wider seed budget.
+
+✅ **The onboarding-escape defect is LOCATED and a fix is found (2026-08-14, S3 step 1e).** Five
+passes misattributed it (hiring cost/v1j, distance/v1h′, feed-priority/v1o.2-3, animal-type
+race/v1p.1, "cash-flow exhaustion"/step 1d); it is the v1g feed-cash reserve in
+`agent/executor.py` undercounting the in-flight herd. The fix is specifically **arm C2**
+(`feed_reserve_horizon="target"` — reserve for the *full intended* herd, not just the in-flight
+count): on the deterministic 48-escape reproducer it removes **all** escapes (48→0, +$5.907
+IMPROVED) with the herd still reaching its full target on baseline's day; the minimal count-in-flight
+fix (C1) and the raise-the-days control (X) both leave 48. See §4.3 S3 step 1e. C2 promotes bundled
+with the herd-13 increment (its shipped-config value at herd 10 is ~$0/NON_INFERIOR — the defect
+is latent until the herd is large enough to strain day-0 cash).
 
 ### 3.4 Standing methodological lessons
 
@@ -287,6 +316,14 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
   `v_{n-1}` scores a +$3k margin on $44k as a big win while the ladder opponent plays at another
   level entirely. This is why `harness/bench_agents/meta_route*.py` exists and why the acceptance
   arm must be non-mirror.
+- **A ratio is a diagnostic, never a target.** Any criterion of the form "share X of unit-turns
+  falls below N%" is satisfiable by shrinking the denominator — v1p1b arm A1 hit `worker_turns_moving`
+  46,0%, the largest commute reduction ever measured here, by doing *fewer* working turns than
+  baseline and shedding 30% of `crop_tile_days` into idle (§4.3 S3 step 1d). The success metric for
+  every throughput increment from now on is **absolute `worker_turns_working` per episode, with
+  `crop_tile_days` held flat** (within ±3% of the paired baseline) — R17 (§6) puts both numbers in
+  every gate artefact. `worker_turns_moving` is reported alongside it and explains *why*; it never
+  decides.
 
 ---
 ## 4. Phase B — what the top of the ladder actually does
@@ -660,10 +697,18 @@ byte-equal (`crop_tile_days`, `worker_turns_idle`, `worker_turns_moving`,
   **0** (was 17, a structural hard-zero break under v1p.2), `animals_escaped` back to parity
   with baseline (5 vs 5, was 20 vs 6). **But the number the whole increment is judged on did not
   move**: `worker_turns_moving` **58,9%→60,3%**, essentially the same ~1,4pp non-movement as
-  v1p.2's own original screen (58,7%→60,0%). Per this increment's own restated kill criterion
-  (below), stickiness in place and `worker_turns_moving` still flat means the constraint
-  genuinely is not *which* tasks a unit is offered — zoning was never the lever, however
-  correctly built. `mean_diff`'s regression is now driven by a *different, smaller* loss
+  v1p.2's own original screen (58,7%→60,0%). 🔴 **Corrected 2026-08-14 (S3 step 1d race):** the
+  reason recorded here previously — "zoning was never the lever" — is not what the data says.
+  Zoning *did* cut travel (60,3%→58,9%) and cut work harder (−828 working turns) while
+  quadrupling water-weeds (226 vs 61). The mechanism is: **zoning trades cross-quadrant commute
+  for within-quadrant starvation, and the exchange is negative** — apportionment is by task
+  *count*, tasks are not equal work, and a quadrant with someone-but-not-enough never trips the
+  empty-zone fallback. What is refuted is **proportional-by-task-count apportionment**, not the
+  claim that travel share is movable — v1p1b arm A1 (§3.3) later measured `worker_turns_moving`
+  falling to 46,0%, proving it is very movable. The pre-registered criterion fired and the STOP
+  stands; this corrects the *reason*, not the verdict (ROADMAP §2 item 9 — a confirmed mechanism
+  and a viable increment are different claims, and so are a correct verdict and its stated
+  reason). `mean_diff`'s regression is now driven by a *different, smaller* loss
   pattern than v1p.2's (`water_weeds_lost`/`unexpected_weeds_lost` 226 vs 61,
   `shed_overflow_burnt` 18 vs 0) — the thrash-driven structural break is gone, but the
   underlying commute cost the increment exists to cut is not.
@@ -693,6 +738,12 @@ renumbered now that v1p.2b's own kill criterion has resolved which one goes firs
   `analysis/v1o3_visit_efficiency.py` is the template. This turns the next decision from a hunch
   into a measurement, cheaply — exactly the gap v1p.2b's SMOKE just widened, since it proved
   stickiness alone does not move `worker_turns_moving` and left open *why*.
+  🔴 **Criterion corrected 2026-08-14 (S3 step 1d race, §3.4):** whatever this diagnostic
+  recommends, its own success is judged on **absolute `worker_turns_working` per episode with
+  `crop_tile_days` held flat** (±3% of the paired baseline), never on the travel ratio or on
+  `worker_turns_moving` alone — both are diagnostics that explain a result, neither is the
+  target. v1p1b arm A1 is the standing counter-example: it would have "passed" a bare
+  `worker_turns_moving < 55%` criterion (46,0%) while shedding 30% of `crop_tile_days` into idle.
 - **④ Min-cost matching inside `assign()`** (Hungarian/auction replacing the greedy loop).
   `assign()` commits the single best (unit, task) pair, deletes that unit and every unrestricted
   task at that position, then re-scans — a routine that routinely strands a unit next to a task
@@ -713,6 +764,143 @@ renumbered now that v1p.2b's own kill criterion has resolved which one goes firs
   reverted 1.32.5 D26 shed-access fix) — remains last in line: smallest of the levers, best
   attempted once ③/④ has moved `worker_turns_moving` so its own effect is visible instead of
   buried.
+
+---
+
+#### S3 step 1d — the onboarding-escape defect, run as a race: Phase 0 stopped it before Phase 1, on a fifth mechanism (2026-08-14)
+
+Full report: `baselines/2026-08-14/s3_step1d_report.md` (local). R17 landed first
+(`worker_turns_working` in every gate artefact, mirroring R15). `checkpoints/v1q_base` rebuilt
+(fingerprint `a22cd401aa0cf691…`, confirming it is the post-v1p2b inert state). `pytest tests/`:
+**245 passed** (unchanged — the fresh-clone baseline, not a regression; 3 pre-existing
+artefact-dependent failures unaffected). **No submission, no arm screened.**
+
+This pass set out to run the deterministic ~2-escapes/episode onboarding defect (misattributed
+four times: v1j, v1h′, v1o.2/v1o.3, v1p.1) as a pre-registered three-arm race (PLACE
+precondition / feed-round promotion / placement rate limit) — but its own mandatory Phase 0
+diagnostic (`analysis/v1q_onboarding_escape.py`, modeled on `analysis/v1i_escape_diagnostic.py`)
+traced the actual mechanism directly against the real `checkpoints/v1p1b_armA1` package (its
+fingerprint `e9dd026478b00ffe…` matches the ROADMAP citation exactly, so this is the package that
+was actually screened, not a config reconstruction) and found **none of the anticipated branches**:
+
+- **Not PLACE-timing infeasibility** (turns-left vs. distance) — the shed holds **zero WHEAT**
+  for both escaping animals across their entire unfed window, so no amount of proximity or
+  remaining turns would have helped.
+- **Not lost FEED-task contention** — `_build_animal_tasks` (`agent/scheduler.py:355-451`,
+  read directly, no `agent/` change) does build an unconditional FEED task every hour regardless
+  of feasibility, but with zero WHEAT anywhere on the farm every unit is equally unable to
+  execute it — there is no contest to lose.
+- **Branch C, confirmed: an early-game cash-flow exhaustion.** Both agents place the *same*
+  animals at the *same* steps (verified step-for-step identical), but candidate's own money hits
+  **exactly $0.0 by hour 25** (day 1, hour 1) and stays there — 30 consecutive `wheat_shortfall`
+  receipts (`agent/executor.py`'s own existing diagnostic), `wheat_bought: 0` every time — while
+  baseline never once hits a shortfall in the same window and both its `BUY_PRODUCT WHEAT`
+  orders succeed. A control (`checkpoints/v1p1b_armB` — `carrot_tiles` 3→1 **alone**, PASTURE
+  untouched) does **not** reproduce the collapse (0 shortfalls, escapes 0-1/seed, matching its
+  already-recorded milder pattern) — the severe, 100%-deterministic collapse needs arm A1's full
+  combination (`carrot_tiles` reduction *and* the PASTURE reorder together). The exact engine-
+  level source of the divergence (a consistent ~$40 gap appearing at the very first HIRE
+  settlement, hour 1, before either agent has placed a single animal- or PASTURE-specific order)
+  was **not** fully isolated within this pass — flagged honestly in the report rather than
+  guessed at, since guessing is what produced the four prior misattributions.
+
+**Per prompt.md §2.5 and ROADMAP §2's STOP protocol, Phase 0 stopped the pass here.** Arm P
+(PLACE precondition), Arm F (feed-round promotion), and Arm R (placement rate limit) were **not
+built** — all three target PLACE/FEED task scheduling, and the traced mechanism is upstream of
+that entirely (a market/cash-flow effect, not an assignment one). Building them against an
+unverified mechanism would have been exactly the pattern this pass exists to stop repeating — a
+fifth misattribution instead of a fourth. Per ROADMAP §2 item 9 (added this pass): there is no
+increment to propose here, only a confirmed mechanism and a new, narrower hypothesis for the next
+pass — trace the hour-1 HIRE settlement directly, then test whether deferring the last 1-2 day-0
+animal purchases when post-purchase cash would fall below a WHEAT-affordability threshold closes
+the gap.
+
+Two bugs were found and fixed **in the new diagnostic script itself** before its trace could be
+trusted, both worth a general note for future replay-analysis scripts in this repo: (a) two
+checkpoint packages both literally named `main.py` collide under `harness.play`'s filename
+sanitizer if given the same `run_dir` — give each orientation/arm its own subdirectory and
+consume each replay before the next `play()` call; (b) `steps[i][0]` in a recorded episode's
+`env.toJSON()` is always seat 0's log entry — `observation` mirrors both farms so indexing it by
+`[0]` regardless of which seat's *state* you want is fine, but `action` is logged per acting
+agent and must be read from `steps[i][seat]`, not `steps[i][0]`, or a lookup for the non-zero
+seat silently returns nothing.
+
+🔴 **Corrected 2026-08-14 (S3 step 1e), two load-bearing errors in the upstream attribution above
+— re-verified directly against this pass's own recorded replay, not taken on trust:**
+
+1. **There is no hour-1 HIRE gap; the settlement is identical.** At step 1 *both* agents are at
+   exactly **$2.980,0, 6 hands, `hires_today = 6`** ($3.000 − $20). The "~$40 gap at the very
+   first HIRE settlement" does not exist. The $40 first appears at **step 2** and it is the
+   **CARROT seed order** — candidate `BUY_SEED CARROT 1` vs baseline `BUY_SEED CARROT 3`, two
+   seeds at $20 — which leaves the candidate **$40 richer** ($2.360 vs $2.320), exactly
+   `carrot_tiles` 3→1 doing what it says, with no anomaly. The recommended "trace the hour-1 HIRE
+   settlement" was therefore a dead end and is withdrawn.
+
+2. **The agents do NOT buy the same animals at the same steps.** The claim above that the PLACE/
+   purchase sequence is "step-for-step identical" is wrong — those are *purchase* turns and they
+   differ: candidate buys 4×COW + 1×SHEEP by step 6 (bank → $260), baseline buys 4×COW spread
+   later with **no early SHEEP** (bank $520 at step 8 vs candidate's $60). The **purchase schedule
+   is the divergence**, not a footnote to it: the entire $460 gap is one extra early SHEEP
+   purchase (+$500) minus the carrot-seed saving (−$40). `placed = 0` for both agents across this
+   whole window — the animals are bought and sitting carried/in the shed, not on tiles.
+
+**Located defect (S3 step 1e).** The mechanism is not the HIRE settlement but the v1g feed-cash
+reserve at `agent/executor.py`: `reserve = (total_placed + buy_target) × wheat_price × 2` omits
+`in_flight` (animals bought on earlier turns, still carried/in the shed). Spreading the purchases
+across turns — which arm A1's geometry causes — bypasses the guard (reserve $50 vs a $250-260 real
+liability at step 6-8, never binds). This is a defect in the **shipped** agent, reproduced as a
+race in the S3 step 1e report — see `baselines/2026-08-14/s3_step1e_report.md` and §4.3 below.
+
+---
+
+#### S3 step 1e — the feed-cash reserve, run as a race: C2 (full-target horizon) kills the defect; C1/X refuted (2026-08-14)
+
+Full report: `baselines/2026-08-14/s3_step1e_report.md` (local). The §1 corrections above (no
+hour-1 HIRE gap; purchase schedules differ) and R18(c) landed first. Three arms, all
+`agent/executor.py` + one config flag each, all inert by default, all built and checkpointed
+before any screen. SMOKE 0-11 both seats, `--town-pin basket`, `--arm-role regression`,
+`--metrics`, vs `checkpoints/v1q_base`. `pytest tests/` **248 passed** (+3 `test_v1r_*` guards),
+3 pre-existing failures. **No submission.**
+
+**Phase 0** (`analysis/v1r_feed_reserve.py`) pinned the arithmetic from last pass's recorded
+replays: on every day-0 buy turn the code reserve is a fraction of the real liability (e.g. $104
+vs $364 with 5 animals in flight, 0 placed), converging only when nothing is in flight. Gate
+PASS, 3 seeds × both orientations.
+
+**Arm 0 noise floor:** `animals_escaped` **4** (criterion-1 threshold ≤ 9). Reproducer (current
+code + A1 config): **48**, −$7.711,5 — the defect holds on today's code, not just v1p1b's.
+
+| Arm | flag (default→arm) | A1-stacked esc / $ | normal esc / $ | verdict |
+|---|---|---|---|---|
+| **C2** | `feed_reserve_horizon` "in_flight"→**"target"** | **0** / **+$5.907,3 IMPROVED** | 5 / −$256,8 NON_INFERIOR | ✅ **WINNER** |
+| C1 | `feed_reserve_counts_in_flight` F→**T** | 48 / −$7.666,9 REGRESSED | 5 / −$256,8 NON_INFERIOR | inert on the reproducer |
+| X | `feed_reserve_days` 2→**3** | 48 / −$10.112,5 REGRESSED | 14 / −$5.108,7, **plant_decay 8** | actively harmful |
+
+**Confirmed mechanism** (≠ increment, per §2 item 9): the reserve undercounts the in-flight herd —
+but *counting* the in-flight herd (C1) is not enough. C1 lands the reserve (~$260 by step 6)
+exactly where the cash-stressed agent already stops on its own, so it changes nothing (48→48).
+Only reserving for the **full intended herd** (C2: 10×$26×2=$520) throttles the day-0 over-buy
+enough that the WHEAT pipeline never hits $0. Arm X is the size-vs-count control and it resolves
+**against** size: raising `FEED_RESERVE_DAYS` while keeping the undercount does not kill the defect
+and loses more (it throttles the herd's own feed pipeline; `plant_decay` breaks on normal config).
+
+**Viable increment:** ship C2 (`checkpoints/v1r_armC2`). On the reproducer it removes all 48
+escapes with the herd reaching full target (10) on baseline's own day (day 11) and ending at 10 —
+**criterion 2 satisfied, not suppressed.** On the shipped config it is NON_INFERIOR (≈$0 at SMOKE,
+the defect is latent at herd 10), zero structural breaks. Its value lands as the **precondition
+for the §4.0 herd-13 profile** — with 13 intended animals only the target-horizon reserve tracks
+the $676 liability — so C2 promotes through the full Phase-2 gate **bundled with herd 13**, not
+shipped alone into the 10-herd config for no dollars.
+
+⚠️ **A1 stays STOPPED.** C2 A1-stacked measuring +$5.907 means the escapes were the *dominant*
+cost of A1's carrot→PASTURE geometry — a **new hypothesis** (A1 might be viable once fed), for a
+future pass with A1's own acceptance/holdout screen, **not** a claim of this one (§5, brief §2 ⚠️).
+
+⚠️ **Builder bug caught mid-pass** (→ R19): the first A1-stacked screens returned an identical
+48/−$7711 to the unfixed reproducer because the stacked-package builder inserted the arm flag as
+a *duplicate* key before the existing default (later literal wins in the dict), so the fix ran
+inert. Caught by instrumenting the executor's own reserve, fixed to replace-and-assert. An
+"identical to unfixed" result was treated as a red flag to trace, not a finding to report.
 
 ---
 
@@ -819,6 +1007,9 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R16** ✅ | **Checkpoint-naming convention, decided 2026-08-13 (S3 step 1c controls pass).** `<version>` names a candidate that was actually **screened** (`compare` run against its `checkpoints/<version>/main.py`, never against live `main.py`) — `checkpoints/v1p1b_armA1`, `_armB`, `v1p2b` above. An **inert post-STOP state** (live `main.py` reverted, behaviour-identical to an already-immutable baseline) gets **no checkpoint at all** — it is definitionally the baseline it reverts to, and creating one would just be a second, redundant immutable copy of `v1o_2`. `checkpoints/v1p_1` (2026-08-13, earlier this same day) predates this decision and is the case the convention exists to stop repeating: it is a post-STOP inert state that *did* get a checkpoint, inverting `v1o_3`'s naming (a stopped variant that also got one) from the pass before it — left as-is, not renamed, since a checkpoint's whole point is immutability once created | v1p.1 and v1p.2's own SMOKE screens ran against live `main.py` directly and then reverted it — fingerprints `bb9d173c…`/`06ebef7c…` in `gates/v1p1_armA_smoke_mirror`/`gates/v1p2_smoke_mirror` match no checkpoint on disk and can never be re-derived |
 | **R14** ✅ | **`checkpoints/` was gitignored wholesale**, contradicting the invariant the directory exists to enforce: [harness/checkpoint.py](harness/checkpoint.py) records (review H2) that checkpoints were *moved out of* `runs/` precisely because being gitignored "erased the only record of every accepted regression baseline from git history" — and then the same was done to `checkpoints/`. **Decided 2026-08-11 by the user: track the manifests only.** `.gitignore` is now `/checkpoints/**` + `!/checkpoints/**/` + `!/checkpoints/*/manifest.json` (that order is required — git cannot re-include a file whose parent directory is excluded). 20 manifests for v0…v1o_2 now carry every accepted baseline's fingerprint in history; the packages stay out | Same class as R3b: an argument the repo relies on ("immutable, verifiable baselines") was not true on disk |
 | **R7** | Unresolved: submission `55387820` (2026-08-09 18:58, score 613,0) corresponds to no checkpoint or gate in this repo; its description ("4th attempt…") is hand-written, so it was almost certainly a manual upload | It occupied an active slot and pushed v1g out. Harmless, but the two active slots are the final-ranking lineup |
+| **R17** ✅ | Added `worker_turns_working` to `_V1K_REPORT_METRICS` (2026-08-14, S3 step 1d) — same 3-line-plus-print-line change as R15, generic over the tuple. Pinned by extending `test_compare_metrics_reads_agent_a_seat_in_each_orientation` rather than a parallel test | v1p1b arm A1 hit `worker_turns_moving` 46,0% — the largest commute cut ever measured here — by doing *fewer* working turns and shedding 30% of `crop_tile_days` into idle. A ratio alone would have let it pass; the absolute counterweight now sits next to it in every gate artefact (§3.4) |
+| **R18** | **Replay-analysis scripts: two indexing traps, found and fixed in `analysis/v1q_onboarding_escape.py` (2026-08-14).** (a) Two checkpoint packages that are both literally named `main.py` collide under `harness.play`'s filename sanitizer if given the same `run_dir` — the second `play()` call silently overwrites the first's replay before it's read. Give each orientation/arm its own `run_dir` subdirectory and consume each replay before the next `play()` call. (b) In a recorded episode's `env.toJSON()`, `steps[i][0]` is always seat 0's log entry — `observation` mirrors both farms (safe to index by `[0]` regardless of which seat's *state* you want, verified directly), but `action` is logged per acting agent and must be read from `steps[i][seat]`, not `steps[i][0]`, or a lookup for the non-zero seat silently returns nothing. **(c) added 2026-08-14 (S3 step 1e): the action logged at `steps[i]` is the one that *produced* `steps[i]`'s observation, not the one applied to it.** Pairing an order at step *i* with the money at step *i+1* shifts every purchase one turn later and makes the settlement look lagged — it is not. Read the order and the resulting state from the *same* `steps[i]` entry | Both bugs produced a plausible-looking but wrong result before being caught — the first made escapes appear to track *seat* rather than *agent*, the second made every "which unit acted" lookup fail silently (`None`) for seat 1. Neither raised an exception. Trap (c) is what made S3 step 1d misread the HIRE settlement as gapped and the purchase schedule as identical — corrected in §4.3 |
+| **R19** | **Config-override package builders must REPLACE the target key and assert the effective value, never insert it (2026-08-14, S3 step 1e).** `analysis/v1r_build_stacked.py` first inserted an arm flag as a new key *before* the same key's existing default in the copied `config.py`; the later dict literal wins, so the flag was a silent no-op and every A1-stacked screen ran inert — returning a plausible "identical to the unfixed reproducer" result. The builder now string-replaces the existing key line and re-loads the built config to assert the effective value before writing the package. **General rule:** any tool that edits a config by source-text must round-trip through `load_config` and check the value it intended to set — a dict with a duplicate key does not raise | The result *looked* like a clean "the fix does nothing" finding; it was a dead flag. Caught only by instrumenting the executor's own reserve and seeing the C1 package compute the undercounted number. An A/B whose treatment arm is byte-identical to control is a red flag to trace, not a finding to publish |
 
 ---
 
@@ -922,15 +1113,47 @@ else's tape.
   off, live `main.py` re-verified behaviour-identical to `v1o_2` (`mean_diff` $0,00, 12/12
   ties). `pytest tests/` **244 → 248 passed**. Full report:
   `baselines/2026-08-13/s3_step1c_controls_report.md`.
-- **Next: the travel-ratio diagnostic (§4.3 deferred item ③), before min-cost matching
-  (④).** v1p.2b proved stickiness alone does not move `worker_turns_moving`, which leaves open
-  *why* — whether the 62% commute share is a geometric floor (territory/tour-construction is the
-  only lever) or the greedy one-at-a-time matching is genuinely losing turns (in which case ④,
-  Hungarian/auction assignment over the full unit×task pool, is justified). Cheap to measure,
-  expensive to guess wrong on: ④ has to re-establish G13 determinism and must not re-break
-  `committed`'s stickiness. §3.3's *"routing-distance decoupled from urgency-distance in
-  `assign()`"* stays last in line. Whatever it is, it has to earn its acceptance arm against
-  `meta_route`: v1o.3 passed mirror at p=3,3e-6 and was worth nothing there.
+- **S3 step 1d — Phase 0 stopped the race before Phase 1, on a fifth mechanism (2026-08-14).**
+  R17 landed (`worker_turns_working` in every gate artefact) plus the §1.2/§1.3/§1.4 corrections
+  to §3.3/§3.4/§4.3's deferred item ③. `checkpoints/v1q_base` rebuilt. The mandatory Phase 0
+  diagnostic (`analysis/v1q_onboarding_escape.py`) traced the deterministic ~2-escapes/episode
+  onboarding defect directly against the real `checkpoints/v1p1b_armA1` package and found
+  **neither** anticipated branch — not PLACE-timing infeasibility, not lost FEED-task contention
+  — but a **fifth mechanism**: an early-game cash-flow exhaustion specific to arm A1's exact
+  config (both animals' shed WHEAT reads **zero** for their entire unfed window; candidate's own
+  money hits exactly $0 by hour 25 while baseline never does; a `carrot_tiles`-alone control does
+  not reproduce the collapse). Per its own STOP protocol, the pass stopped **before** building
+  Arm P/F/R — all three would have targeted PLACE/FEED scheduling, which the trace shows is not
+  where the defect lives. `pytest tests/` **245 passed** (fresh-clone baseline, unchanged). No
+  arm screened, no submission. Full report: `baselines/2026-08-14/s3_step1d_report.md`.
+  🔴 **Corrected 2026-08-14 (S3 step 1e):** the "trace the hour-1 HIRE settlement" recommendation
+  is **withdrawn** — there is no hour-1 gap (both agents at $2.980,0, 6 hands at step 1); the $40
+  is the CARROT seed at step 2 and leaves the candidate *richer*, and the purchase schedules
+  differ (one extra early SHEEP), they are not identical. See the step 1d 🔴 block above and R18(c).
+- **S3 step 1e — the feed-cash reserve, run as a race (2026-08-14).** The real, *located* defect:
+  `agent/executor.py`'s reserve counts placed animals + this order's additions but not the herd
+  already in flight, so purchases spread across turns bypass it — see §4.3 above and
+  `baselines/2026-08-14/s3_step1e_report.md`. **Outcome:** the fix is **arm C2**
+  (`feed_reserve_horizon="target"`, reserve for the *full intended* herd, `checkpoints/v1r_armC2`):
+  48→0 escapes on the reproducer, +$5.907 IMPROVED, herd reaching full target on baseline's day;
+  the count-in-flight fix (C1) and the raise-the-days control (X) both leave 48 (X is worse). C2
+  is NON_INFERIOR on the shipped config (≈$0, DEV 48-seed confirmed) and structural-clean. `pytest`
+  248 passed (+3 `test_v1r_*`), no submission. Two ROADMAP corrections landed (no hour-1 HIRE gap;
+  purchase schedules differ) plus R18(c) and R19.
+- **Next: promote C2 through the full Phase-2 gate bundled with the herd-13 increment** (§4.0
+  profile 9C+4S on a 6/12/13 ramp) — C2's dollar value lands there, not in the current 10-herd
+  config where the defect is latent (NON_INFERIOR). A1 stays STOPPED; A1+C2=+$5.907 is a recorded
+  hypothesis (the escapes were A1's dominant cost), not a re-opening.
+- **After herd-13 + C2**, the travel-ratio diagnostic
+  (§4.3 deferred item ③), before min-cost matching (④). v1p.2b proved stickiness alone does not
+  move `worker_turns_moving`, which leaves open *why* — whether the 62% commute share is a
+  geometric floor (territory/tour-construction is the only lever) or the greedy one-at-a-time
+  matching is genuinely losing turns (in which case ④, Hungarian/auction assignment over the full
+  unit×task pool, is justified). Cheap to measure, expensive to guess wrong on: ④ has to
+  re-establish G13 determinism and must not re-break `committed`'s stickiness. §3.3's
+  *"routing-distance decoupled from urgency-distance in `assign()`"* stays last in line. Whatever
+  it is, it has to earn its acceptance arm against `meta_route`: v1o.3 passed mirror at p=3,3e-6
+  and was worth nothing there.
 
 - **S4 — first submission of this line made, 2026-08-11:** `55438252` (v1o.2), PENDING, full
   §6bis checklist green. It went in as the **challenger**, holding `55414570` (v1i) as champion

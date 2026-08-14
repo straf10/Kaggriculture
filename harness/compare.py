@@ -303,6 +303,12 @@ _V1K_REPORT_METRICS = (
     # analysis/v1o3_visit_efficiency.py had to recover it per episode with its own separate
     # play() calls because of this gap.
     "worker_turns_moving",
+    # R17 (ROADMAP §1.1, prompt.md 2026-08-14 S3 step 1d race): v1p1b arm A1 hit 46,0%
+    # worker_turns_moving — the largest commute cut ever measured here — by doing *fewer*
+    # working turns than baseline and shedding 30% of crop_tile_days into idle. A ratio
+    # threshold on worker_turns_moving alone is satisfiable by shrinking the farm; the
+    # absolute working-turn count has to be read alongside it so that can't pass unnoticed.
+    "worker_turns_working",
     "animals_underfed_days",
     "crop_revenue",
 )
@@ -419,6 +425,8 @@ class CompareResult:
     worker_turns_total_b: Optional[int] = None
     worker_turns_moving_a: Optional[int] = None  # R15 (ROADMAP §6)
     worker_turns_moving_b: Optional[int] = None
+    worker_turns_working_a: Optional[int] = None  # R17 (ROADMAP §6)
+    worker_turns_working_b: Optional[int] = None
     animals_underfed_days_a: Optional[int] = None
     animals_underfed_days_b: Optional[int] = None
     crop_revenue_a: Optional[int] = None

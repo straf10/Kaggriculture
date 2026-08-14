@@ -619,6 +619,26 @@ CONFIG = {
         # DEV_SEEDS 0-7 against checkpoints/v1g_1 at every headroom that bound at all.
         "shop_evidence_min_unlocks": 5,
         "opponent_price_safety_units": 4,
+        # ROADMAP §4.3 S3 step 1e (v1r): the day-0 feed-cash reserve. The v1g reserve (see the
+        # long note in executor.market_orders) sets aside FEED_RESERVE_DAYS' worth of WHEAT cash
+        # for the herd before spending on new animals, so a whole batch bought in one hour can't
+        # starve. Its liability count was `total_placed + buy_target` — animals already on tiles
+        # plus the ones a single BUY order adds — which SILENTLY OMITS animals already bought on
+        # earlier turns and still carried/in the shed (each of which eats one WHEAT/day the moment
+        # it is placed). Spreading purchases across turns (arm A1's geometry does exactly this)
+        # then bypasses the guard: with 5 animals in flight and 0 placed, the reserve was
+        # (0+1)*25*2 = $50 against a $260 real liability, and never bound. Three config-gated
+        # variants, ALL inert by default so `main.py` behaviour is unchanged until one is chosen:
+        #   feed_reserve_counts_in_flight (arm C1): add the in-flight herd to the reserved count.
+        #   feed_reserve_horizon="target" (arm C2): reserve for the full intended herd
+        #     (sum of animal_purchases targets) — the variant that keeps binding when the target
+        #     grows past what has been bought yet (e.g. the §4.0 herd-13 profile).
+        #   feed_reserve_days (arm X): the discriminating control — raise the horizon alone,
+        #     leaving the undercount in place, to tell "reserve too small" from "liability
+        #     undercounted". 2 is the shipped value.
+        "feed_reserve_days": 2,
+        "feed_reserve_counts_in_flight": False,
+        "feed_reserve_horizon": "in_flight",  # "in_flight" | "target"
         # current_phase.md §v1i — the two remaining sell-ahead levers, each independently
         # switchable so the §v1i KILL clause ("try the other one alone before dropping both")
         # costs a config edit, not a patch.

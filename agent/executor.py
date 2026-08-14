@@ -479,9 +479,24 @@ def market_orders(
         # exactly the engine's escape threshold (consecutive_unfed >= 2), so the whole batch
         # escaped together. Reserve enough cash to feed the herd this hour's purchases would
         # create for FEED_RESERVE_DAYS before spending further on NEW animals.
-        FEED_RESERVE_DAYS = 2
+        # ROADMAP §4.3 S3 step 1e (v1r): FEED_RESERVE_DAYS and the reserved-herd count are now
+        # config-gated (agent/config.py "feed_reserve_*"), all defaulting to the shipped, inert
+        # behaviour. `total_placed + buy_target` counted animals on tiles plus this order's
+        # additions but NOT animals already bought on earlier turns and still carried/in the shed
+        # — each of which eats one WHEAT/day once placed — so purchases spread across turns
+        # bypassed the guard (see the config note). total_in_flight and target_total are summed
+        # across all names once, like total_placed, so the branch below is a constant-per-turn
+        # choice of *which* herd to reserve for.
+        FEED_RESERVE_DAYS = int(executor_config.get("feed_reserve_days", 2))
+        count_in_flight = bool(executor_config.get("feed_reserve_counts_in_flight", False))
+        reserve_horizon = str(executor_config.get("feed_reserve_horizon", "in_flight"))
         wheat_price_est = max(1, int(snapshot.market_prices.get("WHEAT", 25)))
         total_placed = sum(placed_count(snapshot, name) for name in plan.animal_purchases)
+        total_in_flight = sum(
+            sum(inv.get(name, 0) for inv in snapshot.inventories) + int(snapshot.shed.get(name, 0))
+            for name in plan.animal_purchases
+        )
+        target_total = sum(int(t) for t in plan.animal_purchases.values())
         for name, target in plan.animal_purchases.items():
             placed = placed_count(snapshot, name)
             carried = sum(inv.get(name, 0) for inv in snapshot.inventories)
@@ -496,7 +511,18 @@ def market_orders(
             if buy_target <= 0:
                 continue
             cost = int(ANIMALS[name]["cost"])
-            reserve = (total_placed + buy_target) * wheat_price_est * FEED_RESERVE_DAYS
+            if reserve_horizon == "target":
+                # Arm C2: reserve for the full intended herd. total_placed already grows as this
+                # loop commits buys, so min() with it clamps to target_total (once placed+in_flight
+                # already cover the target there is nothing further to protect against).
+                reserve_herd = min(target_total, max(target_total, total_placed + total_in_flight + buy_target))
+            elif count_in_flight:
+                # Arm C1: the minimal fix — count animals already in flight toward the liability.
+                reserve_herd = total_placed + total_in_flight + buy_target
+            else:
+                # Shipped behaviour: on-tile herd plus this order's additions only (the undercount).
+                reserve_herd = total_placed + buy_target
+            reserve = reserve_herd * wheat_price_est * FEED_RESERVE_DAYS
             spendable = max(0, available_money - reserve)
             affordable = int(spendable // cost)
             buy_n = min(buy_target, affordable)

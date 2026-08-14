@@ -741,11 +741,13 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
                     "water_weeds_lost": 1, "plant_decay_units_lost": 2,
                     "crop_tile_days": 100, "worker_turns_idle": 10,
                     "worker_turns_total": 100, "worker_turns_moving": 60,
+                    "worker_turns_working": 30,
                     "animals_underfed_days": 2,
                 },
                 1: {
                     "crop_tile_days": 80, "worker_turns_idle": 20,
                     "worker_turns_total": 100, "worker_turns_moving": 55,
+                    "worker_turns_working": 25,
                     "animals_underfed_days": 3,
                 },
             }
@@ -755,12 +757,14 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
                 0: {
                     "crop_tile_days": 81, "worker_turns_idle": 21,
                     "worker_turns_total": 101, "worker_turns_moving": 56,
+                    "worker_turns_working": 24,
                     "animals_underfed_days": 4,
                 },
                 1: {
                     "water_weeds_lost": 3, "plant_decay_units_lost": 4,
                     "crop_tile_days": 101, "worker_turns_idle": 11,
                     "worker_turns_total": 101, "worker_turns_moving": 61,
+                    "worker_turns_working": 29,
                     "animals_underfed_days": 5,
                 },
             }
@@ -781,6 +785,12 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
     # gate artefact could report the commute share the S3 step 1c work is judged on.
     assert result.worker_turns_moving_a == 60 + 61
     assert result.worker_turns_moving_b == 55 + 56
+    # R17 (ROADMAP §1.1, prompt.md 2026-08-14 S3 step 1d race): worker_turns_working must be
+    # aggregated the same way — a ratio on worker_turns_moving alone is satisfiable by
+    # shrinking the farm (v1p1b arm A1 hit 46,0% moving by doing less work), so the absolute
+    # working-turn count has to be in every gate artefact too.
+    assert result.worker_turns_working_a == 30 + 29
+    assert result.worker_turns_working_b == 25 + 24
     assert result.animals_underfed_days_a == 2 + 5
     assert result.metric_gate_passed is False
 
