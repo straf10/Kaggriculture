@@ -137,11 +137,145 @@ def gate(rows):
     return diverges_when_in_flight and converges_when_empty and any_in_flight
 
 
+def open_slots_for(slot_ranges, obs, seat, name):
+    """Reserved PASTURE/COOP tiles for `name` (animal_slot_ranges) that are still empty on this
+    seat's farm. Mirrors executor.open_animal_slots' emptiness test closely enough for the trace."""
+    tiles = obs["farms"][seat]["tiles"]
+    open_n = 0
+    for (x, y) in slot_ranges.get(name, ()):  # (x=row, y=col) per config tuples
+        cell = tiles[x][y]
+        if not (isinstance(cell, dict) and "animal" in cell):
+            open_n += 1
+    return open_n
+
+
+def trace_target13(steps, cand_seat, targets, slot_ranges, wheat_default, max_step):
+    """Reconstruct the C2 (full-target) reserve arithmetic for the candidate at herd `target_total`.
+
+    C2 sizes reserve = target_total * wheat_price * FEED_RESERVE_DAYS from day 0 (step purchase,
+    no ramp), so it is computable from the observation without the executor internals. buy_target
+    is the executor's per-name min(still_wanted, headroom) summed over names; the emitted BUY_ANIMAL
+    count is shown alongside (it is buy_target clamped by affordability = spendable // cost)."""
+    target_total = sum(int(v) for v in targets.values())
+    rows = []
+    for i in range(1, max_step + 1):
+        obs0 = steps[i][0]["observation"]
+        obs_seat = steps[i][cand_seat]["observation"]
+        action = steps[i][cand_seat]["action"]
+        money = obs0["farms"][cand_seat]["money"]
+        placed = placed_count(obs0, cand_seat)
+        in_flight = in_flight_count(obs_seat)
+        price = max(1, int(obs0["market"]["prices"].get("WHEAT", wheat_default)))
+        reserve = target_total * price * FEED_RESERVE_DAYS
+        spendable = max(0, money - reserve)
+        # per-name still_wanted / headroom, exactly as executor.market_orders computes it
+        buy_target = 0
+        for name in ANIMAL_NAMES:
+            tgt = int(targets.get(name, 0))
+            if tgt <= 0:
+                continue
+            p_name = sum(1 for row in obs0["farms"][cand_seat]["tiles"]
+                         for t in row if isinstance(t, dict) and t.get("animal") == name)
+            carried = sum(int(inv.get(name, 0)) for inv in obs_seat["private"]["inventories"])
+            shed_have = int(obs_seat["private"]["shed"].get(name, 0))
+            infl = carried + shed_have
+            still_wanted = tgt - p_name - infl
+            if still_wanted <= 0:
+                continue
+            headroom = max(0, open_slots_for(slot_ranges, obs0, cand_seat, name) - infl)
+            buy_target += min(still_wanted, headroom)
+        bought = bought_this_turn(action)
+        orders = [o for o in (action.get("market") or []) if o and o[0] != "SELL"]
+        rows.append({
+            "step": i, "day": int(obs0.get("day", 0)), "hour": int(obs0.get("hour", 0)),
+            "money": money, "placed": placed, "in_flight": in_flight,
+            "buy_target": buy_target, "reserve": reserve, "spendable": spendable,
+            "bought": bought, "orders": orders,
+        })
+    return rows
+
+
+def print_target13(rows):
+    print("      step d/h    money  placed in_flight buy_tgt  reserve spendable  order")
+    for r in rows:
+        order = ",".join(f"{o[1]}x{o[2]}" if len(o) > 2 else o[0] for o in r["orders"]) or "-"
+        print(
+            f"      {r['step']:>4} {r['day']}/{r['hour']:<2} {r['money']:>8.1f}"
+            f" {r['placed']:>6} {r['in_flight']:>8} {r['buy_target']:>7}"
+            f" {r['reserve']:>8} {r['spendable']:>9}  {order}"
+        )
+
+
+def run_target13(package_main, seeds, targets, slot_ranges, wheat_default, out_dir):
+    """Record a fresh play of the target-13 package vs v1q_base (basket-pinned) and trace the
+    candidate's reserve arithmetic over days 0-12. prompt.md §2 gate."""
+    from harness.play import play  # noqa: E402
+    from harness.town_pin import pinned_town, schedule_for_mode  # noqa: E402
+    base = str(REPO / "checkpoints/v1q_base/main.py")
+    target_total = sum(int(v) for v in targets.values())
+    max_step = 13 * TURNS_PER_DAY - 1  # days 0-12 inclusive
+    all_ok = True
+    for seed in seeds:
+        print(f"=== seed {seed} (candidate seat 0, target {target_total} = {targets}) ===")
+        run_dir = out_dir / f"seed{seed}"
+        with pinned_town("basket", schedule_for_mode("basket", seed)):
+            result = play(package_main, base, seed=seed, record=True, run_dir=run_dir,
+                          metrics=False, strict=False)
+        with gzip.open(result.replay_path, "rt", encoding="utf-8") as handle:
+            steps = json.load(handle)["steps"]
+        rows = trace_target13(steps, 0, targets, slot_ranges, wheat_default,
+                              min(max_step, len(steps) - 1))
+        # The pathology the gate guards against (prompt.md §2) is "passing an escape criterion by
+        # never OWNING the animals" — so "the herd reaches 13" = owned (placed + in_flight), not
+        # placed-on-tiles. Placement lags ownership by unit-turns to walk each animal to its tile,
+        # which is a logistics question (arm H1), not a cash/reserve one.
+        owned_day = next(
+            (r["day"] for r in rows if r["placed"] + r["in_flight"] >= target_total), None)
+        placed_day = next((r["day"] for r in rows if r["placed"] >= target_total), None)
+        # money never $0 at a day boundary (hour 0) while animals are placed
+        boundary_starved = [r for r in rows
+                            if r["hour"] == 0 and r["placed"] > 0 and r["money"] <= 0.0]
+        day_reached = owned_day
+        reaches_by_12 = owned_day is not None and owned_day <= 12
+        no_boundary_starve = not boundary_starved
+        seed_ok = reaches_by_12 and no_boundary_starve
+        all_ok = all_ok and seed_ok
+        print_target13(rows)
+        print(f"    herd OWNS {target_total} on day: {owned_day}  (placed 13 on day {placed_day})"
+              f"  ({'owned <= 12 OK' if reaches_by_12 else 'LATE / never — FAIL'})")
+        if boundary_starved:
+            print(f"    ⚠️ money <= 0 at a day boundary with animals placed: "
+                  f"steps {[r['step'] for r in boundary_starved]}")
+        print(f"    seed gate: {'PASS' if seed_ok else 'FAIL'}")
+        Path(result.replay_path).unlink(missing_ok=True)
+    print()
+    print(f"PHASE-0 (target {target_total}) GATE: "
+          f"{'PASS — herd completes by d12, no boundary starvation' if all_ok else 'FAIL — reserve starves the herd, STOP'}")
+    return 0 if all_ok else 1
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--days", type=int, default=2, help="trace days 0..N inclusive")
+    parser.add_argument("--run-target13", help="path to a target-13 package main.py; runs fresh "
+                        "plays and traces the C2 reserve over days 0-12 (prompt.md §2)")
+    parser.add_argument("--target-total", type=int, default=13)
+    parser.add_argument("--out", default="gates/v1s_phase0")
     args = parser.parse_args()
+
+    if args.run_target13:
+        seeds = [int(s) for s in args.seeds.split(",")]
+        out_dir = REPO / args.out
+        out_dir.mkdir(parents=True, exist_ok=True)
+        # The §4.0 herd-13 profile: 9 COW + 4 SHEEP (H2/H2R). Slot ranges come from the live
+        # scheduler tiles (unchanged by the arms) carved by these targets in dict order.
+        from agent.animal_slots import animal_slot_ranges  # noqa: E402
+        targets = {"COW": 9, "SHEEP": 4, "GOOSE": 0}
+        trace_cfg = {"animals": {"targets": targets}, "scheduler": CONFIG["scheduler"]}
+        slot_ranges = animal_slot_ranges(trace_cfg)
+        return run_target13(args.run_target13, seeds, targets, slot_ranges,
+                            25, out_dir)
 
     max_step = (args.days + 1) * TURNS_PER_DAY - 1
     seeds = [int(s) for s in args.seeds.split(",")]

@@ -118,6 +118,14 @@ def _results_json_dict(result) -> dict:
         "melon_units_b": result.melon_units_b,
         "melon_revenue_a": result.melon_revenue_a,
         "melon_revenue_b": result.melon_revenue_b,
+        "milk_units_a": result.milk_units_a,  # R20 (ROADMAP §6)
+        "milk_units_b": result.milk_units_b,
+        "milk_revenue_a": result.milk_revenue_a,
+        "milk_revenue_b": result.milk_revenue_b,
+        "wool_units_a": result.wool_units_a,
+        "wool_units_b": result.wool_units_b,
+        "wool_revenue_a": result.wool_revenue_a,
+        "wool_revenue_b": result.wool_revenue_b,
         "animals_escaped_b": result.animals_escaped_b,
         "shed_overflow_burnt_b": result.shed_overflow_burnt_b,
         "unexpected_weeds_lost_b": result.unexpected_weeds_lost_b,
@@ -264,7 +272,17 @@ def _cmd_compare(args):
             f"melon_units A={result.melon_units_a} "
             f"($/u={((result.melon_revenue_a or 0) / (result.melon_units_a or 1)):.2f}) "
             f"B={result.melon_units_b} "
-            f"($/u={((result.melon_revenue_b or 0) / (result.melon_units_b or 1)):.2f})"
+            f"($/u={((result.melon_revenue_b or 0) / (result.melon_units_b or 1)):.2f}); "
+            # R20 (ROADMAP §6): MILK + WOOL realised price ($/u = revenue/units) — the §4.1
+            # currency and the number the herd-13 MILK-saturation risk (§3.3) is decided on.
+            f"milk_units A={result.milk_units_a} "
+            f"($/u={((result.milk_revenue_a or 0) / (result.milk_units_a or 1)):.2f}) "
+            f"B={result.milk_units_b} "
+            f"($/u={((result.milk_revenue_b or 0) / (result.milk_units_b or 1)):.2f}); "
+            f"wool_units A={result.wool_units_a} "
+            f"($/u={((result.wool_revenue_a or 0) / (result.wool_units_a or 1)):.2f}) "
+            f"B={result.wool_units_b} "
+            f"($/u={((result.wool_revenue_b or 0) / (result.wool_units_b or 1)):.2f})"
         )
     if result.env:
         print(f"env={result.env}")

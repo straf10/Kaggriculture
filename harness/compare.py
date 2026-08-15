@@ -313,6 +313,14 @@ _V1K_REPORT_METRICS = (
     "crop_revenue",
 )
 
+# R20 (ROADMAP §6, prompt.md 2026-08-15 S3 step 2): per-product units + realised revenue in
+# every gate artefact. v1m emitted only the MELON pair; every herd-13 economic risk (§0.2 of the
+# step-2 brief) is a MILK/WOOL realised-price question (§4.1), and that number could not be read
+# from a gate artefact at all. Generalised over this tuple, emitting `{product.lower()}_units_{arm}`
+# and `{product.lower()}_revenue_{arm}`. MELON is first so its keys are byte-for-byte identical to
+# the longhand v1m emission — older artefacts and tests keep reading unchanged.
+_V1K_REPORT_PRODUCTS = ("MELON", "MILK", "WOOL")
+
 
 def _attach_v1k_diagnostics(
     orientation: dict,
@@ -327,10 +335,13 @@ def _attach_v1k_diagnostics(
         for metric in _V1K_REPORT_METRICS:
             orientation[f"{metric}_{arm}"] = int(seat_metrics.get(metric, 0))
         # v1m: MELON race gate needs units + realized $/u, not just crop_revenue sum.
+        # R20: generalised over _V1K_REPORT_PRODUCTS (MELON + MILK + WOOL).
         units = seat_metrics.get("units_sold_by_product") or {}
         revenue = seat_metrics.get("revenue_by_product") or {}
-        orientation[f"melon_units_{arm}"] = int(units.get("MELON", 0))
-        orientation[f"melon_revenue_{arm}"] = int(revenue.get("MELON", 0))
+        for product in _V1K_REPORT_PRODUCTS:
+            key = product.lower()
+            orientation[f"{key}_units_{arm}"] = int(units.get(product, 0))
+            orientation[f"{key}_revenue_{arm}"] = int(revenue.get(product, 0))
 
 
 # current_phase.md §1 Απόφαση Δ point 4: the raw counters of *both* arms are reported. Δ changes
@@ -436,6 +447,17 @@ class CompareResult:
     melon_units_b: Optional[int] = None
     melon_revenue_a: Optional[int] = None
     melon_revenue_b: Optional[int] = None
+    # R20 (ROADMAP §6): MILK + WOOL units/revenue, same shape as the MELON pair. Realised price
+    # is revenue/units per product — the §4.1 currency, and the number the herd-13 MILK-saturation
+    # risk (§3.3) is decided on.
+    milk_units_a: Optional[int] = None
+    milk_units_b: Optional[int] = None
+    milk_revenue_a: Optional[int] = None
+    milk_revenue_b: Optional[int] = None
+    wool_units_a: Optional[int] = None
+    wool_units_b: Optional[int] = None
+    wool_revenue_a: Optional[int] = None
+    wool_revenue_b: Optional[int] = None
     # current_phase.md §1 Απόφαση Δ: the same four priced counters, read off agent_b's seat.
     # Reported unconditionally (Δ point 4) — the criterion changed, the transparency did not.
     animals_escaped_b: Optional[int] = None
@@ -884,12 +906,14 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 for arm in ("a", "b")
             }
             for arm in ("a", "b"):
-                v1k_diagnostics[f"melon_units_{arm}"] = sum(
-                    o.get(f"melon_units_{arm}", 0) for o in orientations
-                )
-                v1k_diagnostics[f"melon_revenue_{arm}"] = sum(
-                    o.get(f"melon_revenue_{arm}", 0) for o in orientations
-                )
+                for product in _V1K_REPORT_PRODUCTS:
+                    key = product.lower()
+                    v1k_diagnostics[f"{key}_units_{arm}"] = sum(
+                        o.get(f"{key}_units_{arm}", 0) for o in orientations
+                    )
+                    v1k_diagnostics[f"{key}_revenue_{arm}"] = sum(
+                        o.get(f"{key}_revenue_{arm}", 0) for o in orientations
+                    )
             # Απόφαση Δ: same summed-not-averaged rule as the _a counters above.
             arm_b_counters = {
                 f"{metric}_b": sum(o.get(f"{metric}_b", 0) for o in orientations)
@@ -908,8 +932,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 for arm in ("a", "b")
             }
             for arm in ("a", "b"):
-                v1k_diagnostics[f"melon_units_{arm}"] = None
-                v1k_diagnostics[f"melon_revenue_{arm}"] = None
+                for product in _V1K_REPORT_PRODUCTS:
+                    key = product.lower()
+                    v1k_diagnostics[f"{key}_units_{arm}"] = None
+                    v1k_diagnostics[f"{key}_revenue_{arm}"] = None
             arm_b_counters = {f"{metric}_b": None for metric in _ARM_B_COUNTER_METRICS}
         return {
             "seed": seed,
@@ -1190,12 +1216,14 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             for arm in ("a", "b")
         }
         for arm in ("a", "b"):
-            v1k_diagnostics[f"melon_units_{arm}"] = sum(
-                row.get(f"melon_units_{arm}", 0) for row in per_seed
-            )
-            v1k_diagnostics[f"melon_revenue_{arm}"] = sum(
-                row.get(f"melon_revenue_{arm}", 0) for row in per_seed
-            )
+            for product in _V1K_REPORT_PRODUCTS:
+                key = product.lower()
+                v1k_diagnostics[f"{key}_units_{arm}"] = sum(
+                    row.get(f"{key}_units_{arm}", 0) for row in per_seed
+                )
+                v1k_diagnostics[f"{key}_revenue_{arm}"] = sum(
+                    row.get(f"{key}_revenue_{arm}", 0) for row in per_seed
+                )
         arm_b_counters = {
             f"{metric}_b": sum(row.get(f"{metric}_b", 0) or 0 for row in per_seed)
             for metric in _ARM_B_COUNTER_METRICS
@@ -1272,8 +1300,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             for arm in ("a", "b")
         }
         for arm in ("a", "b"):
-            v1k_diagnostics[f"melon_units_{arm}"] = None
-            v1k_diagnostics[f"melon_revenue_{arm}"] = None
+            for product in _V1K_REPORT_PRODUCTS:
+                key = product.lower()
+                v1k_diagnostics[f"{key}_units_{arm}"] = None
+                v1k_diagnostics[f"{key}_revenue_{arm}"] = None
 
     # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
     # verdict, AND the metric gate having actually run and passed — an unmeasured metric

@@ -512,10 +512,14 @@ def market_orders(
                 continue
             cost = int(ANIMALS[name]["cost"])
             if reserve_horizon == "target":
-                # Arm C2: reserve for the full intended herd. total_placed already grows as this
-                # loop commits buys, so min() with it clamps to target_total (once placed+in_flight
-                # already cover the target there is nothing further to protect against).
-                reserve_herd = min(target_total, max(target_total, total_placed + total_in_flight + buy_target))
+                # Arm C2 (ROADMAP §4.3 S3 step 1e/2): reserve for the full intended herd — the sum
+                # of animal_purchases targets — regardless of how many are placed or still in flight.
+                # This is the reserve shape that keeps binding as the target grows past what has been
+                # bought yet (the §4.0 herd-13 profile needs the $676 liability of 13 animals sized
+                # from day 0). The earlier min(target_total, max(target_total, ...)) expression was
+                # dead: max(target_total, X) >= target_total, so min(target_total, that) is always
+                # target_total — cleaned up and proven byte-inert vs checkpoints/v1r_armC2 (step 2).
+                reserve_herd = target_total
             elif count_in_flight:
                 # Arm C1: the minimal fix — count animals already in flight toward the liability.
                 reserve_herd = total_placed + total_in_flight + buy_target

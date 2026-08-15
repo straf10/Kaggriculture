@@ -201,6 +201,26 @@ def _dynamic_sell_floors(
     return floors
 
 
+def _herd_ramp_cap(ramp, day: int, targets: dict) -> int | None:
+    """Total-herd cap for the current day under an optional day-gated ramp.
+
+    ROADMAP §4.3 S3 step 2 (v1s). `ramp` is None (no cap — the shipped step-purchase behaviour,
+    the full targets from day 0) or a list of ``[day_threshold, cap]`` rungs sorted ascending by
+    day. The cap is the first rung whose threshold is >= the current day; once day is past every
+    rung the herd is uncapped (returns the full summed target, which is equivalent to no clamp).
+
+    §4.0's profile ("6 by d5, 12 by d10, 13 thereafter") is expressed as ``[[5, 6], [10, 12]]``.
+    Returns an int remaining-cap to spend across names in ``targets`` dict order, or None when
+    there is no ramp — the caller then leaves every per-name count untouched.
+    """
+    if not ramp:
+        return None
+    for day_threshold, cap in ramp:
+        if day <= int(day_threshold):
+            return int(cap)
+    return sum(int(c) for c in targets.values())
+
+
 def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
     """Build the conservative v1a carrot plan.
 
@@ -290,10 +310,24 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
     animal_purchases = {}
     structures_to_build = {}
     if animals_config.get("enabled", False):
+        # v1s (ROADMAP §4.3 S3 step 2): optional day-gated herd ramp. `animals.ramp` is None
+        # (shipped: full targets from day 0, a step purchase) or a list of [day, cap] rungs — the
+        # total herd is capped for the current day and the cap is spent across names in targets
+        # DICT ORDER (COW before SHEEP for the 9C+4S profile). §4.0 names the ramp as the specific
+        # thing the old 12-14-animal STOP got wrong. Tile identity is unaffected — animal_slot_ranges
+        # keys off the full config targets, not this plan — so the ramp only delays purchases.
+        remaining_cap = _herd_ramp_cap(
+            animals_config.get("ramp"), snapshot.day, animals_config.get("targets", {})
+        )
         for name, count in animals_config.get("targets", {}).items():
             count = int(count)
             if count <= 0:
                 continue
+            if remaining_cap is not None:
+                count = min(count, remaining_cap)
+                remaining_cap -= count
+                if count <= 0:
+                    continue
             animal_purchases[name] = count
             structure = ANIMALS[name]["structure"]
             structures_to_build[structure] = structures_to_build.get(structure, 0) + count

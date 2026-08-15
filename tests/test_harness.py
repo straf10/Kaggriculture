@@ -743,12 +743,16 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
                     "worker_turns_total": 100, "worker_turns_moving": 60,
                     "worker_turns_working": 30,
                     "animals_underfed_days": 2,
+                    "units_sold_by_product": {"MELON": 10, "MILK": 20, "WOOL": 30},
+                    "revenue_by_product": {"MELON": 1000, "MILK": 4000, "WOOL": 6000},
                 },
                 1: {
                     "crop_tile_days": 80, "worker_turns_idle": 20,
                     "worker_turns_total": 100, "worker_turns_moving": 55,
                     "worker_turns_working": 25,
                     "animals_underfed_days": 3,
+                    "units_sold_by_product": {"MELON": 1, "MILK": 2, "WOOL": 3},
+                    "revenue_by_product": {"MELON": 100, "MILK": 200, "WOOL": 300},
                 },
             }
         else:  # agent_a ("A") plays seat 1 this call
@@ -759,6 +763,8 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
                     "worker_turns_total": 101, "worker_turns_moving": 56,
                     "worker_turns_working": 24,
                     "animals_underfed_days": 4,
+                    "units_sold_by_product": {"MELON": 4, "MILK": 5, "WOOL": 6},
+                    "revenue_by_product": {"MELON": 400, "MILK": 500, "WOOL": 600},
                 },
                 1: {
                     "water_weeds_lost": 3, "plant_decay_units_lost": 4,
@@ -766,6 +772,8 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
                     "worker_turns_total": 101, "worker_turns_moving": 61,
                     "worker_turns_working": 29,
                     "animals_underfed_days": 5,
+                    "units_sold_by_product": {"MELON": 11, "MILK": 21, "WOOL": 31},
+                    "revenue_by_product": {"MELON": 1100, "MILK": 4100, "WOOL": 6100},
                 },
             }
         return SimpleNamespace(rewards=rewards, metrics=metrics)
@@ -792,6 +800,22 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
     assert result.worker_turns_working_a == 30 + 29
     assert result.worker_turns_working_b == 25 + 24
     assert result.animals_underfed_days_a == 2 + 5
+    # R20 (ROADMAP §6, prompt.md 2026-08-15 S3 step 2): per-product units + revenue follow
+    # agent_a's seat the same way, generalised over _V1K_REPORT_PRODUCTS. MELON stays pinned as a
+    # regression guard on the byte-for-byte-preserved keys; MILK + WOOL are the new pair. agent_a
+    # is seat 0 in the first orientation and seat 1 in the swapped one.
+    assert result.melon_units_a == 10 + 11
+    assert result.melon_units_b == 1 + 4
+    assert result.melon_revenue_a == 1000 + 1100
+    assert result.melon_revenue_b == 100 + 400
+    assert result.milk_units_a == 20 + 21
+    assert result.milk_units_b == 2 + 5
+    assert result.milk_revenue_a == 4000 + 4100
+    assert result.milk_revenue_b == 200 + 500
+    assert result.wool_units_a == 30 + 31
+    assert result.wool_units_b == 3 + 6
+    assert result.wool_revenue_a == 6000 + 6100
+    assert result.wool_revenue_b == 300 + 600
     assert result.metric_gate_passed is False
 
 

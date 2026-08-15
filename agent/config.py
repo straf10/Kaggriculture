@@ -713,6 +713,12 @@ CONFIG = {
         # 4C/6S +$2,644/ep with 0 water weeds and 54 escapes; 5C/4S +$2,191 but 52/122;
         # 4C/4S -$1,055 with 66/0. Keep ten animals but diversify production toward WOOL.
         "targets": {"COW": 4, "SHEEP": 6, "GOOSE": 0},
+        # ROADMAP §4.3 S3 step 2 (v1s): optional day-gated herd ramp. None = shipped behaviour
+        # (buy toward the full `targets` from day 0, a step purchase). A list of [day, cap] rungs
+        # sorted ascending caps the total herd per day, spending the cap across names in `targets`
+        # dict order; past the last rung the herd is uncapped. §4.0's profile is [[5, 6], [10, 12]]
+        # (6 by d5, 12 by d10, 13 thereafter). See planner._herd_ramp_cap.
+        "ramp": None,
     },
     "endgame": {
         "enabled": True,
