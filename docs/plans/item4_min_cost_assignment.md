@@ -88,7 +88,7 @@ passes. That ordering is the whole point: the last five passes each built someth
 **The question this answers, precisely:** of the unit-turns we spend not working, how many are
 walks that a *better matching* could have avoided, versus walks that are geometrically forced?
 
-Build `analysis/v1t_travel_ratio.py` on the template of `analysis/v1o3_visit_efficiency.py`. From
+Build `analysis/v1u_travel_ratio.py` on the template of `analysis/v1o3_visit_efficiency.py`. From
 existing replays against `meta_route` and `checkpoints/v1o_2`, per episode and per day:
 
 1. `worker_turns_working` / `moving` / `idle`, absolute counts (R17 already puts the first in every
