@@ -788,6 +788,21 @@ renumbered now that v1p.2b's own kill criterion has resolved which one goes firs
   `worker_turns_moving` alone — both are diagnostics that explain a result, neither is the
   target. v1p1b arm A1 is the standing counter-example: it would have "passed" a bare
   `worker_turns_moving < 55%` criterion (46,0%) while shedding 30% of `crop_tile_days` into idle.
+  ✅ **RUN and RESOLVED 2026-08-15 (`analysis/v1u_travel_ratio.py`, item ④ step 1).** Not a STOP:
+  greedy regret = **4,30% of total moving turns** (5.720 walk-steps over 36 eps / 133.026 moving),
+  landing in the pre-registered **3–8% band ⇒ proceed to step 2 but re-scope ④ to the feed round
+  only**. The regret is a *matching* loss, not eligibility (the residual v1p.2b left open): the
+  **forced-walk floor is 0,963** — even a perfect per-turn matcher pays 96,3% of the commute, so
+  ≤3,7% is the hard ceiling ④ can ever return. It is **concentrated**: 82,8% of the absolute regret
+  is in the feed round, 86,3% in the worst 5% of turns; the max-cardinality gap is **4 tasks over
+  36 episodes** (greedy already ≈ maximum, so the prize is efficiency not throughput). Method chose
+  the conservative **re-match** optimum (same served set, only the unit→task pairing changes) —
+  a pure-distance optimum that ignores the urgency/slack deadline ordering reads ~25,7% but is
+  unachievable (it "saves" by missing FEED deadlines, the exact §3.4 anti-pattern). Report:
+  `baselines/2026-08-15/item4_step1_report.md`; data: `data/derived/v1u_travel_ratio-2026-08-15.json`.
+  **③ is closed; the next pass is ④ step 2 (the offline oracle), scoped to the feed round, gated
+  on +$3.000/ep — a bar a 4,30% routing saving is not expected to clear, which step 2 measures
+  cheaply rather than assuming here.**
 - **④ Min-cost matching inside `assign()`** (Hungarian/auction replacing the greedy loop).
   `assign()` commits the single best (unit, task) pair, deletes that unit and every unrestricted
   task at that position, then re-scans — a routine that routinely strands a unit next to a task
@@ -1263,21 +1278,39 @@ else's tape.
   shift on our own agent is **unmeasured** and should not be guessed at. The pre-1.32.7 STOPs in
   §3.3 still bind on mechanism (logistics, saturation, geometry — none of which the bump touched),
   but any *dollar* figure in them is now engine-stale.
-- **Next: deferred item ③ — the travel-ratio diagnostic** (per the pre-registered H1 kill condition),
-  now written up as a full eight-step implementation plan in
-  [docs/plans/item4_min_cost_assignment.md](docs/plans/item4_min_cost_assignment.md), whose first
-  two steps touch no `agent/` code and can kill the item for the price of two passes,
-  before min-cost matching (④), **not a herd retry.** Herd 13 is re-tested only against whatever
-  baseline ③/④ produce. The travel-ratio diagnostic
-  (§4.3 deferred item ③), before min-cost matching (④). v1p.2b proved stickiness alone does not
-  move `worker_turns_moving`, which leaves open *why* — whether the 62% commute share is a
-  geometric floor (territory/tour-construction is the only lever) or the greedy one-at-a-time
-  matching is genuinely losing turns (in which case ④, Hungarian/auction assignment over the full
-  unit×task pool, is justified). Cheap to measure, expensive to guess wrong on: ④ has to
-  re-establish G13 determinism and must not re-break `committed`'s stickiness. §3.3's
-  *"routing-distance decoupled from urgency-distance in `assign()`"* stays last in line. Whatever
-  it is, it has to earn its acceptance arm against `meta_route`: v1o.3 passed mirror at p=3,3e-6
-  and was worth nothing there.
+- **Deferred item ③ — the travel-ratio diagnostic: RUN 2026-08-15, not a STOP (item ④ step 1).**
+  `analysis/v1u_travel_ratio.py` captured the exact per-turn `(tasks, snapshot, committed)` triple
+  at the source (an in-process wrap of `agent.policy.assign`, opponents untouched), reconstructed
+  greedy byte-for-byte (0 voids on 25.884 turns), and compared it against the conservative
+  **re-match** optimum (same served set, only the unit→task pairing changes; pins committed +
+  `allowed_unit`, honours cargo/priority-tier — the way a legal ④ must). **Greedy regret = 4,30%
+  of moving turns** (5.720 walk-steps / 133.026, ≈159/ep), in the pre-registered **3–8% band ⇒
+  proceed to ④ step 2, re-scoped to the feed round only.** So the 62% commute is *mostly* a
+  geometric floor — **forced-walk floor 0,963, ceiling ≤3,7%** — but the residual v1p.2b left open
+  **is** a matching loss, not eligibility, and it is concentrated (82,8% in the feed round, 86,3% in
+  5% of turns; max-cardinality gap just 4 tasks/36 eps ⇒ efficiency, not throughput). This answers
+  v1p.2b's open *why*: partly floor, a thin slice matching. Report:
+  `baselines/2026-08-15/item4_step1_report.md`. 🔴 **The step-2 gate was revised the same day, in
+  the plan doc, because step 1's own numbers showed the original single bar was the wrong test.**
+  Bounding the prize from step 1: ≈159 walk-steps/ep ⇒ at most ≈159 extra working turns (+11,6% on
+  1.365/ep) ⇒ at ~0,42 crop-tile-days/working-turn and v1o.3's ~$31/crop-tile-day, **≈+$2.100/ep
+  before any implementation loss** — i.e. **under the old +$3.000 bar before the oracle even runs**,
+  which would have made step 2 a formality rather than a measurement. But ④'s value was never mostly
+  its own dollars: it is a **precondition**, and the nearest blocked thing is **herd 13 (−$15-21k/ep
+  purely on feed logistics)** while step 1 measured **82,8% of recoverable regret in the feed
+  round** — the same currency. Step 2 is therefore **two-legged: (1) standalone ≥ +$2.000/ep, OR
+  (2) measurable feed-round relief** (saturation <90% on the median day from d9, or
+  `animals_underfed_days` −15%); **STOP only if both miss**, and if leg 2 clears, re-run the existing
+  `checkpoints/v1s_H2R` under the oracle. Also added to the plan: **arm B (greedy + 2-opt repair)** —
+  O(n²), no solver, no new dependency, constraint-safe by construction; **if it lands near the
+  whole-pool optimum, plan steps 5-6 collapse** — a mandatory **A→B→C arm order** (A is the strict
+  ceiling), and **hot-turn gating** for step 5 (86,3% of regret in 5% of turns ⇒ the matcher need not
+  run every turn; the main G-7 lever, its recall checkable offline against step 1's own trace). Brief:
+  [docs/plans/item4_step2_prompt.md](docs/plans/item4_step2_prompt.md). **Not a herd retry.** ④ still has to
+  re-establish G13 determinism and not re-break `committed` stickiness; §3.3's *"routing-distance
+  decoupled from urgency-distance"* stays last in line; and whatever ships has to earn its
+  acceptance arm against `meta_route` (v1o.3 passed mirror at p=3,3e-6 and was worth nothing there).
+  `pytest tests/` **268 → 275** (+7 `test_v1u_travel_ratio.py`). No `agent/` change, no submission.
 
 - **S4 — first submission of this line made, 2026-08-11:** `55438252` (v1o.2), PENDING, full
   §6bis checklist green. It went in as the **challenger**, holding `55414570` (v1i) as champion

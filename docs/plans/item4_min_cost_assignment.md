@@ -83,7 +83,34 @@ passes. That ordering is the whole point: the last five passes each built someth
 
 ---
 
-### Step 1 — ③, the travel-ratio diagnostic *(no `agent/` change)*
+### Step 1 — ③, the travel-ratio diagnostic *(no `agent/` change)* — ✅ **RUN 2026-08-15: PROCEED, re-scoped**
+
+> **Result: greedy regret = 4,30% of moving turns** (5.720 walk-steps / 133.026, ≈159/ep), over 36
+> episodes / 25.884 turns, engine 1.32.7, both seats, basket-pinned. Lands in the pre-registered
+> **3-8% band ⇒ proceed, re-scoped to the feed round only.** The STOP branch did not fire.
+> Report: `baselines/2026-08-15/item4_step1_report.md`. Script:
+> [analysis/v1u_travel_ratio.py](../../analysis/v1u_travel_ratio.py).
+>
+> **The four numbers that now drive everything below:**
+> 1. **Forced-walk floor 0,9631** — a perfect per-turn matcher still pays **96,3%** of the commute.
+>    **≤3,7% is the hard ceiling ④ can ever return**, forever, by matching alone.
+> 2. **Concentration:** 82,8% of absolute regret is in the **feed round**; **86,3% sits in the worst
+>    5% of turns**. The prize is a thin slice, not a broad inefficiency.
+> 3. **Cardinality gap ≈ 0** — a legal max-cardinality matcher completes **4 more tasks across all
+>    36 episodes**. Greedy is already effectively a maximum matching ⇒ **④ buys efficiency, never
+>    throughput.** Any hypothesis of the form "greedy strands tasks" is dead.
+> 4. **The frame is load-bearing.** A pure-distance optimum reads ~25,7%, but it buys that saving by
+>    ignoring the urgency/slack ordering that encodes FEED deadlines — i.e. by missing them. The
+>    conservative re-match optimum (same served set, pins preserved, only the pairing changes) is
+>    4,30%, and that is the achievable figure.
+>
+> Two methodological points worth carrying forward: the diagnostic **captured** the per-turn
+> `(tasks, snapshot, committed)` triple by wrapping `agent.policy.assign` in-process rather than
+> reconstructing it from replays (a bare replay records actions, not the candidate set), and the
+> greedy reconstruction was **asserted equal to the real `assign()` on all 25.884 turns, 0 voids**.
+> That machinery is reusable and is why step 2 is cheap.
+
+### Step 1 — as originally specified *(kept for the record)*
 
 **The question this answers, precisely:** of the unit-turns we spend not working, how many are
 walks that a *better matching* could have avoided, versus walks that are geometrically forced?
@@ -117,27 +144,64 @@ increment.
 
 ---
 
-### Step 2 — the offline oracle *(no `agent/` change)*
+### Step 2 — the offline oracle *(no `agent/` change)* — **revised 2026-08-15 after step 1**
 
-Only if step 1 passed. Before writing production code, bound the prize.
+Run the real harness with a *slow but optimal* `assign()` (scipy, no time budget) over SMOKE 0-11,
+both seats, `--town-pin basket`, against a `v1u_base` checkpoint **built on 1.32.7**. Too slow to
+submit; this step measures the ceiling, not the product.
 
-Take the step-1 regret trace and replay it forward: **what would the episode have looked like** if
-every turn had used the optimal matching? Two cheap approximations, both honest about being
-approximations:
+**Three arms, run in this order, stopping as soon as one settles it:**
 
-- **Lower bound:** turns saved = regret / average travel distance ⇒ extra `worker_turns_working`
-  ⇒ at the measured ~$1.180 per 574 crop tile-days exchange rate from v1o.3, dollars.
-- **Upper bound:** run the real harness with a *slow but optimal* `assign()` (scipy or a plain
-  O(n³) Hungarian, no time budget) over SMOKE 0-11, both seats, `--town-pin basket`. This is the
-  actual number. It is too slow to submit, and that is fine — this step is measuring the ceiling,
-  not shipping it.
+| Arm | What it is | Why |
+|---|---|---|
+| **A — whole-pool optimal** | per-tier min-cost matching over the full pool, every turn | the **strict ceiling**. Every other arm is bounded by it, so if A misses, nothing else can clear |
+| **B — greedy + 2-opt repair** | keep greedy, then pairwise-swap task assignments between units, accepting only strict improvements | **possibly the actual product** — see below |
+| **C — feed-round only** | arm A restricted to the feed round | step 1's mandated re-scope (82,8% of regret) |
 
-**Pre-registered decision:** the oracle must clear **+$3.000/ep** on SMOKE with `crop_tile_days`
-flat or up. Below that, ④ cannot survive a real acceptance arm (v1o.2's own accepted increment was
-+$4.145 and still failed the priced gate) ⇒ ⛔ STOP.
+Order matters: **A first.** If A misses the bar, B and C are provably worse and the pass ends there.
 
-> This step is what the last five passes skipped. An oracle run costs one pass and tells you
-> whether the mechanism is worth *any* engineering. Do not skip it because step 1 looked good.
+> **Why arm B is new, and why it may matter more than A.** Step 1 found the cardinality gap is ≈0
+> and 86,3% of regret sits in 5% of turns. A full Hungarian on every one of 720 turns to fix a
+> handful is disproportionate. A pairwise-swap pass over greedy's output is O(n²), preserves every
+> constraint **by construction** (only swap between two units both eligible for both tasks), is
+> trivially deterministic, needs **no solver and no new dependency**, and on a concentrated regret
+> distribution typically recovers most of it. **If B lands close to A, steps 5-6 collapse** — no
+> vendored Hungarian, no O(n³) budget problem, no candidate cap. Measuring it costs one extra arm in
+> a pass that is already set up.
+
+#### The kill criterion — **two-legged**, and the second leg is the point
+
+The original single bar (**+$3.000/ep standalone**) was wrong, and step 1's numbers show why. Bound
+the prize from step 1: ≈159 walk-steps/ep ⇒ at most ≈159 extra working turns (+11,6%) ⇒ at our crude
+0,42 crop-tile-days per working turn and v1o.3's ~$31/crop-tile-day, **≈+$2.100/ep — already under
+the bar before any implementation loss.** A single-leg test would therefore kill ④ almost
+regardless of what arm A returns, which makes the pass a formality rather than a measurement.
+
+That is the wrong test, because **④'s value was never mostly its own dollars.** §0 says it plainly:
+④ exists to make the §4.0 profile reachable, and the nearest blocked thing is **herd 13, which is
+−$15-21k/ep purely on feed logistics** (S3 step 2) — and step 1 just measured that 82,8% of the
+recoverable regret is *in the feed round*. That is the same currency the herd-13 STOP is denominated
+in. So:
+
+**PROCEED to step 3 if EITHER leg clears:**
+
+- **Leg 1 — standalone value:** arm A (or B) returns **≥ +$2.000/ep** on SMOKE with `crop_tile_days`
+  flat or up (±3%) and `animals_escaped` inside the ±5 noise floor. *(Lowered from +$3.000 because
+  the bar's job is to detect a real effect, not to demand that a routing fix pay for itself twice —
+  ④ is a precondition, not a standalone increment.)*
+- **Leg 2 — the unblock:** the oracle measurably relieves the feed round. Pre-register the metric
+  before running: **feed-round saturation** (share of day-hours with ≥1 animal `fed_today=False`,
+  currently **100% from d9** — §3.3) and **`animals_underfed_days`**. Leg 2 clears if saturation
+  drops below **90%** on the median day from d9, *or* `animals_underfed_days` falls ≥15%.
+
+**⛔ STOP item ④ if BOTH legs miss.** Then the honest conclusion is recorded in §3.3: the commute is
+a geometric floor (96,3%), the residual is real but too thin to pay, herd 13 stays blocked, and
+reaching the §4.0 profile with this planner is **refuted** — which promotes the tape (§4.2) from the
+production route to the *only* route, and ④ closes for good.
+
+> **Optional, cheap, and worth it if leg 2 clears:** re-run the herd-13 arm H2R from S3 step 2
+> *under the oracle*. That is the direct test of the only claim that makes ④ worth building, and the
+> arm already exists at `checkpoints/v1s_H2R`.
 
 ---
 
@@ -202,6 +266,16 @@ Implementation notes that follow from §1:
   invariant rather than trusting it.
 - **No new dependency.** scipy is fine for the step-2 oracle; the submission must stay pure-Python.
   Vendor a ~120-line Hungarian into `agent/matching.py`, or use auction with an integer epsilon.
+- **Build whichever arm won step 2.** If arm B (greedy + 2-opt) landed close to arm A, build **B** —
+  it needs no solver, no vendored Hungarian and no candidate cap, and its constraint-safety is
+  structural rather than encoded. Do not build the more impressive mechanism because it is the more
+  impressive mechanism.
+- **Hot-turn gating (from step 1's concentration finding).** 86,3% of regret sits in 5% of turns, so
+  the matcher does not need to run every turn. Gate it on a cheap predictor — e.g. more than *k*
+  units idle-or-switching, or a tier-0 task whose nearest eligible unit is beyond distance *d* — and
+  fall back to plain greedy otherwise. This is the main lever for G-7, and it is measured, not
+  guessed: the gate's own recall against the step-1 regret trace can be checked offline before any
+  agent code runs.
 
 **Gate:** with the flag **off**, byte-inert vs step 4's checkpoint. With it **on**, nothing yet —
 step 5 ships no measurement, only the mechanism. Splitting "the algorithm works" from "the
@@ -274,8 +348,8 @@ one per pass, each against the new baseline and not against the old one:
 
 | Step | Touches `agent/` | Ends in | Can kill the item |
 |---|---|---|---|
-| 1 — travel-ratio diagnostic | no | regret %, forced-walk floor | ✅ (<3% regret) |
-| 2 — offline oracle | no | $/ep ceiling | ✅ (<+$3k/ep) |
+| 1 — travel-ratio diagnostic ✅ **DONE** | no | **4,30% regret, 0,963 floor ⇒ PROCEED, feed-round re-scope** | ✅ (<3%) — did not fire |
+| 2 — offline oracle (arms A/B/C) | no | $/ep ceiling **and** feed-round relief | ✅ (both legs miss) |
 | 3 — cost model extracted | yes, inert | byte-inert proof | — |
 | 4 — scalar cost | yes, inert | byte-inert + order property test | — |
 | 5 — matching behind a flag | yes, inert when off | mechanism, no measurement | — |
@@ -289,8 +363,11 @@ one per pass, each against the new baseline and not against the old one:
 
 Written now, while it is cheap to be honest:
 
-- step 1 regret < 3%;
-- step 2 oracle < +$3.000/ep;
+- ~~step 1 regret < 3%~~ — **did not fire: 4,30%**, in the 3-8% "proceed but small" band;
+- step 2: **both** legs miss (< +$2.000/ep standalone **and** no measurable feed-round relief).
+  On step 1's arithmetic the standalone leg is the more likely of the two to miss — the naive
+  ceiling is ≈+$2.100/ep before implementation loss — so **leg 2, the herd-13 unblock, is where this
+  item actually lives or dies**;
 - step 6 cannot fit the turn budget at realistic n even with tiering and a candidate cap;
 - **or** the tape (§6) ships and holds above ~2.800, at which point our own planner's production
   ceiling stops being the thing that decides the season, and ④ drops from "the blocker" to "the

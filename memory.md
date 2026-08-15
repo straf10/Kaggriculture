@@ -9,6 +9,93 @@
 
 ---
 
+## 2026-08-15 (γ) — Session: **item ④ βήμα 1 — travel-ratio (greedy-regret) diagnostic· ΔΕΝ STOP· regret 4,30% ⇒ proceed to ④ step 2 re-scoped στον feed round**
+
+**Εντολή:** εκτέλεση του pass brief `docs/plans/item4_step1_prompt.md` (item ④ βήμα 1). Καμία
+αλλαγή σε `agent/`/`main.py`/`submission.tar.gz`, καμία υποβολή — **μέτρηση** που αποφασίζει αν το
+④ χτίζεται καθόλου· ένα «⛔ STOP, refuted» θα ήταν επιτυχία. Προ-καταχωρημένα κατώφλια γραμμένα
+**πριν** τον πρώτο αριθμό (§3.1 κανόνας 4). Report: [baselines/2026-08-15/item4_step1_report.md](baselines/2026-08-15/item4_step1_report.md)
+(τοπικό). Data: `data/derived/v1u_travel_ratio-2026-08-15.json`. `pytest tests/`: **268 → 275**
+(+7 `test_v1u_travel_ratio.py`, οι 3 προϋπάρχουσες `test_v1h2d_*` αποτυχίες αναμενόμενες).
+
+### §1 — πώς μετρήθηκε το regret χωρίς reconstruction risk
+
+Το candidate set (`tasks`, `snapshot`, `committed`) **δεν** ανακτάται από ένα σκέτο replay (καταγράφει
+actions, όχι το triple). Λύση: **wrap του `agent.policy.assign`** (όχι του `agent.scheduler.assign`)
+με transparent recorder **μόνο** στη διεργασία ανάλυσης, και τρέξιμο του agent ως in-process callable.
+Ο wrapper επιστρέφει το πραγματικό αποτέλεσμα (byte-identical συμπεριφορά) και υπολογίζει το regret
+inline. Αφού το policy binding τυλίγεται (όχι το scheduler), **κάθε αντίπαλος μένει ανέγγιχτος**
+(`meta_route` δένει το δικό του `assign` από το scheduler· το `v1o_2` checkpoint είναι άλλο package).
+Το `_greedy_trace` ξαναχτίζει το loop του `assign()` γραμμή-γραμμή και το output **επιβεβαιώνεται ίσο**
+με το πραγματικό `assign()` σε **κάθε** turn (void-on-mismatch guard) — **0 voids σε 25.884 turns**.
+
+### §2 — το κρίσιμο μεθοδολογικό σημείο: ποιο είναι το «optimal»
+
+Πρώτη υλοποίηση (pure-distance min-cost matching per tier) έβγαλε **25,7%** — **παραπλανητικά υψηλό**:
+αγνοεί το urgency/slack ordering (που ένα νόμιμο ④ κρατά ως cost, plan §5 step 4, και που κωδικοποιεί
+τα FEED deadlines), οπότε «κερδίζει» απόσταση χάνοντας deadlines — ακριβώς το §3.4 anti-pattern.
+Το primary optimal άλλαξε στο συντηρητικό **re-match**: κράτα το served set ίδιο με του greedy (ίδια
+δουλειά, ίδια deadlines/priorities), pin committed + `allowed_unit` (G-2), και **ξαναταίριαξε μόνο τα
+free units** στα free positions ώστε να ελαχιστοποιηθεί η απόσταση. Provably ≥0, δεν σμικρύνει τον
+denominator (§3.4-safe), δεν μπορεί να κλέψει από urgency/priority. Απομονώνει καθαρά την
+**αναποτελεσματικότητα του matching**.
+
+### §3 — αποτέλεσμα: 4,30%, ΔΕΝ STOP, proceed re-scoped
+
+36 επεισόδια (live agent vs `meta_route`/`meta_route_sheep`/`v1o_2`, seeds 0-5, both seats, basket,
+1.32.7). **Regret = 4,30% των moving turns** (5.720 walk-steps / 133.026, ≈159/ep). Προ-καταχωρημένο
+band **3–8% ⇒ proceed to ④ step 2, re-scope στον feed round μόνο**. Το STOP (<3%) **δεν** πυροδότησε.
+- **Forced-walk floor 0,963** — ένας τέλειος per-turn matcher πληρώνει το 96,3% του commute· **≤3,7%
+  είναι το οροφή** που μπορεί ποτέ να επιστρέψει το ④.
+- **Συγκεντρωμένο:** 82,8% του απόλυτου regret στον feed round· 86,3% στο χειρότερο 5% των turns.
+- **Cardinality gap = 4 tasks σε 36 επεισόδια** — ο greedy είναι ήδη ≈ maximum matching, άρα το κέρδος
+  είναι **efficiency, όχι throughput**.
+- Απαντά το ανοιχτό *γιατί* του v1p.2b («ο περιορισμός δεν είναι ποια tasks προσφέρονται»): εν μέρει
+  γεωμετρικό floor, μια λεπτή φέτα matching loss στον feed round (όπου ζει και το herd-13 blocker).
+
+**Seat note:** το regret είναι καθαρά routing quantity· ο `assign()` διαβάζει μόνο τη δική μας φάρμα,
+οπότε οι δύο seats ενός (seed, opponent) δίνουν **ταυτόσημα** regret vectors (τα banks διαφέρουν —
+occupancy coupling). Η πραγματική ποικιλία είναι 18 (seeds × opponents), όχι 36.
+
+### §4 — τι δεν αποδείχθηκε, και τι είναι το επόμενο
+
+Το step 1 **δεν** μετρά δολάρια (job του step 2), το tour problem (per-turn matching δεν το λύνει),
+performance σε ρεαλιστικό *n* (step 6), ή οποιαδήποτε σύγκριση 1.32.6 (μόνο 1.32.7 μετρήθηκε· τα
+`gates/` replays είναι 1.32.6 **και** δεν φέρουν candidate set, άρα **δεν** pooled — report §2.5).
+Επόμενο: **④ step 2 (offline oracle), scoped στον feed round, gated στο +$3.000/ep με `crop_tile_days`
+flat** — ένα κατώφλι που ένα 4,30% routing saving **δεν** αναμένεται να περάσει (το v1o.2 πέρασε +$4.145
+και απορρίφθηκε στο priced gate), αλλά αυτό το μετρά ο oracle φθηνά, δεν το υποθέτουμε τώρα. ROADMAP
+§4.3 (item ③ resolved), §7 ενημερώθηκαν. **Το ④ παραμένει εκτός critical path** (§4.2 tape· ένα tape
+δεν καλεί ποτέ το `assign()`).
+
+### §5 — 🔴 αναθεώρηση του σχεδίου μετά το pass (planning thread, ίδια μέρα)
+
+Το kill criterion του βήματος 2 όπως ήταν γραμμένο (**μονοσκελές, +$3.000/ep**) είναι **λάθος τεστ**,
+και τα ίδια τα νούμερα του βήματος 1 το δείχνουν: ≈159 walk-steps/ep ⇒ το πολύ ≈159 επιπλέον working
+turns (+11,6% στα 1.365/ep) ⇒ με ~0,42 crop-tile-days ανά working turn και ~$31/crop-tile-day (v1o.3)
+**≈+$2.100/ep πριν από κάθε implementation loss** — δηλαδή κάτω από το φράγμα **πριν καν τρέξει ο
+oracle**. Έτσι το pass θα ήταν τυπικότητα, όχι μέτρηση.
+
+Αλλά η αξία του ④ **δεν ήταν ποτέ κυρίως τα δικά του δολάρια** — είναι precondition, και το
+πλησιέστερο μπλοκαρισμένο πράγμα είναι το **herd 13 (−$15-21k/ep καθαρά σε feed logistics)**, ενώ το
+βήμα 1 μόλις μέτρησε ότι **82,8% του ανακτήσιμου regret ζει στον feed round** — το ίδιο νόμισμα.
+Άρα το βήμα 2 έγινε **δίσκελο**: (1) standalone ≥ **+$2.000/ep**, **ή** (2) **ανακούφιση feed round**
+(saturation <90% στη median μέρα από d9, ή `animals_underfed_days` −15%). STOP μόνο αν αστοχήσουν
+**και τα δύο**· αν περάσει το σκέλος 2, re-run του υπάρχοντος `checkpoints/v1s_H2R` κάτω από τον
+oracle (η άμεση δοκιμή του μόνου ισχυρισμού που κάνει το ④ να αξίζει).
+
+Προστέθηκαν επίσης στο σχέδιο: **arm B — greedy + 2-opt repair** στο βήμα 2 (O(n²), χωρίς solver,
+χωρίς νέα εξάρτηση, constraint-safe εξ ορισμού· αν πλησιάσει το arm A **τα βήματα 5-6 καταρρέουν**
+σε κάτι πολύ μικρότερο από Hungarian), υποχρεωτική **σειρά arms A→B→C** (το A είναι το αυστηρό
+ceiling — αν αστοχήσει, τα άλλα δεν μπορούν να περάσουν), και **hot-turn gating** στο βήμα 5 (86,3%
+του regret σε 5% των turns ⇒ ο matcher δεν χρειάζεται να τρέχει κάθε turn· ο κύριος μοχλός για το
+G-7, με το recall του gate ελέγξιμο offline πάνω στο ίδιο το regret trace του βήματος 1).
+
+⚠️ Το **seat note** του §3 **δεν** μεταφέρεται στο βήμα 2: εκεί μετρώνται **δολάρια**, και τα banks
+διαφέρουν ανά seat μέσω occupancy coupling — και οι δύο seats είναι load-bearing.
+Νέο brief: `docs/plans/item4_step2_prompt.md`.
+
+
 ## 2026-08-15 (β) — Session: **engine bump 1.32.6 → 1.32.7 (D28, `hinge`)· ladder read· απόφαση χρήστη για tape· σχέδιο 8 βημάτων για το item ④**
 
 **Εντολή:** αναβάθμιση engine σε >=1.32.7 βάσει της ανακοίνωσης balance change, ενημέρωση

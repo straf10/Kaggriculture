@@ -1,0 +1,548 @@
+{
+  "engine": "1.32.7",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "opponents": [
+    "meta_route",
+    "meta_route_sheep",
+    "main"
+  ],
+  "town_pin": "basket",
+  "n_episodes": 36,
+  "n_turns_captured": 25884,
+  "worker_turns": {
+    "moving": 133026,
+    "working": 49123,
+    "idle": 35795,
+    "total": 217944
+  },
+  "regret_total_walk_steps": 5720.0,
+  "greedy_travel_total": 422821,
+  "optimal_travel_total": 417101.0,
+  "greedy_decision_travel_total": 155207,
+  "decision_travel_vs_moving_ratio": 1.1667,
+  "DECISION_METRIC_regret_pct_of_moving_turns": 4.3,
+  "forced_walk_floor_optimal_over_greedy_decision": 0.9631,
+  "regret_concentration_top5pct_turns": 86.3,
+  "cardinality_gap_total_tasks": 4,
+  "cardinality_gap_turns": 298,
+  "distribution": {
+    "by_feed": {
+      "feed_open": {
+        "n_turns": 21763,
+        "regret": 4734.0,
+        "greedy_decision_travel": 147931
+      },
+      "feed_closed": {
+        "n_turns": 4121,
+        "regret": 986.0,
+        "greedy_decision_travel": 7276
+      }
+    },
+    "by_season": {
+      "early_day_le_15": {
+        "n_turns": 13824,
+        "regret": 2304.0,
+        "greedy_decision_travel": 69548
+      },
+      "late_day_gt_15": {
+        "n_turns": 12060,
+        "regret": 3416.0,
+        "greedy_decision_travel": 85659
+      }
+    },
+    "by_day": {
+      "0": {
+        "n_turns": 864,
+        "regret": 0.0,
+        "greedy_decision_travel": 4248
+      },
+      "1": {
+        "n_turns": 864,
+        "regret": 0.0,
+        "greedy_decision_travel": 2880
+      },
+      "2": {
+        "n_turns": 864,
+        "regret": 72.0,
+        "greedy_decision_travel": 1296
+      },
+      "3": {
+        "n_turns": 864,
+        "regret": 0.0,
+        "greedy_decision_travel": 1980
+      },
+      "4": {
+        "n_turns": 864,
+        "regret": 72.0,
+        "greedy_decision_travel": 1980
+      },
+      "5": {
+        "n_turns": 864,
+        "regret": 72.0,
+        "greedy_decision_travel": 1800
+      },
+      "6": {
+        "n_turns": 864,
+        "regret": 72.0,
+        "greedy_decision_travel": 2136
+      },
+      "7": {
+        "n_turns": 864,
+        "regret": 52.0,
+        "greedy_decision_travel": 2402
+      },
+      "8": {
+        "n_turns": 864,
+        "regret": 52.0,
+        "greedy_decision_travel": 2514
+      },
+      "9": {
+        "n_turns": 864,
+        "regret": 0.0,
+        "greedy_decision_travel": 5052
+      },
+      "10": {
+        "n_turns": 864,
+        "regret": 100.0,
+        "greedy_decision_travel": 6304
+      },
+      "11": {
+        "n_turns": 864,
+        "regret": 564.0,
+        "greedy_decision_travel": 8721
+      },
+      "12": {
+        "n_turns": 864,
+        "regret": 152.0,
+        "greedy_decision_travel": 5618
+      },
+      "13": {
+        "n_turns": 864,
+        "regret": 346.0,
+        "greedy_decision_travel": 7838
+      },
+      "14": {
+        "n_turns": 864,
+        "regret": 464.0,
+        "greedy_decision_travel": 7445
+      },
+      "15": {
+        "n_turns": 864,
+        "regret": 286.0,
+        "greedy_decision_travel": 7334
+      },
+      "16": {
+        "n_turns": 864,
+        "regret": 506.0,
+        "greedy_decision_travel": 7585
+      },
+      "17": {
+        "n_turns": 864,
+        "regret": 472.0,
+        "greedy_decision_travel": 7474
+      },
+      "18": {
+        "n_turns": 864,
+        "regret": 450.0,
+        "greedy_decision_travel": 7948
+      },
+      "19": {
+        "n_turns": 864,
+        "regret": 492.0,
+        "greedy_decision_travel": 7711
+      },
+      "20": {
+        "n_turns": 864,
+        "regret": 336.0,
+        "greedy_decision_travel": 7052
+      },
+      "21": {
+        "n_turns": 864,
+        "regret": 216.0,
+        "greedy_decision_travel": 5224
+      },
+      "22": {
+        "n_turns": 864,
+        "regret": 168.0,
+        "greedy_decision_travel": 6306
+      },
+      "23": {
+        "n_turns": 864,
+        "regret": 72.0,
+        "greedy_decision_travel": 5184
+      },
+      "24": {
+        "n_turns": 864,
+        "regret": 194.0,
+        "greedy_decision_travel": 5633
+      },
+      "25": {
+        "n_turns": 864,
+        "regret": 200.0,
+        "greedy_decision_travel": 5284
+      },
+      "26": {
+        "n_turns": 864,
+        "regret": 102.0,
+        "greedy_decision_travel": 5475
+      },
+      "27": {
+        "n_turns": 864,
+        "regret": 116.0,
+        "greedy_decision_travel": 4902
+      },
+      "28": {
+        "n_turns": 864,
+        "regret": 46.0,
+        "greedy_decision_travel": 5207
+      },
+      "29": {
+        "n_turns": 828,
+        "regret": 46.0,
+        "greedy_decision_travel": 4674
+      }
+    }
+  },
+  "episodes": [
+    {
+      "opponent": "meta_route",
+      "seed": 0,
+      "seat": 0,
+      "moving_turns": 3913,
+      "working_turns": 1365,
+      "bank": 77734.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 0,
+      "seat": 1,
+      "moving_turns": 3913,
+      "working_turns": 1365,
+      "bank": 77648.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 1,
+      "seat": 0,
+      "moving_turns": 3821,
+      "working_turns": 1355,
+      "bank": 54582.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 1,
+      "seat": 1,
+      "moving_turns": 3821,
+      "working_turns": 1355,
+      "bank": 54582.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 2,
+      "seat": 0,
+      "moving_turns": 3202,
+      "working_turns": 1330,
+      "bank": 32128.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 2,
+      "seat": 1,
+      "moving_turns": 3202,
+      "working_turns": 1330,
+      "bank": 32128.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 3,
+      "seat": 0,
+      "moving_turns": 3735,
+      "working_turns": 1389,
+      "bank": 75609.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 3,
+      "seat": 1,
+      "moving_turns": 3735,
+      "working_turns": 1389,
+      "bank": 75609.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 4,
+      "seat": 0,
+      "moving_turns": 3754,
+      "working_turns": 1367,
+      "bank": 75892.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 4,
+      "seat": 1,
+      "moving_turns": 3735,
+      "working_turns": 1389,
+      "bank": 74255.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 5,
+      "seat": 0,
+      "moving_turns": 3730,
+      "working_turns": 1354,
+      "bank": 64940.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route",
+      "seed": 5,
+      "seat": 1,
+      "moving_turns": 3707,
+      "working_turns": 1394,
+      "bank": 64889.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 0,
+      "seat": 0,
+      "moving_turns": 3913,
+      "working_turns": 1365,
+      "bank": 75065.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 0,
+      "seat": 1,
+      "moving_turns": 3913,
+      "working_turns": 1365,
+      "bank": 75065.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 1,
+      "seat": 0,
+      "moving_turns": 3728,
+      "working_turns": 1380,
+      "bank": 55113.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 1,
+      "seat": 1,
+      "moving_turns": 3728,
+      "working_turns": 1380,
+      "bank": 55113.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 2,
+      "seat": 0,
+      "moving_turns": 3748,
+      "working_turns": 1387,
+      "bank": 36664.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 2,
+      "seat": 1,
+      "moving_turns": 3771,
+      "working_turns": 1388,
+      "bank": 36568.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 3,
+      "seat": 0,
+      "moving_turns": 3735,
+      "working_turns": 1389,
+      "bank": 74978.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 3,
+      "seat": 1,
+      "moving_turns": 3735,
+      "working_turns": 1389,
+      "bank": 74969.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 4,
+      "seat": 0,
+      "moving_turns": 3754,
+      "working_turns": 1367,
+      "bank": 74121.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 4,
+      "seat": 1,
+      "moving_turns": 3800,
+      "working_turns": 1376,
+      "bank": 72165.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 5,
+      "seat": 0,
+      "moving_turns": 3730,
+      "working_turns": 1354,
+      "bank": 65077.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "meta_route_sheep",
+      "seed": 5,
+      "seat": 1,
+      "moving_turns": 3760,
+      "working_turns": 1356,
+      "bank": 65551.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 0,
+      "seat": 0,
+      "moving_turns": 3913,
+      "working_turns": 1365,
+      "bank": 69613.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 0,
+      "seat": 1,
+      "moving_turns": 3796,
+      "working_turns": 1400,
+      "bank": 71366.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 1,
+      "seat": 0,
+      "moving_turns": 3234,
+      "working_turns": 1320,
+      "bank": 43928.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 1,
+      "seat": 1,
+      "moving_turns": 3234,
+      "working_turns": 1320,
+      "bank": 43928.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 2,
+      "seat": 0,
+      "moving_turns": 3269,
+      "working_turns": 1328,
+      "bank": 25982.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 2,
+      "seat": 1,
+      "moving_turns": 3269,
+      "working_turns": 1328,
+      "bank": 25982.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 3,
+      "seat": 0,
+      "moving_turns": 3780,
+      "working_turns": 1366,
+      "bank": 72900.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 3,
+      "seat": 1,
+      "moving_turns": 3780,
+      "working_turns": 1366,
+      "bank": 72900.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 4,
+      "seat": 0,
+      "moving_turns": 3798,
+      "working_turns": 1363,
+      "bank": 71382.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 4,
+      "seat": 1,
+      "moving_turns": 3808,
+      "working_turns": 1353,
+      "bank": 68893.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 5,
+      "seat": 0,
+      "moving_turns": 3789,
+      "working_turns": 1374,
+      "bank": 57373.0,
+      "n_turns": 719
+    },
+    {
+      "opponent": "main",
+      "seed": 5,
+      "seat": 1,
+      "moving_turns": 3773,
+      "working_turns": 1362,
+      "bank": 55619.0,
+      "n_turns": 719
+    }
+  ],
+  "DECISION": "PROCEED but re-scope \u2463 to the feed round only",
+  "thresholds": {
+    "proceed_ge": 8.0,
+    "rescope_feed_3_to_8": [
+      3.0,
+      8.0
+    ],
+    "stop_lt": 3.0
+  }
+}
