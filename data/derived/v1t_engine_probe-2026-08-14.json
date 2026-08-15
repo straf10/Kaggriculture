@@ -1,0 +1,674 @@
+[
+ {
+  "episode": "92806800",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 726,
+  "votes": {
+   "old": 726,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 156,
+   "TOMATO": 228,
+   "EGG": 264
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806892",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 782,
+  "votes": {
+   "old": 782,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 498,
+   "TOMATO": 282,
+   "EGG": 156
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806893",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 719,
+  "votes": {
+   "old": 719,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 25,
+   "TOMATO": 30,
+   "EGG": 336
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806894",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 806,
+  "votes": {
+   "old": 806,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 102,
+   "TOMATO": 318,
+   "EGG": 174
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806895",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 878,
+  "votes": {
+   "old": 878,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 30,
+   "TOMATO": 174,
+   "EGG": 552
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806896",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 699,
+  "votes": {
+   "old": 699,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 282,
+   "TOMATO": 192,
+   "EGG": 30
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806897",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 710,
+  "votes": {
+   "old": 710,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 74,
+   "TOMATO": 264,
+   "EGG": 120
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806898",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 786,
+  "votes": {
+   "old": 786,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 390,
+   "TOMATO": 282,
+   "EGG": 246
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806900",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 762,
+  "votes": {
+   "old": 762,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 210,
+   "TOMATO": 264,
+   "EGG": 174
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806901",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 825,
+  "votes": {
+   "old": 825,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 192,
+   "TOMATO": 264,
+   "EGG": 390
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806902",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 942,
+  "votes": {
+   "old": 942,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 246,
+   "TOMATO": 498,
+   "EGG": 174
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806903",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 894,
+  "votes": {
+   "old": 894,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 372,
+   "TOMATO": 408,
+   "EGG": 246
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806904",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 822,
+  "votes": {
+   "old": 822,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 192,
+   "TOMATO": 336,
+   "EGG": 228
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806908",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 838,
+  "votes": {
+   "old": 838,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 555,
+   "TOMATO": 318,
+   "EGG": 30
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806909",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 766,
+  "votes": {
+   "old": 766,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 498,
+   "TOMATO": 246,
+   "EGG": 120
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806910",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 718,
+  "votes": {
+   "old": 718,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 138,
+   "TOMATO": 120,
+   "EGG": 372
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806912",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 834,
+  "votes": {
+   "old": 834,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 138,
+   "TOMATO": 318,
+   "EGG": 102
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92806914",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 746,
+  "votes": {
+   "old": 746,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 301,
+   "TOMATO": 120,
+   "EGG": 390
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92807829",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 687,
+  "votes": {
+   "old": 687,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 341,
+   "TOMATO": 102,
+   "EGG": 156
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92808694",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 770,
+  "votes": {
+   "old": 770,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 264,
+   "TOMATO": 264,
+   "EGG": 282
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92810630",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 683,
+  "votes": {
+   "old": 683,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 174,
+   "TOMATO": 102,
+   "EGG": 30
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92810681",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 687,
+  "votes": {
+   "old": 687,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 372,
+   "TOMATO": 192,
+   "EGG": 84
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92811549",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 986,
+  "votes": {
+   "old": 986,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 534,
+   "TOMATO": 534,
+   "EGG": 30
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92811625",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 719,
+  "votes": {
+   "old": 719,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 30,
+   "TOMATO": 192,
+   "EGG": 282
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92812400",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 719,
+  "votes": {
+   "old": 719,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 28,
+   "TOMATO": 174,
+   "EGG": 174
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92812487",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 966,
+  "votes": {
+   "old": 966,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 30,
+   "TOMATO": 30,
+   "EGG": 660
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92813336",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 798,
+  "votes": {
+   "old": 798,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 645,
+   "TOMATO": 120,
+   "EGG": 462
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "92814297",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 687,
+  "votes": {
+   "old": 687,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 339,
+   "TOMATO": 156,
+   "EGG": 282
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ }
+]

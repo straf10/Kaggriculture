@@ -49,6 +49,10 @@ def _expected_price(item):
 
     def shape(func, x):
         x = max(0.0, x)
+        if func == "hinge":
+            # 1.32.7: the only T-scaled shape. u + 8*max(0, u-1)^2, so f(T) == 1 exactly.
+            u = x / T
+            return u + 8.0 * max(0.0, u - 1.0) ** 2
         return {
             "linear": x,
             "sq": x * x,

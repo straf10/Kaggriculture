@@ -114,10 +114,16 @@ def test_vendored_constants_and_prices_match_pinned_engine():
     # (from MARKET_PARAMS, minus FERTILIZER) has to stay identical to the engine's own.
     assert _vendored.PRODUCTS == engine.PRODUCTS
     assert _vendored.TOWN_CENTER_PRODUCTS == engine.TOWN_CENTER_PRODUCTS
+    # v1t (1.32.7): the old three-point sweep sampled `I0 - T` — the knee, where `hinge` equals
+    # `linear` by construction (f(T) == 1). It could not have caught a vendored copy left on the
+    # pre-hinge curve. Sweep the whole reachable range on both sides instead.
     for item, params in engine.MARKET_PARAMS.items():
         equilibrium, capacity = params["I0"], params["T"]
-        for inventory in (equilibrium - capacity, equilibrium, equilibrium + capacity):
-            assert _vendored.market_price(item, inventory) == engine.market_price(item, inventory)
+        for inventory in range(equilibrium - 3 * capacity, equilibrium + 3 * capacity + 1):
+            assert _vendored.market_price(item, inventory) == engine.market_price(item, inventory), (
+                item,
+                inventory,
+            )
 
 
 def test_v1h1_constants_resolve_per_symbol_not_all_or_nothing():

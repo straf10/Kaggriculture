@@ -1,8 +1,13 @@
-"""Engine constants fallback for the pinned kaggle-environments **1.32.6**.
+"""Engine constants fallback for the pinned kaggle-environments **1.32.7**.
 
 Parity with the installed engine is asserted by `tests/test_agent_guards.py`. Every value in
 this file was re-verified equal under 1.32.6 during the v1h.1 bump: the balance change touched
 only the town-demand *rule*, never a constant this file carries.
+
+v1t (1.32.7) is the first bump that *does* move constants this file carries: CARROT, TOMATO and
+EGG switch their below-I0 curve to the new `hinge` shape. `_shape` therefore grows a third
+argument — hinge is the only shape scaled by `T`, and it degenerates to `linear` when `T` is
+missing, exactly as the engine does.
 """
 import math
 
@@ -25,11 +30,11 @@ PRICE_FLOOR = 1
 
 MARKET_PARAMS = {
     "WHEAT": {"base": 25, "I0": MARKET_I0, "T": 400, "below_func": "sqrt", "below_target": 0.80, "above_func": "log", "above_target": 0.20},
-    "CARROT": {"base": 35, "I0": MARKET_I0, "T": 450, "below_func": "log", "below_target": 0.20, "above_func": "sqrt", "above_target": 0.70},
-    "TOMATO": {"base": 60, "I0": MARKET_I0, "T": 200, "below_func": "linear", "below_target": 0.40, "above_func": "sqrt", "above_target": 0.60},
+    "CARROT": {"base": 35, "I0": MARKET_I0, "T": 450, "below_func": "hinge", "below_target": 1.00, "above_func": "sqrt", "above_target": 0.70},
+    "TOMATO": {"base": 60, "I0": MARKET_I0, "T": 200, "below_func": "hinge", "below_target": 0.40, "above_func": "sqrt", "above_target": 0.60},
     "STRAWBERRY": {"base": 120, "I0": MARKET_I0, "T": 100, "below_func": "sqrt", "below_target": 0.70, "above_func": "linear", "above_target": 1.60},
     "MELON": {"base": 250, "I0": MARKET_I0, "T": 300, "below_func": "log", "below_target": 0.20, "above_func": "sq", "above_target": 3.60},
-    "EGG": {"base": 50, "I0": MARKET_I0, "T": 332, "below_func": "linear", "below_target": 0.40, "above_func": "log", "above_target": 0.20},
+    "EGG": {"base": 50, "I0": MARKET_I0, "T": 332, "below_func": "hinge", "below_target": 0.40, "above_func": "log", "above_target": 0.20},
     "MILK": {"base": 160, "I0": MARKET_I0, "T": 122, "below_func": "sqrt", "below_target": 0.60, "above_func": "linear", "above_target": 1.60},
     "WOOL": {"base": 200, "I0": MARKET_I0, "T": 105, "below_func": "log", "below_target": 0.20, "above_func": "sq", "above_target": 3.20},
     "FERTILIZER": {"base": 100, "I0": MARKET_I0, "T": 200, "below_func": "linear", "below_target": 0.40, "above_func": "linear", "above_target": 0.40},
@@ -67,7 +72,13 @@ TOWN_CENTER_PRODUCTS = [p for p in PRODUCTS if p != "FERTILIZER"]
 # engine, and `tests/test_engine_facts.py` pins both facts against the engine directly.
 
 
-def _shape(func, x):
+# 1.32.7: "hinge" stays cheap under ordinary demand and runs away past real scarcity. With
+# u = x/T it is `u + HINGE_GAIN * max(0, u - 1)**2`, so f(T) == 1 by construction and `target`
+# keeps the same meaning it has for every other shape. It is the only shape scaled by T.
+HINGE_GAIN = 8.0
+
+
+def _shape(func, x, capacity=None):
     x = max(0.0, x)
     if func == "linear":
         return x
@@ -79,6 +90,12 @@ def _shape(func, x):
         return math.log(1.0 + x)
     if func == "log10":
         return math.log10(1.0 + x)
+    if func == "hinge":
+        # Degenerates to linear if T is missing or non-positive.
+        if not capacity or capacity <= 0:
+            return x
+        u = x / capacity
+        return u + HINGE_GAIN * max(0.0, u - 1.0) ** 2
     return x
 
 
@@ -88,10 +105,10 @@ def market_price(item, inventory, params=None):
     base, equilibrium, capacity = p["base"], p["I0"], p["T"]
     if inventory < equilibrium:
         func = p["below_func"]
-        amplitude = p["below_target"] * base / _shape(func, capacity)
-        price = base + amplitude * _shape(func, equilibrium - inventory)
+        amplitude = p["below_target"] * base / _shape(func, capacity, capacity)
+        price = base + amplitude * _shape(func, equilibrium - inventory, capacity)
     else:
         func = p["above_func"]
-        amplitude = p["above_target"] * base / _shape(func, capacity)
-        price = base - amplitude * _shape(func, inventory - equilibrium)
+        amplitude = p["above_target"] * base / _shape(func, capacity, capacity)
+        price = base - amplitude * _shape(func, inventory - equilibrium, capacity)
     return max(PRICE_FLOOR, int(round(price)))

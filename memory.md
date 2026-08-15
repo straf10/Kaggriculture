@@ -9,6 +9,152 @@
 
 ---
 
+## 2026-08-15 (β) — Session: **engine bump 1.32.6 → 1.32.7 (D28, `hinge`)· ladder read· απόφαση χρήστη για tape· σχέδιο 8 βημάτων για το item ④**
+
+**Εντολή:** αναβάθμιση engine σε >=1.32.7 βάσει της ανακοίνωσης balance change, ενημέρωση
+episodes, και **τεχνικό σχέδιο για το item ④ σπασμένο σε βήματα** ώστε να υλοποιείται ένα-ένα.
+Ρητή απόφαση χρήστη: **«I want the measured path where we copy the tape and if we win we will
+figure it out»** — αναστρέφει το default του §4.2. `pytest tests/`: **268 passed** (254→268),
+3 προϋπάρχουσες αποτυχίες. **Καμία υποβολή, καμία αλλαγή συμπεριφοράς του agent.**
+
+### §1 — το bump είναι χειρουργικό: μόνο αγορά, μόνο scarcity πλευρά, μόνο 3 προϊόντα
+
+Diff 1.32.6 vs 1.32.7 (πλήρες): νέο shape **`hinge`** (`u + 8·max(0,u−1)²`, `HINGE_GAIN = 8.0`),
+το `_shape` παίρνει τρίτο όρισμα `T` (μόνο το hinge το χρησιμοποιεί· degenerates σε linear χωρίς
+αυτό), και τρεις γραμμές `MARKET_PARAMS`: CARROT `log`/0,20 → **`hinge`/1,00**, TOMATO και EGG
+`linear`/0,40 → **`hinge`/0,40**. **Τίποτε άλλο** — καμία αλλαγή σε turn order, RNG, `_spawn_weeds`,
+yields, shops, town demand. Επαληθεύτηκαν αριθμητικά και οι τρεις ισχυρισμοί του PR: TOMATO/EGG
+**αυστηρό no-op** από depletion 0 έως T (0 mismatches), glut πλευρά **byte-identical** και για τα
+τρία, τα άλλα έξι προϊόντα identical παντού.
+
+⚠️ **Μία ασυμμετρία που το PR υποβαθμίζει:** το **CARROT αλλάζει από depletion 1**, όχι μόνο πέρα
+από το γόνατο — **433/451 τιμές** στο 0..T — γιατί άλλαξε shape **ΚΑΙ** target. $42 → **$70** στο T.
+Καρφώθηκε ρητά σε test.
+
+### §2 — τι άλλαξε στο repo
+
+`engine_reference/` re-synced (4 αρχεία), `requirements-dev.txt` → 1.32.7, **`agent/_vendored.py`**
+(MARKET_PARAMS ×3, `HINGE_GAIN`, `_shape` με `capacity`, `market_price` περνάει το T και στις δύο
+πλευρές), `tests/test_engine_facts.py` (η *ανεξάρτητη* επανυλοποίηση χρειάστηκε δικό της hinge
+κλάδο). Νέο **`tests/test_v1t_hinge.py`** (14 guards). 🔎 **Κενό που αποκάλυψε το bump:** το
+`test_vendored_constants_and_prices_match_pinned_engine` δειγμάτιζε `I0−T` — **ακριβώς το γόνατο**,
+όπου hinge και linear συμπίπτουν εξ ορισμού (`f(T)==1`) — άρα **δεν θα έπιανε** ένα vendored
+αντίγραφο ξεχασμένο στην παλιά καμπύλη. Διευρύνθηκε σε ολόκληρο το ±3T. Νέο D28 στο
+`engine_deltas.md` (+ pin 1.32.6→1.32.7).
+
+### §3 — rollout: **ΔΕΝ έχει βγει ζωντανά**· νέος behavioural probe
+
+Το bump **δεν** ανιχνεύεται από το `configuration` (τα `MARKET_PARAMS` είναι module constants, όχι
+config — σε αντίθεση με το D27/`townCenterSellInterval`). Νέο **`analysis/v1t_engine_probe.py`**:
+διαβάζει ζεύγη `market.inventory`/`market.prices` από το ίδιο το replay και ψηφίζει. Χειρίζεται
+ρητά ότι **η συμφωνία δεν είναι απόδειξη** (οι καμπύλες ταυτίζονται σε undrained pool) — verdict
+UNDECIDED μέχρι να εμφανιστεί δείγμα που διαφωνεί. Το CARROT στο depletion 1 είναι ο πιο ευαίσθητος
+μάρτυρας ($36 vs $35). **28/28 επεισόδια του `kaggriculture-episodes-2026-08-14` = 1.32.6, ομόφωνα.**
+
+**Μετρημένα ποσοστά διάτρησης του γονάτου** στα ίδια 28: TOMATO **54%** (ανακοίνωση 50%), EGG
+**25%** (22%), CARROT **18%** (26%) — δύο στα τρία αναπαράγονται σχεδόν ακριβώς. Max depletions:
+CARROT 645, TOMATO 534, EGG 660 ⇒ στο 1.32.7 αυτά είναι $138/$660/$246 αντί $42/$124/$90.
+
+### §4 — ladder read (2026-08-15): η φθορά είναι το κυρίαρχο γεγονός
+
+**`55438252` (v1o.2) resolved → 620,4.** Τα +$5.069/ep holdout production έδωσαν **+20 μονάδες
+πάνω από τον pairmate του** (v1i **600,2**, από 632,2→618,4→600,2) και **−32 κάτω από το παγωμένο
+v1h (652,5)**. Rank **2736/4555** από 2218/3811 — **−518 θέσεις χωρίς καμία αλλαγή κώδικα**. Το
+§3.2.1 «το local μεταφέρεται ολόκληρο» **δεν γενικεύεται** πέρα από το v1h.2d.
+
+### §5 — απόφαση χρήστη: tape, και σχέδιο για το ④
+
+Το §4.2 σημειώθηκε **REVERSED**. Οι τρεις υποχρεωτικές συνθήκες (provenance, route εκτός public
+repo ανά §2.4b, §3.14a/§2.5 με τον Sponsor αν βγούμε top-10) **μένουν**. Το D28 **δεν αγγίζει τις
+tapes** — το top-9 profile έχει **μηδέν** CARROT/TOMATO/EGG (`b3_target_profile.json`:
+`tile_days_per_crop` = MELON/STRAWBERRY/WHEAT μόνο), άρα οι καμπύλες που άλλαξαν δεν μπορούν να
+μετακινήσουν το καταγεγραμμένο bank ενός donor.
+
+Νέο **`docs/plans/item4_min_cost_assignment.md`**: 8 βήματα, ένα ανά pass, με τα **δύο πρώτα χωρίς
+καμία αλλαγή σε `agent/`** (③ travel-ratio regret· offline oracle) και **προ-καταχωρημένα kill
+criteria που μπορούν να σκοτώσουν το item με κόστος δύο passes** — ακριβώς το βήμα που έλειπε από
+τα πέντε προηγούμενα, που έχτιζαν πρώτα. Οκτώ invariants (G-1…G-8) κωδικοποιούν τα μετρημένα
+μαθήματα: priority ως **hard constraint** (όχι όρος κόστους), stickiness, determinism, cargo,
+seeds, position exclusivity, turn budget, και το §3.4 metric (absolute `worker_turns_working`).
+**Το ④ ΔΕΝ είναι πλέον critical path** — μια tape δεν καλεί ποτέ το `assign()`.
+
+
+## 2026-08-15 — Session: **ROADMAP §4.3 S3 βήμα 2 — herd 13 πάνω στο C2 reserve· ⛔ STOP στο SMOKE, το κοπάδι-13 μπλοκάρεται από τα feed logistics, όχι από το cash**
+
+**Εντολή:** εκτέλεση `prompt.md` (S3 βήμα 2) — προσγείωση R20 + καθαρισμού C2 πρώτα, μετά υποχρεωτική
+Φάση 0 αριθμητικής μετρητών στο target 13, μετά race τεσσάρων arms (B0/H1/H2/H2R, όλα με C2 on)
+αποσυνθέτοντας το «herd 10→13 σε 9C+4S» στις τρεις ταυτόχρονες αλλαγές του (count / tile-reassignment /
+recomposition), και μόνο αν βγει νικητής, Phase 2 + υποβολή (με ρητή έγκριση). Πλήρες report:
+[baselines/2026-08-15/s3_step2_report.md](baselines/2026-08-15/s3_step2_report.md) (τοπικό).
+`pytest tests/`: **254 passed** (248→254, +6 `test_v1s_herd.py` guards), 3 προϋπάρχουσες αποτυχίες.
+**Καμία υποβολή.** Ενεργό ζεύγος αμετάβλητο: `55438252` (v1o.2) + `55414570` (v1i).
+
+### §1 — προσγειώθηκαν πρώτα (μόνο `harness/`+`tests/`+`.md`+καθαρισμός, κανένα baseline δεν ακυρώθηκε)
+
+- **R20**: per-product MELON/MILK/WOOL units+revenue σε κάθε gate artefact. Το `_attach_v1k_diagnostics`
+  έγραφε μόνο το ζεύγος MELON· γενικεύτηκε σε module-level `_V1K_REPORT_PRODUCTS = ("MELON","MILK","WOOL")`
+  και στα έξι longhand melon sites (attach, `CompareResult` fields, 4 aggregation/None-fill blocks) —
+  τα κλειδιά `melon_*` **διατηρήθηκαν byte-for-byte** (MELON πρώτο, `.lower()`). MILK/WOOL στα `cli.py`
+  (results.json + CLI summary). Το §4.1 currency (realised price = revenue/units) διαβάζεται πλέον απευθείας.
+- **Καθαρισμός C2** (`agent/executor.py`): `min(target_total, max(target_total, …))` είναι άνευ όρων
+  `target_total` (νεκρή έκφραση), καθαρίστηκε σε `reserve_herd = target_total`, σχόλιο διορθωμένο.
+- **Ράμπα** 6/12/13 στο `planner.py` (`_herd_ramp_cap`, `animals.ramp`, default `None`) — clamp των
+  per-name counts στο cap της ημέρας, σε dict order. Η ταυτότητα των tiles δεν αλλάζει (το
+  `animal_slot_ranges` κλειδώνεται στα πλήρη config targets, όχι στο plan).
+- **Και οι δύο αλλαγές agent/ αποδεδειγμένα byte-inert** πριν από οποιοδήποτε checkpoint (§1.2): το
+  `v1s_B0` (καθαρός κώδικας, C2 config, 4C+6S) vs `checkpoints/v1r_armC2` (προ-καθαρισμού πακέτο C2),
+  SMOKE 0-11 both seats basket: **mean_diff 0,0· ci [0,0]· ties 12/12· κάθε counter ίσος** — καθαρισμός
+  C2 + ράμπα μαζί ένα no-op. Δεύτερος έλεγχος (default vs `v1q_base`) επίσης byte-inert.
+
+### §2 — Φάση 0: το cash μισό πληρώνεται (target 13)
+
+`analysis/v1r_feed_reserve.py --run-target13`, φρέσκα basket-pinned plays vs `v1q_base`. Η παθολογία
+που φυλάει το gate («περνάς escape criterion χωρίς ποτέ να ΚΑΤΕΧΕΙΣ τα ζώα») διαβάζεται στο
+**owned = placed + in_flight**. Το C2 reserve στο target 13 (~$676-728 από μέρα 0) στραγγαλίζει τον
+**ρυθμό** αγορών (spendable → $63 μέρα 1), αλλά τα κέρδη της φάρμας χρηματοδοτούν την ολοκλήρωση: το
+κοπάδι **κατέχει 13 έως μέρα 9 (H2) / 11 (H2R)**, τα μετρητά ποτέ $0 σε όριο ημέρας με ζώα placed.
+**Gate PASS** — το cash μισό πληρώνεται. Η *τοποθέτηση* (περπάτημα στα PASTURE tiles) καθυστερεί πέρα
+από τη μέρα 12: αυτό είναι **logistics** ερώτημα (το πεδίο του H1), όχι cash.
+
+### Το race — SMOKE 0-11, both seats, basket, regression, vs `checkpoints/v1q_base`
+
+Όλα τα arms χτίστηκαν+checkpointαρίστηκαν πριν από κάθε screen, με τα flags **επαληθευμένα ενεργά** (R19).
+Κριτήρια προ-καταχωρημένα στο report πριν το πρώτο compare (§3.1 κανόνας 4).
+
+- **arm 0** (`v1q_base` vs εαυτό): escapes 4, ctd 13.771, MILK $/u 151,3, median bank **$55.048** — noise floor.
+- **B0** (C2 @ herd 10, `checkpoints/v1s_B0`): escapes 5, ctd 13.860, **−$256,8 NON_INFERIOR** — ίδιο ακριβώς
+  νούμερο με το βήμα 1e. Το C2 στα 10 ζώα είναι ~$0· control/άγκυρα, όχι herd increment.
+- **H1** (4C+9S, count only, `checkpoints/v1s_H1`): +3 ζώα στα αδιεκδίκητα tiles 7,7,8, **μηδέν**
+  reassignment/recomposition. escapes **122**/24-ep, ctd **8.836 (−36%)**, **−$15.214 REGRESSED**, 0-12
+  seeds. **Κόβεται στα κριτήρια 3 και 4.**
+- **H2** (9C+4S profile, `checkpoints/v1s_H2`): escapes 88, ctd 9.118, **−$20.857 REGRESSED**, MILK $/u
+  151→**139** (κατάρρευση τιμής στα 9 COW — ο §3.3 μηχανισμός MILK-saturation, τώρα και non-mirror).
+- **H2R** (9C+4S στη ράμπα, `checkpoints/v1s_H2R`): escapes 88→**66** (η ράμπα μειώνει τα escapes), αλλά
+  **−$19.023 REGRESSED**, ctd ακόμα −36%, MILK $/u **131,3**, median bank $31.768 (το χαμηλότερο). **Η ράμπα
+  ΔΕΝ είναι ο μοχλός** — λύνει το day-0 cash (που το C2 ήδη έλυσε), όχι τα steady-state feed logistics.
+
+### Επιβεβαιωμένος μηχανισμός ≠ βιώσιμο increment (§2 item 9)
+
+**Μηχανισμός:** η υπάρχουσα γεωμετρία PASTURE + το greedy routing του `assign()` **δεν μπορούν να ταΐσουν
+13 ζώα**. Τα 3 ζώα πέρα από τα δέκα προσγειώνονται στις αποστάσεις 7,7,8 (herd Σdistance 37→59, +59%) σε
+έναν feed γύρο ανοιχτό 100% της ημέρας από d9· το αποτέλεσμα είναι είτε escapes (122/24-ep, μέσα στη ζώνη
+του STOP των 12-14 ζώων) είτε κατάρρευση του crop watering (ctd −36%, 574→368/ep — μακριά από το 1.316 του
+profile). Το C2 πληρώνει το **cash** μισό πλήρως· **κανείς δεν πληρώνει το logistics μισό.** **Increment:
+κανένα** — το herd 13 είναι regression −$15-21k/ep μπλοκαρισμένο σε logistics, όχι cash. Το C2 μένει
+αδρανές/λανθάνον στα 10 ζώα (B0 = NON_INFERIOR ~$0), **δεν προάγεται μόνο του** (κανόνας βήματος 1e). **Δεν
+αναιρεί το §4.0 profile** — μόνο το να το φτάσουμε με το τρέχον routing + PASTURE pool.
+
+### Πού πάει η δουλειά μετά
+
+Το προ-καταχωρημένο kill condition του H1 πυροδοτεί: **επόμενο πέρασμα το deferred item ③ (travel-ratio
+diagnostic, template `analysis/v1o3_visit_efficiency.py`)**, πριν το ④ (min-cost matching), **όχι herd
+retry**. Το herd 13 ξανα-δοκιμάζεται μόνο ενάντια στο baseline που θα παράξουν τα ③/④. Το C2 μένει inert
+στο `agent/` πίσω από `feed_reserve_horizon`, η αξία του ακόμα εκκρεμεί το κοπάδι που θα το έκανε να δεσμεύει.
+Νέο R20 στο ROADMAP §6· §3.3 (νέα STOP row herd-13), §4.0 (σημείωση μπλοκαρίσματος), §4.3 (S3 step 2),
+§7 ενημερώθηκαν.
+
+---
+
 ## 2026-08-14 (γ) — Session: **ROADMAP §4.3 S3 βήμα 1e — το feed-cash reserve ως race· εντοπισμένο defect, νικητής το arm C2 (full-target horizon)**
 
 **Εντολή:** εκτέλεση `prompt.md` (S3 βήμα 1e) — πρώτα διόρθωση δύο λαθών του record του βήματος 1d

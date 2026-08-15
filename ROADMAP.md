@@ -22,11 +22,13 @@
 
 | | Value | Source |
 |---|---|---|
-| Our best public score | **652,5** (`55383610`, v1h) | `kaggle competitions submissions` |
-| Our active pair | **`55438252` v1o.2 (PENDING, submitted 2026-08-11 17:06 UTC)** · `55414570` v1i **618,4** | same |
-| ⚠️ Rating decay, observed | `55414570` **632,2 → 618,4** and `55409945` **626,1 → 625,3** between 08-10 and 08-11 with no code change — a frozen agent's score falls as the meta moves (§4.4#1), so a score is only comparable to others read the same day | same |
-| Our rank | **2218 / 3811 teams** | `kaggle competitions list -s kaggriculture -v` |
+| Our best public score | **652,5** (`55383610`, v1h) — unchanged on 08-15, and it is **not** in the active pair, so it is a frozen number that no longer plays | `kaggle competitions submissions` |
+| Our active pair | **`55438252` v1o.2 → resolved 620,4** · `55414570` v1i **600,2** (read 2026-08-15) | same |
+| ⚠️ v1o.2's verdict | +$5.069/ep of holdout production (crop tile-days 413→562) landed at **620,4** — **+20 over its own pairmate**, read the same day, and **−32 under frozen v1h**. The §3.2.1 "local→ladder transfers whole" finding does **not** generalise past v1h.2d | same |
+| ⚠️ Rating decay, observed | `55414570` **632,2 → 618,4 → 600,2** over 08-10/08-11/08-15 with no code change — a frozen agent's score falls as the meta moves (§4.4#1), so a score is only comparable to others read the same day | same |
+| Our rank | **2736 / 4555 teams** (2026-08-15; was 2218 / 3811 on 08-11 — we lost 518 places while changing nothing) | `kaggle competitions list -s kaggriculture -v` |
 | Ladder #1 | **3187,7** (THUNDER THUNDER) | leaderboard, 2026-08-11 |
+| Engine | **`kaggle-environments==1.32.7`** installed and mirrored 2026-08-15 (D28 — the `hinge` curve). ⚠️ **Live episodes were still 1.32.6 as of the 2026-08-14 dataset, 28/28 unanimous** — the bump has not rolled out; re-probe daily with `analysis/v1t_engine_probe.py` | [engine_deltas D28](docs/reference/engine_deltas.md) |
 | Starting rating of any new submission | 600,1 | `current_phase.md` §0 (retired) |
 | Final submission deadline | **2026-09-30 23:59 UTC** — re-verified today | Kaggle API `deadline` field |
 | Entry / team-merger deadline | 2026-09-23 | competition overview |
@@ -270,6 +272,7 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **v1m / v1m.2** melon race | STOP at smoke (28 unexplained escapes), then STOP at Ε1 | Ε1 was later re-scored under the delta rule and **passed** → `checkpoints/v1m_d2`, submitted |
 | **v1n** fertilizer capture | Closed as measured | 62,7% of the loss is structural; the fixable 28 units are ≈**+$720/ep upper bound** |
 | **12-14 animals** | Hard-gate failure, 660-885 escapes | Feed logistics, **not** market saturation, is the ceiling. ⚠️ But the top-30 run **13 (9C+4S)** and build them as a **ramp** (6 by d5 → 12 by d10 → 13), not in one purchase — §4.0. Our screen bought them in one step |
+| **herd 13 (9C+4S) on the C2 reserve** (S3 step 2, 2026-08-15) | ⛔ STOP at SMOKE — all three herd-13 arms REGRESSED, **−$15-21k/ep, 0-12 seeds** | **The ramp was tested and is not the lever.** Three arms decomposed the change: **H1** (4C+9S, +3 animals at the unclaimed distances 7,7,8, **zero** reassignment/recomposition) escaped **122**/24-ep and collapsed `crop_tile_days` **−35,8%** (574→368/ep); **H2** (9C+4S step) −$20,9k, MILK realised price 151→**139** (§3.3 saturation, now confirmed non-mirror); **H2R** (9C+4S on the 6/12/13 ramp) lowered escapes 88→**66** but recovered **neither** the crop collapse (still −35,8%) **nor** the dollars (−$19k, lowest median bank $31,8k). The 3 far animals raise herd Σdistance **37→59 (+59%)** on a feed round open 100% of the day from d9. C2 pays the **cash** half in full (Phase 0: herd *owns* 13 by d9-11, money never $0); **nothing pays the logistics half**. Herd 13 is blocked on **feed logistics, not cash** — deferred item ③ (travel-ratio) is next, **not** a herd retry. Does **not** refute the §4.0 profile, only reaching it with the current `assign()` routing + PASTURE pool. Report: `baselines/2026-08-15/s3_step2_report.md` |
 | **shop-adaptive sell floor** | −$1.103 to −$24.762/ep, 0/8 wins | The agent is production-constrained, never glut-constrained; a demand-sized floor has no price to win, only volume to lose |
 | **herd re-composition toward cow** | `{8C,2S}` −$5.093, `{10C,0S}` −$6.845 + hard-gate fail | And the damage was **larger** in towns *with* a YARN_STORE ⇒ the constraint is **MILK saturation in mirror**, not the rare buyer |
 | **shed-access routing fix** (1.32.5 D26) | Net-negative, reverted | The old `(4,4)` distance over-estimate was accidentally inflating WHEAT PICKUP urgency. Needs routing-distance decoupled from urgency-distance in `assign()` first |
@@ -299,6 +302,14 @@ IMPROVED) with the herd still reaching its full target on baseline's day; the mi
 fix (C1) and the raise-the-days control (X) both leave 48. See §4.3 S3 step 1e. C2 promotes bundled
 with the herd-13 increment (its shipped-config value at herd 10 is ~$0/NON_INFERIOR — the defect
 is latent until the herd is large enough to strain day-0 cash).
+
+🔴 **Updated 2026-08-15 (S3 step 2): the herd-13 bundle STOPPED — C2 stays latent, not promoted.** C2
+does exactly what step 1e said (Phase 0: at target 13 the herd *owns* 13 by day 9-11, money never $0 —
+the day-0 cash half is fully paid), and B0 (C2 at herd 10) re-measured NON_INFERIOR at **−$256,8**, step
+1e's number. But **herd 13 itself regressed −$15-21k/ep at the current PASTURE geometry** (STOP row above):
+the value C2 was meant to unlock does not exist, because the blocker was never cash — it is feed logistics.
+C2 therefore **ships inert** in the 10-herd config and is **not promoted alone** (step 1e's standing rule);
+its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13 viable.
 
 ### 3.4 Standing methodological lessons
 
@@ -361,6 +372,15 @@ same day. (c) The top-30 opening census in the v27 notebook. Full tables:
 
 Against us (v1h.2d live): **$57.360** final, **415** crop tile-days, **10** animals flat, **6**
 planted tiles at d24 and **0** by d28.
+
+⚠️ **The 13-animal (9C+4S) row is blocked for our planner on feed logistics, not on the config
+(S3 step 2, 2026-08-15).** Setting `targets` to 9C+4S — with or without the 6/12/13 ramp — REGRESSES
+−$15-21k/ep and loses every seed: the three animals beyond ten land at Manhattan distances 7,7,8 from
+the (4,4) shed (herd Σdistance 37→59, +59%), and our `assign()` greedy routing cannot feed them
+without either escaping them (122/24-ep) or starving crop watering (`crop_tile_days` −36%). C2 pays the
+day-0 **cash** half in full; the **logistics** half is unpaid. Reaching this row needs deferred item
+③/④ (routing throughput) first — see the §3.3 STOP row and §4.3 S3 step 2. The profile itself is not
+refuted; our ability to reach it with the current routing is.
 
 ### 4.1 The finding that decides the strategy
 
@@ -434,6 +454,30 @@ episodes offline.
   forum without prohibiting it. So this is a low risk — but it is the Sponsor's call, not ours.
 
 **Consequence: copy the profile, not the tape** (default; see §4.3).
+
+> 🔴 **REVERSED BY THE USER, 2026-08-15.** The direction is now explicit: *"I want the measured
+> path where we copy the tape and if we win we will figure it out."* The concern below was raised
+> and reaffirmed, so it is settled — the tape ships. What that changes and what it does not:
+>
+> - **It is the only measured path we hold.** S2 replayed 3 donor tapes × 3 opponents × 2 seats:
+>   **0/18 fell below our own $57.360**, worst case $57.673, degradation 7-37% against hard
+>   opponents, and the de-sync is **opponent-independent** (no-ops start day 4-10 because the route
+>   drifts off its own trajectory) ⇒ a **light** repair layer, not a heavy one. Donor home banks are
+>   $82-95k. Nothing else in this repo has ever measured above our own floor before being built.
+> - **D28 does not touch it.** The top-9 profile grows zero CARROT/TOMATO/EGG, so the 1.32.7 curves
+>   cannot move a donor's recorded bank. Re-verify with the S1.2 exact-replay check anyway — that
+>   is step 0, and it is cheap.
+> - **The three mandatory conditions from the paragraph below stand unchanged**: full provenance
+>   (episode id, seat, team, action-stream sha256) in the checkpoint ledger and the submission
+>   description; the extracted route stays **out of the public repo** (gitignored, local only, §2.4b);
+>   and §3.14a/§2.5 get resolved with the Sponsor if we finish top-10. "We will figure it out" is the
+>   user's call on the third of those, not a reason to skip the first two — those are what keep the
+>   option open at all.
+> - **What does not change:** we still do not open, extract or execute competitor *notebook* source
+>   (`main.py` / `submission.tar.gz`). Separate permission, separate licence, and nothing needs it.
+> - **Item ④ is no longer the critical path** — a tape never calls `assign()`. It remains the hedge
+>   against §4.4#1 tape decay and the precondition for our own planner reaching §4.0. See
+>   [docs/plans/item4_min_cost_assignment.md](docs/plans/item4_min_cost_assignment.md) §0.
 
 §4.1 already established that top-30 production is a **constant**, and a constant is described by
 about twenty numbers: 13 animals (9 COW + 4 SHEEP) on a 6/12/13 ramp, 3 quadrants at d6 and d10,
@@ -904,6 +948,53 @@ inert. Caught by instrumenting the executor's own reserve, fixed to replace-and-
 
 ---
 
+#### S3 step 2 — herd 13 on the C2 reserve: ⛔ STOPPED at SMOKE, blocked on feed logistics not cash (2026-08-15)
+
+Full report: `baselines/2026-08-15/s3_step2_report.md` (local). Landed first (all `harness/`+`tests/`
++`.md`, no baseline invalidated): **R20** (per-product MELON/MILK/WOOL units+revenue in every gate
+artefact, generic over `_V1K_REPORT_PRODUCTS`, MELON keys byte-preserved) and the **C2 dead-expression
+cleanup** (`agent/executor.py`: `min(target_total, max(target_total, …))` ≡ `target_total`), the latter
+proven **byte-inert** vs `checkpoints/v1r_armC2` (SMOKE 0-11 both seats basket, mean_diff 0,0, ci [0,0],
+ties 12/12, every counter equal — the cleanup *and* the new planner ramp jointly a no-op). The 6/12/13
+**ramp** was added to `planner.py` (`animals.ramp`, default None) with 6 `test_v1s_*` guards. `pytest`
+**248 → 254**.
+
+**Phase 0** (`analysis/v1r_feed_reserve.py --run-target13`) passed: at target 13 the C2 reserve
+(~$676-728 from day 0) throttles the day-0/1 *pace* of buying (spendable → $63) but the farm's earnings
+fund completion — the herd **owns** 13 (placed + in-flight) by **day 9** (H2) / **day 11** (H2R), money
+never $0 at a day boundary with animals placed. **The cash half is paid.**
+
+**The race** (SMOKE 0-11, both seats, basket, regression, vs `v1q_base`; all arms built + checkpointed
+before any screen, flags verified active per R19):
+
+| Arm | targets/ramp | escapes/24-ep | crop_tile_days | MILK $/u | mean_diff | median_bank |
+|---|---|---:|---:|---:|---:|---:|
+| arm 0 (v1q_base vs self) | 10, — | 4 | 13.771 | 151,3 | 0 | $55.048 |
+| **B0** C2 @ herd 10 | 10, — | 5 | 13.860 | 153,1 | −256,8 NON_INFERIOR | $55.068 |
+| **H1** count only | 4C+9S, — | **122** | **8.836** (−36%) | 156,1 | **−15.214** REGRESSED | $41.780 |
+| **H2** profile | 9C+4S, — | 88 | 9.118 (−34%) | **139,1** | **−20.857** REGRESSED | $33.980 |
+| **H2R** profile + ramp | 9C+4S, 6/12/13 | 66 | 8.838 (−36%) | **131,3** | **−19.023** REGRESSED | $31.768 |
+
+**H1 is the decisive arm** and it fails the pre-registered criteria 3 (escapes ≤9) and 4 (crop_tile_days
+≥ −3%): the cleanest possible +3-animals test — COW keeps its exact tiles, three SHEEP added to the
+unclaimed distances **7,7,8**, zero reassignment, zero recomposition — escapes **122** and collapses crops
+**−36%** (574 → 368/ep, *away* from the profile's 1.316). The three far animals raise herd Σdistance
+**37 → 59 (+59%)** on a feed round open 100% of the day from d9. **H2/H2R confirm and add the composition
+story**: both lose every one of 12 seeds; 9 COW collapses the **MILK realised price** 151 → 131-139
+(§3.3's saturation, now non-mirror too); the **ramp (H2R) is not the lever** — it lowers escapes 88→66 but
+recovers neither the crop collapse nor the dollars, because it addresses day-0 cash (already solved by C2)
+not steady-state feed logistics.
+
+**Confirmed mechanism ≠ viable increment (§2 item 9).** *Mechanism:* the current PASTURE tile geometry +
+`assign()` routing cannot feed 13 animals — C2 pays the cash half in full, nothing pays the logistics half.
+*Increment:* **none** — herd 13 is a −$15-21k/ep regression blocked on logistics, not cash. C2 stays
+inert/latent at herd 10 (B0 = NON_INFERIOR ~$0), **not promoted alone**. Per the pre-registered H1 kill
+condition, **deferred item ③ (travel-ratio diagnostic) is the next pass, not a herd retry**; herd 13 is
+re-tested only against whatever baseline ③/④ produce. This does **not** refute the §4.0 profile — only
+reaching it with our current routing and PASTURE pool. **No submission.**
+
+---
+
 **S4 — Freeze, submit, measure on the real ladder.**
 
 Matching the profile is worth roughly **$63-95k and ~3.100 Elo** *if* it transfers. Submit as the
@@ -1010,6 +1101,7 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R17** ✅ | Added `worker_turns_working` to `_V1K_REPORT_METRICS` (2026-08-14, S3 step 1d) — same 3-line-plus-print-line change as R15, generic over the tuple. Pinned by extending `test_compare_metrics_reads_agent_a_seat_in_each_orientation` rather than a parallel test | v1p1b arm A1 hit `worker_turns_moving` 46,0% — the largest commute cut ever measured here — by doing *fewer* working turns and shedding 30% of `crop_tile_days` into idle. A ratio alone would have let it pass; the absolute counterweight now sits next to it in every gate artefact (§3.4) |
 | **R18** | **Replay-analysis scripts: two indexing traps, found and fixed in `analysis/v1q_onboarding_escape.py` (2026-08-14).** (a) Two checkpoint packages that are both literally named `main.py` collide under `harness.play`'s filename sanitizer if given the same `run_dir` — the second `play()` call silently overwrites the first's replay before it's read. Give each orientation/arm its own `run_dir` subdirectory and consume each replay before the next `play()` call. (b) In a recorded episode's `env.toJSON()`, `steps[i][0]` is always seat 0's log entry — `observation` mirrors both farms (safe to index by `[0]` regardless of which seat's *state* you want, verified directly), but `action` is logged per acting agent and must be read from `steps[i][seat]`, not `steps[i][0]`, or a lookup for the non-zero seat silently returns nothing. **(c) added 2026-08-14 (S3 step 1e): the action logged at `steps[i]` is the one that *produced* `steps[i]`'s observation, not the one applied to it.** Pairing an order at step *i* with the money at step *i+1* shifts every purchase one turn later and makes the settlement look lagged — it is not. Read the order and the resulting state from the *same* `steps[i]` entry | Both bugs produced a plausible-looking but wrong result before being caught — the first made escapes appear to track *seat* rather than *agent*, the second made every "which unit acted" lookup fail silently (`None`) for seat 1. Neither raised an exception. Trap (c) is what made S3 step 1d misread the HIRE settlement as gapped and the purchase schedule as identical — corrected in §4.3 |
 | **R19** | **Config-override package builders must REPLACE the target key and assert the effective value, never insert it (2026-08-14, S3 step 1e).** `analysis/v1r_build_stacked.py` first inserted an arm flag as a new key *before* the same key's existing default in the copied `config.py`; the later dict literal wins, so the flag was a silent no-op and every A1-stacked screen ran inert — returning a plausible "identical to the unfixed reproducer" result. The builder now string-replaces the existing key line and re-loads the built config to assert the effective value before writing the package. **General rule:** any tool that edits a config by source-text must round-trip through `load_config` and check the value it intended to set — a dict with a duplicate key does not raise | The result *looked* like a clean "the fix does nothing" finding; it was a dead flag. Caught only by instrumenting the executor's own reserve and seeing the C1 package compute the undercounted number. An A/B whose treatment arm is byte-identical to control is a red flag to trace, not a finding to publish |
+| **R20** ✅ | **Per-product units + realised revenue in every gate artefact (2026-08-15, S3 step 2).** `harness/compare.py::_attach_v1k_diagnostics` read `units_sold_by_product`/`revenue_by_product` but wrote only the MELON pair (`melon_units_*`/`melon_revenue_*`), so MILK/WOOL **realised price** — the §4.1 currency every herd-13 economic risk turns on — could not be read from a gate artefact at all. Generalised over module-level `_V1K_REPORT_PRODUCTS = ("MELON","MILK","WOOL")`, emitting `{product.lower()}_units_{arm}` / `_revenue_{arm}`; the six longhand melon sites (`_attach_v1k_diagnostics`, the `CompareResult` fields, the four aggregation/None-fill blocks) each now loop the tuple, with the MELON keys **byte-preserved** (MELON is first, keyed by `.lower()`). Added the MILK/WOOL fields to `CompareResult`, `cli.py`'s `results.json` dict and the CLI summary. Pinned by extending the existing metrics test | Named the §3.3 MILK-saturation-on-9-COW mechanism directly from the herd-13 gate output (MILK $/u 151 → 131-139 on H2/H2R) with no separate script. R20's six-site loop deliberately avoids the "miss one None-fill block" trap the brief flagged: a missed block silently absents the key from exactly the failed-metrics artefacts |
 
 ---
 
@@ -1140,11 +1232,43 @@ else's tape.
   is NON_INFERIOR on the shipped config (≈$0, DEV 48-seed confirmed) and structural-clean. `pytest`
   248 passed (+3 `test_v1r_*`), no submission. Two ROADMAP corrections landed (no hour-1 HIRE gap;
   purchase schedules differ) plus R18(c) and R19.
-- **Next: promote C2 through the full Phase-2 gate bundled with the herd-13 increment** (§4.0
-  profile 9C+4S on a 6/12/13 ramp) — C2's dollar value lands there, not in the current 10-herd
-  config where the defect is latent (NON_INFERIOR). A1 stays STOPPED; A1+C2=+$5.907 is a recorded
-  hypothesis (the escapes were A1's dominant cost), not a re-opening.
-- **After herd-13 + C2**, the travel-ratio diagnostic
+- **S3 step 2 — herd 13 on the C2 reserve: ⛔ STOPPED at SMOKE, blocked on feed logistics not cash
+  (2026-08-15).** R20 (per-product MELON/MILK/WOOL units+revenue in every gate artefact) and the C2
+  dead-expression cleanup landed first, the cleanup + the new 6/12/13 ramp proven byte-inert vs
+  `checkpoints/v1r_armC2` (ties 12/12, mean_diff 0,0). Phase 0 passed — at target 13 the herd *owns*
+  13 by day 9-11, money never $0 (the cash half is paid). But all three herd-13 arms REGRESSED,
+  −$15-21k/ep, losing every one of 12 seeds: **H1** (4C+9S, +3 animals at the unclaimed distances
+  7,7,8, zero reassignment) escaped **122**/24-ep and collapsed `crop_tile_days` **−36%**, failing
+  the pre-registered criteria 3 and 4; **H2** (9C+4S) −$20,9k with MILK realised price 151→**139**
+  (§3.3 saturation, non-mirror); **H2R** (9C+4S on the ramp) lowered escapes 88→**66** but recovered
+  neither the crop collapse nor the dollars — **the ramp is not the lever.** *Mechanism:* the current
+  PASTURE geometry + `assign()` routing cannot feed 13 (herd Σdistance 37→59, +59%); C2 pays the cash
+  half, nothing pays the logistics half. *Increment:* **none** — C2 stays inert/latent at herd 10 (B0
+  = `checkpoints/v1s_B0`, NON_INFERIOR ~$0), not promoted alone. `pytest` **248 → 254** (+6
+  `test_v1s_*`). **No submission.** Full report: `baselines/2026-08-15/s3_step2_report.md`.
+- **Engine 1.32.7 landed 2026-08-15 (D28).** Market-only, scarcity-side only, CARROT/TOMATO/EGG
+  only, via a new `hinge` shape. TOMATO/EGG are a **strict no-op** below their knee; **CARROT
+  changed from depletion 1 upward** (shape *and* target moved). All six other products are
+  byte-identical everywhere, and the glut branch is untouched for all nine — so no sell-side model
+  built on the glut curve needs revisiting. `agent/_vendored.py` re-synced, `pytest tests/`
+  **254 → 268 passed** (+14 `test_v1t_hinge.py` guards; the vendored price sweep was widened from 3
+  points to ±3T after it was found to sample only the knee, where hinge and linear agree by
+  construction). ⚠️ **Not yet live:** 28/28 episodes in the 2026-08-14 dataset probe as 1.32.6.
+  Measured knee-crossing rates on those 28 (TOMATO 54%, EGG 25%, CARROT 18%) reproduce the
+  announced 50/22/26% closely. The top-9 profile grows **zero** of all three, so **donor tapes are
+  unaffected** — which is what makes §4.2's tape option survive this bump intact.
+  🔴 **But every checkpoint and baseline in this repo was measured on 1.32.6, and we *do* sell
+  CARROT ($4.709/ep) and EGG.** Cross-engine comparison is exactly the error §4.2's B1 correction
+  records. Any new gate needs its baseline **rebuilt on 1.32.7** (`v1u_base`); the magnitude of the
+  shift on our own agent is **unmeasured** and should not be guessed at. The pre-1.32.7 STOPs in
+  §3.3 still bind on mechanism (logistics, saturation, geometry — none of which the bump touched),
+  but any *dollar* figure in them is now engine-stale.
+- **Next: deferred item ③ — the travel-ratio diagnostic** (per the pre-registered H1 kill condition),
+  now written up as a full eight-step implementation plan in
+  [docs/plans/item4_min_cost_assignment.md](docs/plans/item4_min_cost_assignment.md), whose first
+  two steps touch no `agent/` code and can kill the item for the price of two passes,
+  before min-cost matching (④), **not a herd retry.** Herd 13 is re-tested only against whatever
+  baseline ③/④ produce. The travel-ratio diagnostic
   (§4.3 deferred item ③), before min-cost matching (④). v1p.2b proved stickiness alone does not
   move `worker_turns_moving`, which leaves open *why* — whether the 62% commute share is a
   geometric floor (territory/tour-construction is the only lever) or the greedy one-at-a-time
