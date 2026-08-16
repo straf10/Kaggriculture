@@ -22,11 +22,14 @@
 
 | | Value | Source |
 |---|---|---|
-| Our best public score | **652,5** (`55383610`, v1h) — unchanged on 08-15, and it is **not** in the active pair, so it is a frozen number that no longer plays | `kaggle competitions submissions` |
-| Our active pair | **`55438252` v1o.2 → resolved 620,4** · `55414570` v1i **600,2** (read 2026-08-15) | same |
+| 🟢 Our best public score | **1.091,1** — `55548339`, the **T1 open-loop donor tape**, read 2026-08-16. Beats our best-ever hand-built agent (**652,5**, v1h) by **+438,6**, and its own same-day pairmate v1o.2 (643,9) by **+447,2** | `kaggle competitions submissions` |
+| 🟢 Our rank | **1719 / 4690** (2026-08-16) — from **2736 / 4555** the day before: **+1.017 places on one submission** | `kaggle competitions list -s kaggriculture -v` |
+| 🟢 What this settles | **The §4.2 tape decision was correct, and it is now measured on the ladder, not locally.** The whole v1e→v1o.2 planner chain moved us 557,0 → 643,9 across five weeks. One tape moved us to **1.091,1**. §3.4's crop/animal-equilibrium finding predicted exactly this: **the configuration was the product, not the scheduler** | same |
+| ⚠️ Caveat on the local number | The gate read median **$128k** unpinned, but that bench is soft — S2 recorded `meta_route` as an easy opponent (all 3 donors *better* there, +2,9% to +57,2%). The honest predictor was always S2's **hard**-opponent figure (7-37% degradation, $57,6-76k), and the ladder's 1.091,1 is the number that counts. Do not quote $128k as a ladder expectation | `baselines/2026-08-11/s2_failure_map.json` |
+| Our active pair | **`55548339` T1 tape — 1.091,1** (challenger; submitted 2026-08-16 08:55 UTC, **may still be converging** — every new submission starts at 600,1) · **`55438252` v1o.2 — 643,9** (champion, and now clearly the weak half of the pair) | same |
 | ⚠️ v1o.2's verdict | +$5.069/ep of holdout production (crop tile-days 413→562) landed at **620,4** — **+20 over its own pairmate**, read the same day, and **−32 under frozen v1h**. The §3.2.1 "local→ladder transfers whole" finding does **not** generalise past v1h.2d | same |
 | ⚠️ Rating decay, observed | `55414570` **632,2 → 618,4 → 600,2** over 08-10/08-11/08-15 with no code change — a frozen agent's score falls as the meta moves (§4.4#1), so a score is only comparable to others read the same day | same |
-| Our rank | **2736 / 4555 teams** (2026-08-15; was 2218 / 3811 on 08-11 — we lost 518 places while changing nothing) | `kaggle competitions list -s kaggriculture -v` |
+| Rank before the tape | 2736 / 4555 (2026-08-15; 2218 / 3811 on 08-11 — 518 places lost while changing nothing). Kept as the decay baseline | same |
 | Ladder #1 | **3187,7** (THUNDER THUNDER) | leaderboard, 2026-08-11 |
 | Engine | **`kaggle-environments==1.32.7`** installed and mirrored 2026-08-15 (D28 — the `hinge` curve). ⚠️ **Live episodes were still 1.32.6 as of the 2026-08-14 dataset, 28/28 unanimous** — the bump has not rolled out; re-probe daily with `analysis/v1t_engine_probe.py` | [engine_deltas D28](docs/reference/engine_deltas.md) |
 | Starting rating of any new submission | 600,1 | `current_phase.md` §0 (retired) |
@@ -381,6 +384,16 @@ its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13
   six more passes (plan steps 3-8). This is the number that should have been computed before item ④
   was scoped, and it is now a standing pre-check: **no increment gets a pass until its plausible
   dollar gain has been divided by $253/ep and compared to the gap.**
+
+  🔴 **Amended 2026-08-16, the day after it was written: $253/ep per point is regime-local, not a
+  law.** The T1 tape converted to **+447 points over its same-day pairmate** — a rate several times
+  better than the marginal increments the figure was fitted on. The mapping is not linear in dollars
+  because rating is **won episodes**, not bank: an increment that moves you within a band you already
+  lose converts poorly, while one that starts *winning* episodes against a new band converts far
+  better. **This does not disturb the item-④ decision** — arm A (+$4.709/ep) sat in the same marginal
+  regime as its calibration point (v1o.2, +$5.069/ep → +20), which is the only regime the figure was
+  ever applied to. But the pre-check must now read: **divide by $253/ep for a marginal increment, and
+  do not apply it at all to a change that alters which opponents you beat.**
 
 - **A ratio is a diagnostic, never a target.** Any criterion of the form "share X of unit-turns
   falls below N%" is satisfiable by shrinking the denominator — v1p1b arm A1 hit `worker_turns_moving`
