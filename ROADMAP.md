@@ -280,6 +280,28 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **v1p.2 zone assignment** (`assign()` eligible-units filter by quadrant, S3 step 1c) | ⛔ STOP at SMOKE, −$6.966,0 REGRESSED (p=4,9e-4) | The increment's own kill criterion fired at the first screen: `worker_turns_moving` barely moved (60,0%→58,7%, nowhere near the ~55% target). Also broke a structural hard-zero counter, `plant_decay_units_lost` 0→17. Likely mechanism: the zone partition has no memory across turns, so a unit already `committed` (C1 stickiness) to a task can be re-zoned *out* of eligibility for it the next turn as the task-count mix shifts — reproducing the exact commitment-thrash class of bug `committed` was built to prevent, from outside the mechanism that protects against it. Code kept inert at `zone_assignment_enabled: False`; hands off to deferred item ④ (min-cost matching), gated on deferred item ③ (travel-ratio diagnostic) per its own control's result below |
 | **v1p.1b herd compaction, both untested controls** (arm A1: COW instead of SHEEP on the same two tiles; arm B: `carrot_tiles` 3→1 alone, PASTURE untouched — S3 step 1c) | ⛔ STOP at SMOKE, both arms | **Closes the "convert a CARROT tile to compact the herd" family for good.** Arm A1: `animals_escaped_a` **48** (vs its own paired baseline 0) — 🔴 **corrected 2026-08-14 (S3 step 1d race):** `mean_diff` **−$7.711,5 REGRESSED**, episodes 0-12 (0-24 orientations), not merely "the same magnitude as arm A" (arm A's own original screen was **−$875,4 INCONCLUSIVE** — the escape count matches, the dollars do not; COW-first reordering made everything substantially worse) — now a *mixed* COW/SHEEP pair — **refutes v1p.1's own type-blind-race root cause**, since giving COW the close tiles instead of SHEEP does not fix it. Arm B: `animals_escaped_a` **12** (vs its own paired baseline 2), seed-dependent, with **zero PASTURE change** — dropping `carrot_tiles` below 3 is itself destabilizing, independent of what the freed land becomes. Analytically confirmed separately: the ten currently-claimed PASTURE slots are already the ten nearest of the 13 available (distances 2,2,2,3,3,4,4,5,6,6,7,7,8) — there is no free reorder inside the existing pool; proximity can only be bought by converting a crop tile, and across both tested splits that purchase does not pay for itself |
 | **v1p.2b sticky zone assignment** (`committed` threaded into `_zone_partition`, pin-first — S3 step 1c) | ⛔ STOP at SMOKE, −$2.688,6 REGRESSED (p=6,3e-3) | The untested control v1p.2's own root cause implied. Fixed exactly what it targeted: `plant_decay_units_lost` **0** (was 17, structural), `animals_escaped` back to parity (5 vs 5, was 20 vs 6). But `worker_turns_moving` **58,9%→60,3%**, essentially the same ~1,4pp non-movement as v1p.2's own original screen — the kill criterion's own restated third exit fires: **the constraint genuinely is not which tasks a unit is offered.** Code kept, inert at `zone_assignment_enabled: False`; hands off to deferred item ③ (travel-ratio diagnostic), not directly to ④ (min-cost matching) |
+| **deferred item ④ — min-cost matching, offline oracle** (item ④ step 2, 3 arms A/B/C, 2026-08-16) | ⛔ STOP — **both pre-registered legs miss on all arms; ④ refuted** as a route to the §4.0 profile with this planner | The optimal per-turn matcher, substituted into the live agent and played out (SMOKE 0-11, both seats, basket, vs `checkpoints/v1u_base` built on 1.32.7, 24 eps/arm). **The routing prize is real** — arm A (whole-pool optimal) banks **+$4.709/ep winning 23/24**, `worker_turns_working` +5,6%, `crop_tile_days` +8,4% (step 1's 4,30% regret, now in dollars). 🔴 **Leg 1's escape clause was mis-specified, and the correction matters — see the block below this table.** A's `animals_escaped` **3→11** is a real *mechanism* (the v1o.3/G-8 crop-vs-animal exchange in reverse) but **not** an acceptance failure: priced at the repo's own gate it is `priced_loss_delta` **$333,3/ep against a $470,9 budget — a PASS at 1,4×**. The ±5 figure is §3.3's *detectability* floor, not an acceptance threshold. The buildable arm **B** (greedy + 2-opt) earns only **+$812/ep**, under the +$2.000 bar (`B/A` = **0,17**); **C** (feed-only re-match) is **−$441**. **Leg 2 misses and moves the WRONG way**: feed-round saturation stays **100%** from d9 on all three arms and `animals_underfed_days` **rises** (A +23,8%, B +7,2%), because a per-turn distance optimum aims freed turns at *near* crops and defers the *far* feeds — the 96,3% forced-walk floor (step 1) is largely the commute to distant animals. **④ is not the herd-13 unblock; measured, it is the opposite.** The §4.0 profile is **not** refuted (top-30 run 13 profitably) — only reaching it with this `assign()` planner + PASTURE geometry is, the same wall S3 step 2 hit from the herd side. Promotes the tape (§4.2) to the production route; closes ④, steps 3-8 not started. No `agent/` change, no submission. Report: `baselines/2026-08-15/item4_step2_report.md` |
+
+🔴 **Correction to item ④ step 2's leg 1, made 2026-08-16 by the author of the criterion.** The
+brief's leg 1 required `animals_escaped` "inside the ±5 noise floor". **That was a category error on
+my part.** §3.3's ±5 is a *detectability* floor — it says when a change in the counter is signal
+rather than seed noise — and it was used as an *acceptance* threshold, which it is not. This repo's
+acceptance rule for a priced counter is [harness/compare.py:127](harness/compare.py#L127):
+`priced_loss_delta ≤ min($500, 10% × mean_diff)`, at $1.000/escape. Scored properly, **arm A passes:
+$333,3/ep against a $470,9 budget (1,4×)**, and arm B passes too ($41,7 vs $81,2).
+
+The code comment directly above that gate records the exact lesson I re-broke: *"The old
+all-hard-zero gate rejected +$3,019,3/ep for 84 burnt units and 34 lost tiles… a $237/ep objection
+to a $3.019/ep gain, and three sessions were spent on it while the ladder rating stood still."*
+**Any future pass writing a counter threshold into a brief must price it, not floor it.**
+
+**This does not reverse the STOP** — it replaces a wrong reason with the two right ones: **leg 2
+missed decisively and in the wrong direction** (feed saturation 100% on every arm,
+`animals_underfed_days` *up*), which refutes ④'s entire strategic rationale; and the **rating
+arithmetic** (below) says even a perfectly shipped arm A is worth ~20 rating points against a
+~2.550-point gap. What must *not* be carried forward is "routing improvements break the feed round
+beyond acceptability" — measured, they do not; they simply fail to *help* it, which is the different
+and fatal finding.
 
 ⚠️ **The `animals_escaped` noise floor, recorded 2026-08-14 (S3 step 1d race).** The baseline's own
 `animals_escaped_b` read **0, 2, 4 and 5** across the four comparisons above (v1p.1, v1p.2,
@@ -327,6 +349,39 @@ its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13
   `v_{n-1}` scores a +$3k margin on $44k as a big win while the ladder opponent plays at another
   level entirely. This is why `harness/bench_agents/meta_route*.py` exists and why the acceptance
   arm must be non-mirror.
+- 🔴 **The crop/animal equilibrium this planner cannot leave — four independent mechanisms, same
+  wall (established 2026-08-16, closing the ③/④ line).** Read together, these are one finding:
+
+  | Pass | Mechanism tried | Dollars | What actually happened |
+  |---|---|---:|---|
+  | v1o.2 `sw_hands_target` 12 | **more crew** | +$4.144,7 | escapes 87 vs 32 ⇒ failed the priced gate |
+  | v1o.3, 7 variants | **protect the feed round** | +$61,6 acceptance | protecting animals cost `crop_tile_days` at ~10:1 |
+  | S3 step 2, 3 arms | **more animals** (herd 13) | −$15-21k | feed logistics; `crop_tile_days` −36% |
+  | item ④ step 2, arm A | **better matching** | +$4.709 | freed turns went to near crops; `animals_underfed_days` **+23,8%** |
+
+  **Every increment that frees capacity loses it to crops and starves the herd; every increment that
+  protects the herd costs more crop tile-days than it earns.** Both directions are blocked, and the
+  block is not eligibility (v1p.2b), not geometry (v1p.1b), not cash (S3 step 1e/2 Phase 0), and not
+  matching (④ step 2). The top-30 are not trading along this curve at all — they run **13 animals
+  *and* 1.316 crop tile-days** on **14 hands** (§4.0). That is a different operating point, not a
+  better scheduler. **Stop looking for a scheduler fix; the configuration is the product** — which
+  is the strongest independent argument for §4.2's tape decision that this repo has produced.
+
+  ⚠️ **The one named-but-unrun control**, per §2's STOP protocol: **arm A + v1o.3's mechanism E**
+  (feed-round protection, already built and inert in `agent/`). E alone failed at herd 10 because
+  there was no spare capacity to pay for it; arm A *creates* spare capacity. That combination is the
+  only untested thing that could plausibly clear ④'s leg 2. It is **named so it is not lost, and
+  deliberately not scheduled** — see the rating arithmetic below.
+
+- 🔴 **Price a local gain in rating points before spending passes on it (2026-08-16).** The only
+  clean calibration we have: v1o.2 was **+$5.069/ep** on holdout and resolved to **620,4 against its
+  same-day pairmate's 600,2 — +20 rating points**, i.e. **~$253/ep per rating point**. Against that
+  scale: item ④'s oracle ceiling (+$4.709/ep) is **~+19 points**, its *buildable* arm (+$812/ep) is
+  **~+3**, and the gap to #1 is **~2.567**. Arm A, shipped perfectly, closes **0,7%** of the gap for
+  six more passes (plan steps 3-8). This is the number that should have been computed before item ④
+  was scoped, and it is now a standing pre-check: **no increment gets a pass until its plausible
+  dollar gain has been divided by $253/ep and compared to the gap.**
+
 - **A ratio is a diagnostic, never a target.** Any criterion of the form "share X of unit-turns
   falls below N%" is satisfiable by shrinking the denominator — v1p1b arm A1 hit `worker_turns_moving`
   46,0%, the largest commute reduction ever measured here, by doing *fewer* working turns than
@@ -802,18 +857,21 @@ renumbered now that v1p.2b's own kill criterion has resolved which one goes firs
   `baselines/2026-08-15/item4_step1_report.md`; data: `data/derived/v1u_travel_ratio-2026-08-15.json`.
   **③ is closed; the next pass is ④ step 2 (the offline oracle), scoped to the feed round, gated
   on +$3.000/ep — a bar a 4,30% routing saving is not expected to clear, which step 2 measures
-  cheaply rather than assuming here.**
+  cheaply rather than assuming here.** 🔴 **Superseded 2026-08-15/16:** the single +$3.000 bar was
+  wrong (step 1's own arithmetic put the naive ceiling at ~$2.100/ep) and was replaced in the plan
+  doc by a **two-legged** test — see ④'s STOP below.
 - **④ Min-cost matching inside `assign()`** (Hungarian/auction replacing the greedy loop).
-  `assign()` commits the single best (unit, task) pair, deletes that unit and every unrestricted
-  task at that position, then re-scans — a routine that routinely strands a unit next to a task
-  it has just given away. A Hungarian/auction assignment over ~11 units × ~100 tasks is
-  microseconds and fully deterministic, and it cuts total travel from *inside* the algorithm
-  rather than by narrowing which tasks a unit is offered. Contingent on ③, not settled: it
-  optimises a single turn's total distance, while the commute accumulates across the ~5-6 ops a
-  unit performs in a day — a tour problem, which per-turn optimal matching does not solve. Has
-  to re-establish G13 determinism and must not re-break `committed`'s stickiness (the mechanism
-  that stopped v1b's oscillation, and the exact mechanism v1p.2b just proved is not sufficient
-  on its own).
+  ⛔ **STOPPED / refuted at step 2, 2026-08-16** — the offline oracle (`analysis/v1u_oracle.py`)
+  substituted the optimal matcher and played whole episodes out; **all three arms (A/B/C) miss both
+  pre-registered legs.** The routing prize is real (arm A +$4.709/ep, 23/24, `worker_turns_working`
+  +5,6%) but bought by underfeeding (escapes 3→11 past the ±5 floor); the buildable arm B is
+  escape-clean but only +$812 (`B/A` = 0,17); and **every arm leaves feed-round saturation at 100%
+  with `animals_underfed_days` rising** — a per-turn distance optimum aims freed turns at near crops
+  and defers the far feeds, so **④ moves the herd-13 blocker the wrong way.** The exact things this
+  bullet flagged as unresolved decided it: it optimises a single turn while the commute is a
+  cross-turn **tour** problem per-turn matching cannot solve (step 1 gap 2), and keeping urgency in
+  the cost is mandatory (dropping it reappears step 1's +$6.746 pure-distance mirage). Closes ④;
+  steps 3-8 not started. §3.3 STOP row + §7. Report: `baselines/2026-08-15/item4_step2_report.md`.
 - **⑤ `sw_hands_target` 12/14, gated on ③/④ actually moving `worker_turns_moving`,** not on
   v1p.2b (which did not pass, so this stays dormant). It STOPPED with idle rising 25,2%→31,8%
   under global assignment — smaller effective territories from a working matching fix are
@@ -1311,6 +1369,27 @@ else's tape.
   decoupled from urgency-distance"* stays last in line; and whatever ships has to earn its
   acceptance arm against `meta_route` (v1o.3 passed mirror at p=3,3e-6 and was worth nothing there).
   `pytest tests/` **268 → 275** (+7 `test_v1u_travel_ratio.py`). No `agent/` change, no submission.
+- **Deferred item ④ — the offline oracle: ⛔ STOP, item ④ refuted (item ④ step 2, 2026-08-16).**
+  `analysis/v1u_oracle.py` **substituted** the optimal matcher into the live agent (swap of
+  `agent.policy.assign`, opponent `checkpoints/v1u_base` untouched) and played whole episodes out —
+  SMOKE 0-11, both seats, basket, 24 eps/arm, all fresh on 1.32.7. Three arms (A whole-pool optimal /
+  B greedy + 2-opt / C feed-only re-match), pre-registered two-legged decision. **All three miss both
+  legs ⇒ STOP** (§3.3 row above). The finding is sharper than a bare "doesn't pay": the routing prize
+  is **real** — arm A banks **+$4.709/ep, 23/24 seeds**, `worker_turns_working` +5,6%, `crop_tile_days`
+  +8,4% (step 1's 4,30% regret converted to dollars) — but (1) **leg 1's trade is unavoidable**: A
+  reaches the dollars only by underfeeding (escapes **3→11**, past the ±5 floor), while the buildable
+  arm B keeps escapes clean (3→4) but earns just **+$812** (`B/A` = **0,17**, so no "steps 5-6
+  collapse"); and (2) **leg 2 moves the wrong way** — feed-round saturation stays **100%** and
+  `animals_underfed_days` **rises** on every arm, because a per-turn distance optimum aims freed turns
+  at *near* crops, away from the *far* feed round (the 96,3% forced-walk floor is largely the commute
+  to distant animals). **④ is refuted as the herd-13 unblock — measured, it is the opposite.** This
+  hits the same wall as S3 step 2 from the routing side; the §4.0 profile stands, reaching it with
+  *this* planner does not. Promotes the tape (§4.2) to the production route and closes ④ (steps 3-8
+  not started). ⚠️ Method note: arm A needed an urgent-sub-round inside each priority tier to stay off
+  step 1's pure-distance mirage (+$6.746 → −$954 on seed 0 when urgency is dropped) — any future
+  matcher must keep urgency/slack in the cost. `pytest tests/` **275 → 286** (+11
+  `test_v1u_oracle.py`). No `agent/` change, no submission. Report:
+  `baselines/2026-08-15/item4_step2_report.md`.
 
 - **S4 — first submission of this line made, 2026-08-11:** `55438252` (v1o.2), PENDING, full
   §6bis checklist green. It went in as the **challenger**, holding `55414570` (v1i) as champion

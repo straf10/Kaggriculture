@@ -9,6 +9,74 @@
 
 ---
 
+## 2026-08-16 — Session: **item ④ βήμα 2 — offline oracle· ⛔ STOP, το ④ refuted· και τα 3 arms αστοχούν και στα δύο pre-registered legs**
+
+**Εντολή:** εκτέλεση του `docs/plans/item4_step2_prompt.md` (item ④ βήμα 2). Καμία αλλαγή σε
+`agent/`/`main.py`/`submission.tar.gz`, καμία υποβολή — **μέτρηση ceiling**· ένα «⛔ STOP, refuted»
+είναι **επιτυχία** (και το brief το προέβλεπε ως πιθανό). Report:
+[baselines/2026-08-15/item4_step2_report.md](baselines/2026-08-15/item4_step2_report.md) (τοπικό).
+Data: `data/derived/v1u_oracle-2026-08-15.json`. Script:
+[analysis/v1u_oracle.py](analysis/v1u_oracle.py). `pytest tests/`: **275 → 286** (+11
+`test_v1u_oracle.py`, οι 3 προϋπάρχουσες `test_v1h2d_*` αποτυχίες αναμενόμενες).
+
+### §0 — setup
+
+- **Έχτισα `checkpoints/v1u_base`** από τον live agent (fingerprint `ddbd9a8f…`, targets 4C+6S, ramp
+  None, `feed_reserve_horizon="in_flight"` = shipped config) — κάθε προηγούμενο checkpoint είναι
+  1.32.6, cross-engine compare = το B1 σφάλμα του §4.2. Engine **1.32.7** επιβεβαιωμένο.
+- Ο oracle **αντικαθιστά** (όχι απλώς μετρά, όπως το step 1) το `agent.policy.assign` με slow legal
+  optimal matcher και **παίζει ολόκληρα episodes**· ο αντίπαλος (`v1u_base`, χωριστό package) δεν
+  δένει ποτέ το δικό μας `assign`. Και τα δύο seats (τα dollars διαφέρουν ανά seat μέσω occupancy
+  coupling — δεν είναι identical όπως τα καθαρά-routing regret vectors του step 1). Paired vs baseline
+  ανά (seed, seat). Feed saturation υπολογίζεται από το replay (δεν είναι στο `extract_metrics`).
+
+### §1 — τρία arms (A first, brief §3), και το mirage του step 1
+
+- **A — whole-pool optimal**: per priority tier, highest first (G-1 structural)· `committed` pinned
+  πριν το solve (G-2)· cargo (G-4)/`allowed_unit`/position-collapse (G-6)/seeds (G-5). **Κρίσιμο:**
+  μέσα σε κάθε tier λύνω πρώτα το urgent sub-round (slack ≤ margin) και μετά το comfortable — αλλιώς
+  αναβιώνει **το pure-distance mirage** που προειδοποιεί το step 1 (§1 finding 4). Μετρήθηκε ευθέως:
+  η pure-distance εκδοχή έδινε **+$6.746** στο seed 0 seat 0· με το urgent sub-round έπεσε σε
+  **−$954** — το +$7.700 swing είναι ακριβώς το unachievable saving («buys it by missing FEED
+  deadlines»).
+- **B — greedy + 2-opt**: strict-improvement swaps μόνο στα free (non-committed, non-`allowed_unit`)
+  ζεύγη. Χωρίς solver/dependency, constraint-safe by construction. Ο υποψήφιος «actual product».
+- **C — feed-round only**: greedy, μετά optimal re-match **μόνο** των FEED assignments (το
+  PICKUP-WHEAT είναι `allowed_unit`-restricted, δεν αναδιατάσσεται).
+- Determinism (G-3): cost matrix από sorted units / position-ordered nodes (κανένα set/dict order στο
+  decision path) + sub-integer tie-break που δεν μπορεί να αναποδογυρίσει ακέραιη απόσταση· asserted.
+
+### §2 — αποτελέσματα (24 eps/arm, SMOKE 0-11 × 2 seats, basket, vs v1u_base)
+
+| Arm | mean $/ep | wins | ctd | worker_working | escapes | underfed | sat d9 | leg1 | leg2 |
+|---|---:|---:|---:|---:|---:|---:|---:|:--:|:--:|
+| **A** | **+4.709** | 23-1 | +8,4% | +5,6% | 3 → **11** | +23,8% | 1,00 → **1,00** | ❌ | ❌ |
+| **B** | **+812** | 17-7 | +0,9% | +1,2% | 3 → 4 | +7,2% | 1,00 → **1,00** | ❌ | ❌ |
+| **C** | **−441** | 10-14 | −1,4% | +0,3% | 3 → 1 | +0,8% | 1,00 → **1,00** | ❌ | ❌ |
+
+**`B/A` = 0,17.** Structural (decay/clip): A 0/0, B 2/0, C 0/1 — αμελητέα.
+
+### §3 — απόφαση: ⛔ STOP, το ④ refuted
+
+- **Το routing prize είναι ΠΡΑΓΜΑΤΙΚΟ** (A: +$4.709/ep, 23/24, `worker_turns_working` +5,6%,
+  `crop_tile_days` +8,4% — το 4,30% regret του step 1 σε dollars). Αλλά:
+- **Leg 1 αστοχεί, και το trade είναι αναπόφευκτο.** Το A φτάνει τα dollars **μόνο** ταΐζοντας
+  λιγότερο (escapes 3→11, έξω από το ±5 floor — η v1o.3/G-8 crop-vs-animal ανταλλαγή ανάποδα). Το B,
+  αρκετά conservative ώστε να κρατά καθαρά τα escapes (3→4), βγάζει μόλις +$812 — κάτω από το $2.000.
+  **Κανένα arm δεν είναι ταυτόχρονα ≥ +$2.000 ΚΑΙ escape-clean.**
+- **Leg 2 αστοχεί, και πάει ΑΝΑΠΟΔΑ.** Saturation μένει **100%** από d9 σε όλα τα arms· τα
+  `animals_underfed_days` **ανεβαίνουν** (A +23,8%, B +7,2%) ή flat (C). Ένας per-turn distance
+  optimum ρίχνει τα ελευθερωμένα unit-turns σε **κοντινά** crops και αναβάλλει τα **μακρινά** feeds
+  (το 96,3% forced-walk floor του step 1 είναι κυρίως το commute προς μακρινά ζώα). **Το ④ ΔΕΝ είναι
+  το herd-13 unblock — μετρημένα, είναι το αντίθετο.**
+- Το §4.0 profile **δεν** αναιρείται (top-30 τρέχουν 13 κερδοφόρα)· αναιρείται μόνο το να το φτάσουμε
+  με **αυτόν** τον `assign()` planner + PASTURE geometry — ο ίδιος τοίχος με το S3 step 2, τώρα από τη
+  μεριά του routing. Προάγει το tape (§4.2) σε production route· κλείνει το ④, steps 3-8 δεν ξεκίνησαν.
+  Το optional `v1s_H2R`-under-oracle probe **δεν** τρέχει (precondition ήταν το leg 2 να καθαρίσει).
+- **Ενημερώθηκαν:** ROADMAP §3.3 (νέα STOP row) + §7· plan doc step 2 marked· αυτό το entry.
+
+---
+
 ## 2026-08-15 (γ) — Session: **item ④ βήμα 1 — travel-ratio (greedy-regret) diagnostic· ΔΕΝ STOP· regret 4,30% ⇒ proceed to ④ step 2 re-scoped στον feed round**
 
 **Εντολή:** εκτέλεση του pass brief `docs/plans/item4_step1_prompt.md` (item ④ βήμα 1). Καμία

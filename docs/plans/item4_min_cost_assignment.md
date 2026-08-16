@@ -1,6 +1,32 @@
 # Item ④ — min-cost assignment, built properly
 
-> **Status:** not started. Written 2026-08-15, after the S3 step 2 STOP.
+> # ⛔ CLOSED 2026-08-16 — item ④ is REFUTED. Do not implement steps 3-8.
+>
+> Step 2's oracle substituted the optimal matcher into the live agent and played it out. **Both
+> pre-registered legs missed on all three arms.** The routing prize is *real* — arm A banked
+> **+$4.709/ep, 23-1 seeds**, `crop_tile_days` +8,4%, `worker_turns_working` +5,6% — but:
+>
+> 1. **Leg 2 missed in the wrong direction.** Feed-round saturation stayed at **100%** from d9 on
+>    every arm and `animals_underfed_days` **rose** (A +23,8%). A per-turn distance optimum aims
+>    freed turns at *near* crops and defers *far* feeds. **④ is not the herd-13 unblock; it is the
+>    opposite.** That was ④'s entire strategic rationale.
+> 2. **The buildable arm is worth ~3 rating points.** `B/A` = **0,17** (+$812/ep). At the measured
+>    ~$253/ep per rating point, even the unbuildable ceiling is **~+19 points against a ~2.567-point
+>    gap** — 0,7%, for six more passes.
+>
+> 🔴 **Leg 1's escape clause was mis-specified** and is corrected in ROADMAP §3.3: arm A **passes**
+> the repo's real priced gate ($333,3/ep vs a $470,9 budget). The STOP stands on (1) and (2), not on
+> escapes. Do not carry forward "routing breaks the feed round" — it does not; it fails to help it.
+>
+> **Arm A is shelved, not deleted** (`analysis/v1u_oracle.py`): if the tape route kills, +$4.709/ep
+> at the ceiling is the best standalone increment ever measured here and worth reconsidering then.
+> The one untested control — **arm A + v1o.3's inert mechanism E** — is named in ROADMAP §3.4 and
+> deliberately not scheduled.
+>
+> Report: `baselines/2026-08-15/item4_step2_report.md`. Everything below is the plan as written,
+> kept for the record.
+
+> **Status:** ⛔ closed. Steps 1-2 ran; 3-8 never started. Written 2026-08-15, after the S3 step 2 STOP.
 > **Owner doc:** [ROADMAP.md](../../ROADMAP.md) §4.3 (deferred items ③/④). This file is the
 > implementation plan; ROADMAP stays the record of decisions and results.
 > **Engine:** `kaggle-environments==1.32.7` (D28). Nothing in this item touches the market, so
@@ -144,7 +170,43 @@ increment.
 
 ---
 
-### Step 2 — the offline oracle *(no `agent/` change)* — **revised 2026-08-15 after step 1**
+### Step 2 — the offline oracle *(no `agent/` change)* — ⛔ **RUN 2026-08-16: STOP, item ④ refuted**
+
+> **Result: both pre-registered legs miss on all three arms ⇒ STOP.** SMOKE 0-11, both seats,
+> basket, vs `checkpoints/v1u_base` (built on 1.32.7), 24 eps/arm. Report:
+> `baselines/2026-08-15/item4_step2_report.md`. Script:
+> [analysis/v1u_oracle.py](../../analysis/v1u_oracle.py). Data:
+> `data/derived/v1u_oracle-2026-08-15.json`.
+>
+> | Arm | mean $/ep | crop_tile_days | escapes | underfed-days | sat. d9 | leg 1 | leg 2 |
+> |---|---:|---:|---:|---:|---:|:--:|:--:|
+> | **A** whole-pool optimal | **+4.709** (23-1) | +8,4% | 3 → **11** | +23,8% | 1,00 → **1,00** | ❌ | ❌ |
+> | **B** greedy + 2-opt | **+812** | +0,9% | 3 → 4 | +7,2% | 1,00 → **1,00** | ❌ | ❌ |
+> | **C** feed-round only | **−441** | −1,4% | 3 → 1 | +0,8% | 1,00 → **1,00** | ❌ | ❌ |
+>
+> **`B/A` = 0,17** — the buildable arm recovers only 17% of the ceiling, so the hoped-for
+> "steps 5-6 collapse" does **not** trigger (moot; the item STOPs). The routing prize is **real**
+> (arm A: `worker_turns_working` +5,6%, `crop_tile_days` +8,4%, +$4.709/ep winning 23/24 — step 1's
+> 4,30% regret, now in dollars). But:
+> 1. **Leg 1 misses, and the trade is unavoidable.** A hits the dollars but only by underfeeding —
+>    escapes **3 → 11**, outside the ±5 floor. B keeps escapes clean (3 → 4) but earns just +$812,
+>    under the $2.000 bar. No arm is both ≥ +$2.000 **and** escape-clean.
+> 2. **Leg 2 misses, and moves the WRONG way.** Feed-round saturation stays **100%** from d9 on all
+>    three arms; `animals_underfed_days` **rises** (A +23,8%, B +7,2%) or is flat (C). The per-turn
+>    optimum pours freed turns into *near* crops and defers the *far* feeds (the 96,3% forced-walk
+>    floor is largely the commute to distant animals). **④ is not the herd-13 unblock — it is the
+>    opposite.**
+>
+> So the commute is a geometric floor, the residual is real but too thin and mis-aimed to pay, herd
+> 13 stays blocked on feed logistics, and reaching the §4.0 profile with **this** planner is
+> refuted — which promotes the tape (§4.2) to the production route and closes ④. The §4.2 optional
+> `v1s_H2R`-under-oracle probe was **not** run: its precondition was leg 2 clearing, which missed.
+> ⚠️ **Faithfulness note carried forward:** arm A had to add an urgent-sub-round *inside* each
+> priority tier to stay off step 1's pure-distance mirage — without it the same seed-0 episode read
+> +$6.746 (vs −$954 with it), the exact +$7.700 unachievable saving step 1 warned reappears if
+> urgency/slack is dropped from the cost. Any future matcher **must** keep urgency in the cost.
+
+### Step 2 — as originally specified *(kept for the record)*
 
 Run the real harness with a *slow but optimal* `assign()` (scipy, no time budget) over SMOKE 0-11,
 both seats, `--town-pin basket`, against a `v1u_base` checkpoint **built on 1.32.7**. Too slow to
@@ -349,13 +411,8 @@ one per pass, each against the new baseline and not against the old one:
 | Step | Touches `agent/` | Ends in | Can kill the item |
 |---|---|---|---|
 | 1 — travel-ratio diagnostic ✅ **DONE** | no | **4,30% regret, 0,963 floor ⇒ PROCEED, feed-round re-scope** | ✅ (<3%) — did not fire |
-| 2 — offline oracle (arms A/B/C) | no | $/ep ceiling **and** feed-round relief | ✅ (both legs miss) |
-| 3 — cost model extracted | yes, inert | byte-inert proof | — |
-| 4 — scalar cost | yes, inert | byte-inert + order property test | — |
-| 5 — matching behind a flag | yes, inert when off | mechanism, no measurement | — |
-| 6 — performance | yes | p99 latency in budget | ✅ (cannot fit) |
-| 7 — screen | yes, on | pre-registered 5 criteria | ✅ (any of 1-4) |
-| 8 — acceptance + retries | yes, on | checkpoint, then herd 13 / crew / v1k | — |
+| 2 — offline oracle (arms A/B/C) ⛔ **DONE, STOP** | no | **both legs miss (A +$4.709 but esc 3→11; B +$812; sat 100% all arms) ⇒ ④ refuted** | ✅ (both legs miss) — **fired** |
+| ~~3-8~~ — **not started; item ④ closed at step 2** | — | — | — |
 
 ---
 
@@ -364,14 +421,16 @@ one per pass, each against the new baseline and not against the old one:
 Written now, while it is cheap to be honest:
 
 - ~~step 1 regret < 3%~~ — **did not fire: 4,30%**, in the 3-8% "proceed but small" band;
-- step 2: **both** legs miss (< +$2.000/ep standalone **and** no measurable feed-round relief).
-  On step 1's arithmetic the standalone leg is the more likely of the two to miss — the naive
-  ceiling is ≈+$2.100/ep before implementation loss — so **leg 2, the herd-13 unblock, is where this
-  item actually lives or dies**;
-- step 6 cannot fit the turn budget at realistic n even with tiering and a candidate cap;
-- **or** the tape (§6) ships and holds above ~2.800, at which point our own planner's production
-  ceiling stops being the thing that decides the season, and ④ drops from "the blocker" to "the
-  hedge against tape decay."
+- ~~step 2: **both** legs miss~~ — ✅ **FIRED, 2026-08-16.** Leg 2 was correctly the one it died on,
+  but not the way anticipated: the standalone leg *reached* its dollars at the whole-pool ceiling
+  (arm A +$4.709/ep, above the +$2.000 bar) yet still failed leg 1 because it bought them by
+  underfeeding (escapes 3→11); the buildable arm B kept escapes clean but earned only +$812. And leg
+  2 didn't merely fail to clear — the oracle moved the feed round the **wrong way** (saturation stays
+  100%, underfed +7-24%), because a per-turn distance optimum aims freed turns at *near* crops, away
+  from the *far* feed round. **④ is refuted as the herd-13 unblock;** the item is closed at step 2,
+  steps 3-8 not started;
+- ~~step 6 cannot fit the turn budget~~ — moot; the item stopped at step 2, before any `agent/` code;
+- **the tape (§6)** is now the production route by the same conclusion, not merely a hedge.
 
 ---
 
