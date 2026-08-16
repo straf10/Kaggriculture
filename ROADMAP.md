@@ -1221,6 +1221,16 @@ max 12,6ms ⇒ `max×3 < 1s` · G13 determinism (identical action-stream sha256 
 `PYTHONHASHSEED` values) · mirror smoke `clean=True` · `pytest` 229 · `KAGGRI_DEBUG` off ·
 53 KB. **4 submissions remaining that day.**
 
+🟢 **T1 tape shipped as challenger, 2026-08-16.** Submission **`55548339`** — an open-loop verbatim
+replay of public episode **91456307 seat 0 (Valmorlee)**, action-stream sha256
+`49c4c3d7e6842b43…`, 719 steps, self-contained `main.py` (no `agent/` dep), route held gitignored
+under `baselines/2026-08-16/tape_submissions/` (§2.4b). The active pair is now **`55548339` (T1
+tape) + `55438252` (v1o.2)** — maximally differentiated in production (tape home bank $117.931 vs
+v1o.2's ~$60k). `55414570` (v1i) drops inactive. Pre-upload checklist all green: G12 · timing
+1,2ms · G13 (identical bank under two `PYTHONHASHSEED`) · mirror `clean=True` · `pytest` 286
+(3 expected `test_v1h2d_*`) · 9 KB. **4 submissions remaining that day.** Full record:
+`baselines/2026-08-15/t1_repair_justification.md`.
+
 ---
 
 ## 7. Where this stands
@@ -1396,6 +1406,19 @@ else's tape.
   until the ladder rules on it — the reading recorded here before the run, now executed. The
   differentiation debt in §6bis is cleared: the pair now differs in production, not in
   market-order ordering.
+- **T1 — tape shipped as challenger, 2026-08-16:** `55548339`, verbatim replay of public ep
+  91456307 seat 0 (Valmorlee), gate 48-0 vs `meta_route` both seats, unpinned holdout median
+  $128k IMPROVED, ≫ the $57.360 floor. **The premised WEED repair was refuted, not built:** a new
+  farmer/hands no-op scan (`analysis/s2_farmer_noop_scan.py`) measured the donor farm as
+  **byte-identical against every opponent** (0 weed/hand collisions — positions are
+  opponent-invariant, a dense tape leaves no empty tile for weeds), the end shed is **empty** (no
+  unsold sweep), and the entire 7-37% degradation is **realised price** (STRAWBERRY −61% vs a
+  competing seller) = the S3-step-3 market overlay, out of scope. So the smallest thing the failure
+  map justified was the raw tape. Formal `GO=True` is structurally unreachable for a receipt-less
+  tape (its metric gate needs `agent/` mechanism accounting; the *differenced* priced loss is 0,0/ep
+  and the tape's absolute priced loss is *below* the bench's). Active pair now **`55548339` (tape) +
+  `55438252` (v1o.2)**; `55414570` drops inactive. Route + submission gitignored (§2.4b). Full
+  record: `baselines/2026-08-15/t1_repair_justification.md`.
 
 **The next ladder read is an L-series diagnostic on `55438252` once it has episodes**, done
 exactly as L1/L2 were (§3.2). It is the only thing that can tell us whether +$5k/ep of local

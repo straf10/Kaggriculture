@@ -1,0 +1,242 @@
+[
+ {
+  "episode": "93138341",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 798,
+  "votes": {
+   "old": 798,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 166,
+   "TOMATO": 282,
+   "EGG": 228
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93138453",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 802,
+  "votes": {
+   "old": 802,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 342,
+   "TOMATO": 300,
+   "EGG": 192
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93138454",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 659,
+  "votes": {
+   "old": 659,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 105,
+   "TOMATO": 120,
+   "EGG": 210
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93138463",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 782,
+  "votes": {
+   "old": 782,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 555,
+   "TOMATO": 282,
+   "EGG": 228
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93139330",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 789,
+  "votes": {
+   "old": 789,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 149,
+   "TOMATO": 210,
+   "EGG": 426
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93139421",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 798,
+  "votes": {
+   "old": 798,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 159,
+   "TOMATO": 300,
+   "EGG": 228
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93140280",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 810,
+  "votes": {
+   "old": 810,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 113,
+   "TOMATO": 30,
+   "EGG": 444
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93140346",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 854,
+  "votes": {
+   "old": 854,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 160,
+   "TOMATO": 336,
+   "EGG": 174
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93140347",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 873,
+  "votes": {
+   "old": 873,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 213,
+   "TOMATO": 282,
+   "EGG": 444
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ },
+ {
+  "episode": "93141389",
+  "verdict": "1.32.6",
+  "town_center_sell_interval": 24,
+  "below_i0_samples": 2157,
+  "informative_samples": 802,
+  "votes": {
+   "old": 802,
+   "new": 0
+  },
+  "deepest_depletion": {
+   "CARROT": 195,
+   "TOMATO": 318,
+   "EGG": 210
+  },
+  "first_witness": [
+   1,
+   "CARROT",
+   1,
+   36,
+   36,
+   35
+  ]
+ }
+]

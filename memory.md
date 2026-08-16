@@ -9,6 +9,61 @@
 
 ---
 
+## 2026-08-16 — Session: **T1 — η μετρημένη tape διαδρομή· 🟢 SHIPPED ως challenger (`55548339`, Valmorlee)· το repair layer REFUTED από τη μέτρηση, δεν χτίστηκε**
+
+**Εντολή:** εκτέλεση του `docs/plans/` T1 pass brief — ship το tape agent ως challenger (εντολή
+χρήστη: *"the measured path where we copy the tape and if we win we will figure it out"*). Champion
+= v1o.2 (`55438252`). Πλήρες record: [baselines/2026-08-15/t1_repair_justification.md](baselines/2026-08-15/t1_repair_justification.md) (τοπικό).
+
+### Step 0 — donors re-verified σε **1.32.7** ✅
+
+- Οι 3 donor replays (90891564/91456307/90999409) **δεν υπήρχαν** (baselines/ gitignored, fresh
+  clone) — re-fetched από το public CDN μέσω `b0_fetch_top_replays.py`. S1.2 exact-replay fidelity:
+  **0,0000% error, 3/3, clean=True** στο 1.32.7. S2 failure map αναπαράχθηκε: **0/18 κάτω από το
+  $57.360 floor**, worst $57.673 — ίδιο με 08-11.
+- 🔴 **Το live ladder είναι ΑΚΟΜΑ 1.32.6** (v1t probe στο νέο 08-15 dataset, 10/10). Το bump έχει
+  βγει μόνο στο local pip. Τα tapes αναπαράγονται byte-identical και στις δύο μηχανές ⇒ engine-invariant.
+
+### Το repair layer — **REFUTED, δεν χτίστηκε** (η κρίσιμη εύρεση)
+
+Το brief περίμενε light WEED repair (DIG→retry). Δύο νέα diagnostics το ακύρωσαν:
+- **`analysis/s2_farmer_noop_scan.py`**: **0 farmer/hands no-ops** σε κάθε αντίπαλο (PLANT 174-200
+  land, WATER 920-1019, HARVEST 354-399, όλα clean). Οι θέσεις είναι opponent-invariant (τα MOVES
+  δεν μπλοκάρονται από weeds, l.326), και ένα dense tape δεν αφήνει empty tile για weed. **Η φάρμα
+  τρέχει byte-identical.**
+- **End shed = άδειο** σε κάθε matchup ⇒ κανένα unsold inventory για sweep.
+- Η πτώση 7-37% είναι **καθαρά realised price** (STRAWBERRY $119,6→$46,1 = −61% vs competing
+  seller) = το §4.1 thesis = το **S3 step 3 market overlay** (out of scope, αγγίζει `agent/`).
+
+⇒ Το μικρότερο πράγμα που δικαιολογεί το failure map = **κανένα repair**. Ship το raw tape.
+
+### Artifact + gate
+
+- `analysis/build_tape_submission.py` παράγει self-contained `main.py` (stream embedded, `agent`
+  last callable, no `agent/` dep), provenance (eid/seat/team/sha256) σε docstring + `provenance.json`
+  + `manifest.json`, output κάτω από **gitignored** `baselines/<date>/tape_submissions/` (αρνείται να
+  γράψει σε git-tracked path). Και τα 3 packaged main.py αναπαράγουν το recorded bank στο **0,0000%**.
+- **Επιλογή χρήστη:** Valmorlee (91456307) — πιο robust (worst $92.7k, tightest band). Champion v1o.2.
+- Gate vs non-mirror `meta_route`: SMOKE 24-0, DEV acceptance **48-0 med $119.8k**, unpinned holdout
+  **48-0 med $128k IMPROVED**, όλα ≫ floor. Kill clause αρνητικό.
+- **Formal `GO=True` δομικά ανέφικτο** για receipt-less tape (metric gate θέλει `agent/` mechanism
+  accounting· `unexplained_metrics` άλυτο για code-less trajectory). Αλλά differenced priced_loss=0,0
+  και το absolute priced loss του tape ($1.517/ep) < του bench ($2.429/ep).
+- Pre-upload όλα green: G12 · timing 1,2ms · G13 (ίδιο bank σε δύο PYTHONHASHSEED) · mirror clean ·
+  9 KB · `pytest` **286** (3 expected `test_v1h2d_*`).
+
+### Ship
+
+**`55548339` υποβλήθηκε (PENDING), με έγκριση χρήστη.** Active pair = **`55548339` (tape) + `55438252`
+(v1o.2)**· το `55414570` (v1i) βγαίνει inactive. 4 submissions remaining today. Route+submission
+gitignored (§2.4b επιβεβαιωμένο). ROADMAP §6bis + §7 + §4.3 ενημερώθηκαν.
+
+**Next:** L-series ladder read στο `55548339` μόλις πάρει episodes — μετράει αν το $118k home
+production μεταφέρεται στο live field, ή αν το realised-price collapse (§4.4#1 tape decay, το μόνο
+measured weakness) το κόβει. Το market overlay (S3 step 3) είναι ο hedge αν ναι.
+
+---
+
 ## 2026-08-16 — Session: **item ④ βήμα 2 — offline oracle· ⛔ STOP, το ④ refuted· και τα 3 arms αστοχούν και στα δύο pre-registered legs**
 
 **Εντολή:** εκτέλεση του `docs/plans/item4_step2_prompt.md` (item ④ βήμα 2). Καμία αλλαγή σε
