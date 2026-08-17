@@ -18,9 +18,27 @@ overflow.
 **Kill (iii) is open and its instrument was mis-specified** — it was written in wall-clock ("~1 day")
 and a rating is a function of **episodes played**. Do not resolve it against today's numbers.
 
+## 0. Sequencing — start with the parts that need no new episodes
+
+`55586926` is accumulating episodes at **~20/hour** (7 at 22:51 → 15 at 23:15 UTC), so the two
+ladder-dependent readings below mature on their own within a few hours. **Do not idle waiting for them.**
+
+| work | needs | when |
+|---|---|---|
+| **§3 Phase 0 bound** (the gate that decides the pass) | nothing — recorded replays + the route's own stream | **now** |
+| **R33 round-robin BT** | local compute | **now** |
+| `plant_decay` decomposition by product | the gate replays already on disk | **now** |
+| §1(a) live-episode L1/L2 diagnostic | **≥~30** of our own episodes (§3.2's L2 used 34) | ~1h |
+| Kill (iii) comparison | **≥72** episodes (Ueddy's count) | ~3h |
+
+Poll `kaggle competitions submissions -v` + `episodes <id> -v` as you go and log the pairs. **2a's
+mechanism is route-independent** — the incumbent tape carries the same losses (14,9 decay / 5,5 weeds) —
+so nothing in this pass is invalidated by whatever kill (iii) returns. That is why it is safe to start
+before it resolves.
+
 ## 1. Real losses — measure them, do not assume them
 
-Two sources, in this order. Both are cheap and neither needs a new gate.
+Two sources. Both are cheap and neither needs a new gate.
 
 **(a) Our own live episodes.** `55586926` is playing public episodes right now, in real towns, against
 a rating-sorted opponent pool, on both seats. Pull them (`kaggle competitions episodes` →
