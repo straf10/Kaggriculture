@@ -45,13 +45,19 @@ overlay είναι unconditionally cash-safe (η παραγωγή έμεινε b
 του είναι load-bearing για το shed). `agent/tape_overlay.py` inert (δεν το κάνει import το `main.py`),
 καμία αλλαγή σε `agent/`, κανένα submission. `analysis/t2_{kill_gate,floor_probe,bank_leak,augment_test}.py`.
 
-### Δεύτερο donor (φθηνό task του brief) — χτίστηκε, pending approval
+### Δεύτερο donor (φθηνό task του brief) — 🟢 SHIPPED **Ueddy (`55575305`)**
 
 Χτίστηκα τα tape artifacts για **Ueddy (90999409, home $119k)** και **Kaito (90891564, home $84k)** ως
 το άλλο μισό του pair (αντικαθιστά τον αδύναμο v1o.2 643,9). Gitignored `baselines/2026-08-17/`.
-Σύσταση: **Ueddy** (καλύτερο worst-case ανά T1 robustness: $75k vs Kaito $57,6k). **Upload = απόφαση
-χρήστη** (standing conditions §4.2: provenance στο description, route gitignored, §3.14a/§2.5 με Sponsor
-αν top-10). `pytest tests/`: 286 passed (+3 pre-existing `test_v1h2d_*` fails, unchanged).
+Ueddy **holdout-confirm** (seeds 100-147, both seats, unpinned, vs meta_route): clean, **median
+$124.056, 96-0, 0 seats < $57.360 floor** — ίδια αυστηρότητα με το Valmorlee στο T1. **Shipped ως
+`55575305`** (2026-08-17 09:24 UTC, PENDING από 600,1· auth από `KAGGLE_API_TOKEN` στο gitignored
+`.env`). Provenance (episode/seat/team/sha256) στο submission description (§4.2). `pytest tests/`:
+286 passed (+3 pre-existing `test_v1h2d_*` fails, unchanged).
+
+**🔴 Ladder update:** το T1 Valmorlee tape (`55548339`) ανέβηκε **1.091 → 1.617,6** publicScore από
+τις 08-16 (συνέχισε να συγκλίνει). Το v1o.2 (`55438252`) στο 647,5. Το pair είναι πλέον δύο tapes
+(Valmorlee 1617,6 + Ueddy pending) + v1o.2.
 
 ---
 
