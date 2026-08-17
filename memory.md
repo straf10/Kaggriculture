@@ -9,6 +9,164 @@
 
 ---
 
+## 2026-08-17 β — Session: **v1v — episodes update· 🔴 το §4.1 price spread είναι η ΠΟΛΗ, όχι ο agent· S5 αποσύρεται, ανοίγει το S6**
+
+**Εντολή:** update episodes → ανάλυση των δύο notebooks που μπήκαν στο repo root → νέο plan κάτω
+από τον loop (real losses → ένας μηχανισμός → challengers → πολλές ομάδες & και τα δύο seats →
+απόρριψη των περισσότερων → freeze → test σε later episodes), με ρητή απαίτηση να **κρατάμε
+representative strategies από παλιότερα stages**. Report:
+[baselines/2026-08-17/v1v_shop_demand_report.md](baselines/2026-08-17/v1v_shop_demand_report.md).
+
+### 1. Episodes + ladder read (09:41 UTC)
+
+- **Rank 1247 / 4887** — από 1719/4690 χθες και 2736/4555 προχθές: **+1.489 θέσεις σε δύο μέρες**.
+- `55548339` Valmorlee tape **1.617,6** (converged) · `55575305` Ueddy tape **1.027,8** (7 public
+  episodes, ξεκίνησε από 600,1, ακόμα συγκλίνει) · `55438252` v1o.2 647,5 **inactive** πλέον.
+- Κατέβηκε το επίσημο `kaggle/kaggriculture-episodes-2026-08-16` (700 episodes, ~20 GB unzipped,
+  gitignored στο `data/archive/raw/2026-08-16/`).
+- 🔴 **Η μηχανή 1.32.7 ΕΙΝΑΙ LIVE.** `analysis/v1t_engine_probe.py`: **61/61** episodes 1.32.7,
+  witness σε κάθε ένα στο step 1 (CARROT depletion 1 → $35, το 1.32.6 λέει $36). Στο dataset της
+  08-14 ήταν 28/28 = 1.32.6 ⇒ το rollout έγινε μεταξύ 08-14 και 08-16. Κλείνει το ⚠️ row του §1·
+  κάθε dollar figure κάτω από το `checkpoints/v1u_base` είναι πλέον engine-stale.
+
+### 2. Το εύρημα — `analysis/v1v_shop_demand.py` (150 episodes / 300 seats, 1.32.7)
+
+Το §4.1 μετρούσε 2,75× / 3,70× / 3,49× spread σε realised STRAWBERRY / WOOL / MILK $/unit πάνω σε
+εννιά ομάδες και το διάβαζε ως *"three-product timing race"*. **Δεν είχε ποτέ control για την πόλη.**
+Τα shops τραβιούνται **with replacement** (8 instances, ένα κάθε 3 μέρες) και κάθε instance τρώει
+`multiplier` units/4 steps — **2 για single-product shops**. Αυτό είναι ο **παρονομαστής** της
+realised τιμής και ξανα-τραβιέται κάθε επεισόδιο.
+
+| product | median $/u | p10→p90 | **between towns** | within town |
+|---|---:|---:|---:|---:|
+| STRAWBERRY | 113,7 | 44→208 (4,76×) | **99%** | 1% |
+| WOOL | 114,9 | 43→239 (5,55×) | **100%** | 0% |
+| MILK | 58,2 | 24→211 (8,70×) | **100%** | 0% |
+| **MELON** | 130,5 | 125→200 (1,59×) | 35% | **65%** |
+
+Monotone dose-response: **STRAWBERRY 13→236 (18×)** για drain 0→7 units/tick, MILK 14×, WOOL 5,3×.
+**51/150 πόλεις (34,0%) δεν τράβηξαν ποτέ YARN_STORE** — ακριβώς το προβλεπόμενο (7/8)^8 = 34,4%.
+⇒ το $105,1 του Hak έναντι $38,2 του Valmorlee είναι δήλωση για τις **πόλεις** τους.
+
+**Τι κάνει πραγματικά η κορυφή:** και τα δύο seats πουλάνε **το ίδιο καλάθι στον ίδιο όγκο (±1%)
+σε 150/150 επεισόδια** (STRAWBERRY 254 vs 253, WOOL 120 vs 120, MILK 273 vs 272, WHEAT 599 vs 598).
+Είναι **mirror match**. Όλο το edge του νικητή είναι **1,04-1,06× realised price**, median bank gap
+**$2.826**. Median premium revenue $71.924/seat ⇒ **+1% = +$719/ep**, **+5% (όσο έχουν ήδη οι
+νικητές) = +$3.596/ep**, και **+$3.000 φτάνει το 52,7%** των επεισοδίων που χάνουμε.
+
+`pytest tests/` **286 → 293** (+7 `test_v1v_shop_demand.py`). Δύο engine indexing facts καρφώθηκαν
+εκεί, και τα δύο μου κόστισαν λάθος πρώτο draft: το `_town_consume` παίρνει το **pre-increment**
+step (το drain που φαίνεται στο `obs.step == N` υπολογίστηκε στο `N−1`), και το interpreter step 0
+ικανοποιεί **και** τα δύο intervals (shop + town centre) ⇒ το πρώτο tick της σεζόν έχει ένα έξτρα
+unit σε κάθε non-FERTILIZER προϊόν. Καμία αλλαγή σε `agent/`, κανένα submission.
+
+### 3. Τα δύο notebooks (markdown/tables μόνο — §2 item 8 τηρήθηκε)
+
+Και τα δύο έχουν base85+zlib `main.py` blob· **κανένα δεν ανοίχτηκε, αποσυμπιέστηκε ή εκτελέστηκε.**
+
+- **`kaggriculture-rank-your-agent`** — Bradley-Terry harness πάνω σε published **reference-agents**
+  dataset. Κατέβηκαν **μόνο** `LICENSE`/`NOTICE`/`*.csv` (statistics)· **κανένα `.py`**. Tiers 0-5:
+  authored, byte-identical scheduler, μόνο ένα `POLICY` dict διαφέρει, **MIT + original work του
+  συγγραφέα** ⇒ **κλείνει το R4** και δίνει το earlier-generation bench που ζητούσε το §2. Tiers
+  6-9: **ίδιο** meta field plan, διαφέρουν **μόνο** στο market layer, και χωρίζονται κατά
+  **$164-$2.617/ep** — δηλαδή τιμολόγηση του S6 target. Το lesson του **Closer Cleo** είναι
+  κυριολεκτικά το δικό μας T2 STOP με τη λύση κολλημένη πάνω του (*"sells fund the buys that follow
+  them in the same queue"*). ⚠️ Το `NOTICE` λέει ρητά ότι για τα tiers 6-9 το base85 `_TRACE` field
+  plan **δεν** καλύπτεται από το MIT ⇒ **R23, απόφαση του χρήστη**.
+- **`kaggriculture-3000-socre`** (V16-RC5) — reconstruction μιας πολιτικής με **majority vote πάνω
+  σε τρία traces του ίδιου submission** (~99,91% συμφωνία στα market decisions) + drift/obstruction
+  recovery: το φυσικό upgrade από verbatim tape σε route που μπορούμε να πειράξουμε. Το premium-lead
+  layer του κερδίζει το δικό του production core **60-0-0, +$1.911,9/ep, worst margin +$68** — ίδιο
+  design με το "augment" mode που το T2 βρήκε **no-op πάνω σε tape** ⇒ το T2 STOP ήταν
+  **donor-specific**, όχι ιδιότητα του lever. ⚠️ Census 8C+4S (εδώ) vs 8C+5S (reference meta line)
+  vs 9C+4S (δικό μας §4.0, 120 seats) ⇒ το herd row γίνεται **8-9 COW / 4-5 SHEEP**.
+
+### 4. Τι άλλαξε στο ROADMAP
+
+**§1** ladder + engine 1.32.7 live · **§2** ο loop απέκτησε δόντια (standing bench: tiers 0-5 +
+δικά μας frozen checkpoints + `meta_route` + τα δύο earlier-meta notebooks· record ανά αντίπαλο,
+όχι pooled) + το framing του χρήστη (*"where does this agent lose, and what experiment could
+disprove the proposed improvement?"*) · **§3.1** superseded στο version · **§3.3** το T2 row πήρε
+ευρύτερο *λόγο*, ίδιο verdict · **§3.4** νέο standing lesson (cross-entity comparison χωρίς
+shared-environment control) · **§4.1** μισό refuted → **νέο §4.1b** · **νέο §4.5** (τι είναι καλό
+για τι από κάθε notebook) · **§4.3 S5 ⛔ withdrawn → S6** (steps 0-4) · **§6** R4 ✅ + νέα
+**R21-R24** · **§7** + Appendix A.
+
+### 5. R22 — τοπικό Bradley-Terry ladder, χτισμένο και δοκιμασμένο
+
+`harness/ladder.py` + `python -m harness.cli ladder`, 11 guards (`tests/test_ladder.py`).
+MM fit (Hunter 2004) με half-phantom-win prior (ένας graded bench *σχεδιάζεται* να έχει αντιπάλους
+που σαρώνουμε 100%), σε Elo-like κλίμακα (400 πόντοι ανά 10× strength, mean 1500). **Και τα δύο
+seats σε κάθε pairing, με ξεχωριστό per-seat split** (§2.1.1). `--round-robin` παίζει και τον
+bench με τον εαυτό του ⇒ συνδεδεμένο comparison graph· χωρίς αυτό το printout **το λέει** αντί να
+παρουσιάζει weakly-identified ratings σαν έγκυρα. `--shop-draw` κλείνει το R21 στην ίδια εντολή.
+
+**Δύο runs, και τα δύο απέδωσαν αμέσως:**
+
+1. **Round-robin πάνω στη δική μας γενεαλογία** (seeds 0-1) αναπαράγει την ιστορία ανάπτυξής μας
+   ως καθαρή μονότονη σκάλα — `pass` 444 → `starter` 937 → v1e 1325 → v1h 1675 → v1i 2063 →
+   live `main.py` 2556. **Το v1h έχει μεγαλύτερο mean margin ($28.749) και μικρότερο BT (1675)
+   από το v1i ($28.714 / 2063)** — ακριβώς η διάκριση για την οποία φτιάχτηκε το εργαλείο, πάνω σε
+   πραγματικά δικά μας δεδομένα.
+2. 🔴 **Και εντοπίζει το puzzle του §1 αντί να το λύνει.** Τοπικά v1i > v1h· στο πραγματικό ladder
+   **v1h 652,5 και v1i 593,8** — αντίστροφη σειρά (διαβασμένα μια μέρα απόσταση, άρα ισχύει το
+   decay caveat του §1: ενδεικτικό, όχι αποδεικτικό). Αφού το BT fit είναι πλέον καρφωμένο με
+   tests, ο ύποπτος που μένει είναι αυτός που ονομάζει το S6 step 2: **ο πληθυσμός αντιπάλων**.
+   Ισχυρότερη ένδειξη μέχρι τώρα ότι λάθος ήταν το bench, όχι η μετρική.
+3. ⚠️ **Το R21 χτύπησε στο πρώτο κιόλας run:** στα seeds 0-3 (56 επεισόδια) το WOOL είχε
+   **zero-drain σε 27/56 (48%)** έναντι 34% του πληθυσμού. Ένα small-seed screen σε αυτά τα seeds
+   είναι σοβαρά μεροληπτικό προς wool-dead πόλεις.
+
+`pytest tests/` **293 → 304** (+11).
+
+### 6. Notebooks: extracted → deleted, τίποτα δεν μπήκε στο git
+
+Και τα δύο βγήκαν με `analysis/nb_extract.py --no-code` στο
+[docs/source/notebooks/](docs/source/notebooks) — **μόνο prose/tables/outputs, τα code cells
+εξαιρούνται εξ ορισμού**, άρα κανένα extract δεν μπορεί να περιέχει το base85+zlib payload
+(επαληθεύτηκε: 0 matches στους blob markers). Τα `.ipynb` **διαγράφηκαν και δεν έγιναν ποτέ
+commit** — δημόσιο repo (§2.4b). Τίποτα δεν αποσυμπιέστηκε ή εκτελέστηκε (§2 item 8). Από το
+reference-agents dataset κατέβηκαν μόνο `LICENSE`/`NOTICE`/`*.csv` σε scratch **εκτός** repo,
+**κανένα `.py`**· τα CSV είναι **CC BY-SA 4.0** (copyleft) ⇒ **δεν vendor-άρονται** — κάθε engine
+νούμερο που χρησιμοποιούμε βγαίνει από το `engine_reference/` και είναι καρφωμένο σε tests.
+Μόνη διαφωνία engine reading: το checklist τους «ανακαλύπτει» ότι το `CARE` δίνει +1 και όχι +2 —
+είναι το **D1** μας, tested από την πρώτη engine pass.
+
+### 7. Αποφάσεις χρήστη + slot mechanics (μετρημένα)
+
+**Bench: A1 + A2, skip A3** (R23 ✅). A1 = tiers 0-5 του reference ladder (MIT, original work,
+graded $3k→$46k, byte-identical scheduler) ως regression opponents· A2 = **τα δικά μας τρία
+extracted donor tapes** (Valmorlee/Ueddy/Kaito) ως fixed-production mirror bench — καμία νέα άδεια,
+τα έχουμε ήδη, και κρατούν την παραγωγή σταθερή εξ ορισμού ⇒ το καθαρότερο δυνατό A/B για αλλαγή
+market layer. A3 (tiers 6-9) **παραλείπεται** — το uncovered `_TRACE` τους αποφεύγεται. Νέα R25/R26.
+
+🔴 **Slot policy: η προκείμενη «ένα converged submission δεν χρειάζεται να ζει, μετράει ούτως ή
+άλλως» είναι ΛΑΘΟΣ, και μετρήθηκε.** Newest episode ανά submission (10:46 UTC): v1h (652,5) →
+**2026-08-09**, νεκρό **8 μέρες**· v1i → 08-16 05:04· v1o.2 → 08-17 05:26 (πέθανε όταν το Ueddy
+πήρε τη θέση του). **Ένα submission εκτός των latest-2 παίζει ΜΗΔΕΝ επεισόδια**, το score παγώνει,
+και το τελικό Bradley-Terry τρέχει σε **post-deadline** επεισόδια που ένα νεκρό bot δεν παίζει ⇒
+ένα παγωμένο 1.617,6 **δεν συνεισφέρει τίποτα** στην κατάταξη που πληρώνει. ⚠️ Το επίσημο overview
+λέει και *"every bot will continue to play episodes until the end"* — **boilerplate, ψευδές εδώ**·
+οι τρεις γραμμές πάνω είναι το αντι-παράδειγμα.
+
+🔴 **Δεύτερη παγίδα: η εκδίωξη γίνεται με ΗΜΕΡΟΜΗΝΙΑ, όχι με score.** Επιβεβαιωμένο από το δικό μας
+ιστορικό (το T1 tape έριξε το v1i 08-10, όχι το υψηλότερο v1o.2). Άρα με το τρέχον ζεύγος
+Valmorlee (08-16, **1.617,6**) + Ueddy (08-17, 1.027,8), **οποιοδήποτε** νέο upload διώχνει το
+**Valmorlee — το καλύτερό μας**. Για να κρατηθεί, πρέπει να ξανα-ανέβει *πρώτο* (και τότε ξεκινά
+από 600,1 και θέλει ~1 μέρα να ξανα-συγκλίνει). Νέο **R27**. Και ένα converged rating **φθίνει**
+(§1: 632,2 → 618,4 → 600,2 χωρίς αλλαγή κώδικα) — depreciating asset, όχι κλειδωμένο.
+
+⏳ **Ποιο tape είναι «το κορυφαίο» δεν αποφασίστηκε** — το Ueddy είναι στα 7 επεισόδια από 600,1
+και το T1 θέλησε μια ολόκληρη μέρα για 1.091 → 1.617· το holdout του Ueddy ήταν *καλύτερο*
+(median $124k, 96-0). Πρώτα να συγκλίνει, μετά σύγκριση **ίδιας μέρας**.
+
+**Επόμενο: S6 step 0** — το υποχρεωτικό Phase 0 που **οριοθετεί το lever πριν χτιστεί οτιδήποτε**:
+ξανα-μέτρηση του premium $/unit των δύο shipped tapes με **same-town control**, σπασμένο ανά drain
+του επεισοδίου. Αν κάθονται ήδη στο 1,05× του νικητή, ο μηχανισμός διαψεύδεται και το S6 σταματά
+εκεί. Είναι το μάθημα του T2 εφαρμοσμένο νωρίς.
+
+---
+
 ## 2026-08-17 — Session: **T2 — market overlay στο tape· ⛔ STOP· η realised STRAWBERRY τιμή είναι κλειδωμένη από το shed capacity, όχι από re-timeable calendar**
 
 **Εντολή:** εκτέλεση του T2 pass brief — hybrid: open-loop production (tape's farmer/hands verbatim),

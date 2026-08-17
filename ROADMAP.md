@@ -13,8 +13,15 @@
 > Created **2026-08-11**. Engine ground truth: **`kaggle-environments==1.32.6`**, byte-mirrored in
 > [engine_reference/](engine_reference). Where docs and engine disagree, the engine wins.
 >
-> **The strategy, in one line:** replicate the top-30's production profile, freeze it, then win the
-> premium-sell race that is the only thing still separating them — §4.3.
+> **The strategy, in one line** *(restated 2026-08-17)***:** the top of the ladder is a **mirror
+> match** — both seats sell the same basket in the same volume in 150/150 episodes — and the winner
+> takes a median **$2.826** on a **1,05× realised-price edge**. So: field the copied production
+> (done — two tapes), then win that 1,05× with a market layer the crowd cannot copy off a replay.
+> §4.1b, §4.3 S6.
+>
+> *The previous one-liner — "win the premium-sell race that is the only thing still separating
+> them" — named the right arena and the wrong prize: §4.1's per-team price spread turned out to be
+> 99-100% the town's random shop draw. §4.1b.*
 
 ---
 
@@ -23,15 +30,17 @@
 | | Value | Source |
 |---|---|---|
 | 🟢 Our best public score | **1.617,6** — `55548339`, the **T1 open-loop donor tape**, read 2026-08-17 (up from 1.091,1 on 08-16 as it kept converging). Beats our best-ever hand-built agent (**652,5**, v1h) by ~**+965**, and v1o.2 (647,5) by ~**+970** | `kaggle competitions submissions` |
-| 🟢 Our rank | **1719 / 4690** (2026-08-16) — from **2736 / 4555** the day before: **+1.017 places on one submission** | `kaggle competitions list -s kaggriculture -v` |
+| 🟢 Our rank | **1247 / 4887** (2026-08-17 09:41 UTC) — from **1719 / 4690** yesterday and **2736 / 4555** the day before. **+1.489 places in two days, on two tape submissions** | `kaggle competitions list -s kaggriculture -v` |
+| 🟢 Second tape converging | `55575305` (Ueddy) read **1.027,8** at 09:41 UTC, 7 public episodes in, from a 600,1 start — tracking the T1 tape's own convergence curve | same |
 | 🟢 What this settles | **The §4.2 tape decision was correct, and it is now measured on the ladder, not locally.** The whole v1e→v1o.2 planner chain moved us 557,0 → 643,9 across five weeks. One tape moved us to **1.091,1**. §3.4's crop/animal-equilibrium finding predicted exactly this: **the configuration was the product, not the scheduler** | same |
 | ⚠️ Caveat on the local number | The gate read median **$128k** unpinned, but that bench is soft — S2 recorded `meta_route` as an easy opponent (all 3 donors *better* there, +2,9% to +57,2%). The honest predictor was always S2's **hard**-opponent figure (7-37% degradation, $57,6-76k), and the ladder's 1.091,1 is the number that counts. Do not quote $128k as a ladder expectation | `baselines/2026-08-11/s2_failure_map.json` |
-| Our active submissions | **`55548339` Valmorlee T1 tape — 1.617,6** (converged) · **`55575305` Ueddy T2 tape — PENDING** (shipped 2026-08-17, holdout med $124k / 96-0; starts at 600,1, may still be converging) · **`55438252` v1o.2 — 647,5** (now the weak leg, ~970 behind the tapes) | same |
+| Our active submissions | **`55548339` Valmorlee T1 tape — 1.617,6** (converged) · **`55575305` Ueddy T2 tape — 1.027,8** (shipped 2026-08-17 09:24, holdout med $124k / 96-0; still converging) · `55438252` v1o.2 — 647,5 **now inactive** (only the latest two count) | same |
 | ⚠️ v1o.2's verdict | +$5.069/ep of holdout production (crop tile-days 413→562) landed at **620,4** — **+20 over its own pairmate**, read the same day, and **−32 under frozen v1h**. The §3.2.1 "local→ladder transfers whole" finding does **not** generalise past v1h.2d | same |
 | ⚠️ Rating decay, observed | `55414570` **632,2 → 618,4 → 600,2** over 08-10/08-11/08-15 with no code change — a frozen agent's score falls as the meta moves (§4.4#1), so a score is only comparable to others read the same day | same |
 | Rank before the tape | 2736 / 4555 (2026-08-15; 2218 / 3811 on 08-11 — 518 places lost while changing nothing). Kept as the decay baseline | same |
 | Ladder #1 | **3187,7** (THUNDER THUNDER) | leaderboard, 2026-08-11 |
-| Engine | **`kaggle-environments==1.32.7`** installed and mirrored 2026-08-15 (D28 — the `hinge` curve). ⚠️ **Live episodes were still 1.32.6 as of the 2026-08-14 dataset, 28/28 unanimous** — the bump has not rolled out; re-probe daily with `analysis/v1t_engine_probe.py` | [engine_deltas D28](docs/reference/engine_deltas.md) |
+| Engine | **`kaggle-environments==1.32.7`** installed, mirrored, and 🟢 **LIVE on the ladder as of 2026-08-16** — `analysis/v1t_engine_probe.py` reads **61/61** episodes of the `kaggriculture-episodes-2026-08-16` dataset as 1.32.7, against **28/28 = 1.32.6** on the 08-14 dataset. The rollout landed between 08-14 and 08-16 | [engine_deltas D28](docs/reference/engine_deltas.md) · `baselines/2026-08-17/v1v_shop_demand_report.md` §0 |
+| ⚠️ What that costs us | **Every checkpoint and baseline below `checkpoints/v1u_base` was measured on 1.32.6**, and cross-engine comparison is the exact error §4.2's B1 correction records. The pre-1.32.7 STOPs in §3.3 still bind **on mechanism**; their **dollar** figures are engine-stale. `v1u_base` is the only correct comparison baseline from here | §7 |
 | Starting rating of any new submission | 600,1 | `current_phase.md` §0 (retired) |
 | Final submission deadline | **2026-09-30 23:59 UTC** — re-verified today | Kaggle API `deadline` field |
 | Entry / team-merger deadline | 2026-09-23 | competition overview |
@@ -71,8 +80,19 @@ agent that peaks at 3200 and swings is worth less than a steady 3050.
   earlier meta generations (old notebooks, old checkpoints) as regression opponents — older metas
   are often still active on the ladder, and a change that only beats the latest snapshot can lose
   to them.
+  🔴 **Given teeth 2026-08-17, because it had none.** Every gate in this repo to date has scored
+  `v_n` against `v_{n-1}` plus `meta_route` — one generation deep, one opponent wide. From S6 the
+  standing bench is: **tiers 0-5 of the reference ladder** (§4.5) · **our own frozen `v1h` / `v1i`
+  / `v1o_2` / `v1u_base`** · `meta_route` · the two earlier-meta notebook references (Appendix A).
+  An arm reports its record against **each**, not a pooled number.
 - The submitted agent can be open-loop (a fixed policy). The *research process* that produced it
   must be closed-loop (falsifiable experiments, not narrative).
+- 🔴 **The framing that generates the next pass (user, 2026-08-17).** The prompt is **not**
+  *"build the optimal agent"* — it is ***"where does this agent lose, and what experiment could
+  disprove the proposed improvement?"*** Every pass brief in this repo starts from a measured loss
+  and carries a pre-registered way to be wrong. §2's first bullet is the same rule stated
+  defensively; this states it offensively, and it is what §4.1b caught: a headline finding that
+  was never given a control that could refute it.
 
 ### 2.1 What that means operationally (carried over from the retired plans, still binding)
 
@@ -137,6 +157,10 @@ Everything below was measured, survives the reset, and is not derivable from the
 number lives in a curated file, this is a pointer, not a copy.
 
 ### 3.1 Engine (2026-08-11 re-verification)
+
+> 🔴 **Superseded on the version question, 2026-08-17: installed *and live* are now 1.32.7** (§1,
+> §7). The rest of this block — the balance-change consequences, the documentation gap, the
+> discussion-tripwire limitation — still stands as written.
 
 - **Installed `kaggle-environments` is 1.32.6; PyPI latest is 1.32.6.** No upgrade available, no
   action taken. `engine_reference/` is **byte-identical** to the installed package for all four
@@ -284,7 +308,7 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **v1p.1b herd compaction, both untested controls** (arm A1: COW instead of SHEEP on the same two tiles; arm B: `carrot_tiles` 3→1 alone, PASTURE untouched — S3 step 1c) | ⛔ STOP at SMOKE, both arms | **Closes the "convert a CARROT tile to compact the herd" family for good.** Arm A1: `animals_escaped_a` **48** (vs its own paired baseline 0) — 🔴 **corrected 2026-08-14 (S3 step 1d race):** `mean_diff` **−$7.711,5 REGRESSED**, episodes 0-12 (0-24 orientations), not merely "the same magnitude as arm A" (arm A's own original screen was **−$875,4 INCONCLUSIVE** — the escape count matches, the dollars do not; COW-first reordering made everything substantially worse) — now a *mixed* COW/SHEEP pair — **refutes v1p.1's own type-blind-race root cause**, since giving COW the close tiles instead of SHEEP does not fix it. Arm B: `animals_escaped_a` **12** (vs its own paired baseline 2), seed-dependent, with **zero PASTURE change** — dropping `carrot_tiles` below 3 is itself destabilizing, independent of what the freed land becomes. Analytically confirmed separately: the ten currently-claimed PASTURE slots are already the ten nearest of the 13 available (distances 2,2,2,3,3,4,4,5,6,6,7,7,8) — there is no free reorder inside the existing pool; proximity can only be bought by converting a crop tile, and across both tested splits that purchase does not pay for itself |
 | **v1p.2b sticky zone assignment** (`committed` threaded into `_zone_partition`, pin-first — S3 step 1c) | ⛔ STOP at SMOKE, −$2.688,6 REGRESSED (p=6,3e-3) | The untested control v1p.2's own root cause implied. Fixed exactly what it targeted: `plant_decay_units_lost` **0** (was 17, structural), `animals_escaped` back to parity (5 vs 5, was 20 vs 6). But `worker_turns_moving` **58,9%→60,3%**, essentially the same ~1,4pp non-movement as v1p.2's own original screen — the kill criterion's own restated third exit fires: **the constraint genuinely is not which tasks a unit is offered.** Code kept, inert at `zone_assignment_enabled: False`; hands off to deferred item ③ (travel-ratio diagnostic), not directly to ④ (min-cost matching) |
 | **deferred item ④ — min-cost matching, offline oracle** (item ④ step 2, 3 arms A/B/C, 2026-08-16) | ⛔ STOP — **both pre-registered legs miss on all arms; ④ refuted** as a route to the §4.0 profile with this planner | The optimal per-turn matcher, substituted into the live agent and played out (SMOKE 0-11, both seats, basket, vs `checkpoints/v1u_base` built on 1.32.7, 24 eps/arm). **The routing prize is real** — arm A (whole-pool optimal) banks **+$4.709/ep winning 23/24**, `worker_turns_working` +5,6%, `crop_tile_days` +8,4% (step 1's 4,30% regret, now in dollars). 🔴 **Leg 1's escape clause was mis-specified, and the correction matters — see the block below this table.** A's `animals_escaped` **3→11** is a real *mechanism* (the v1o.3/G-8 crop-vs-animal exchange in reverse) but **not** an acceptance failure: priced at the repo's own gate it is `priced_loss_delta` **$333,3/ep against a $470,9 budget — a PASS at 1,4×**. The ±5 figure is §3.3's *detectability* floor, not an acceptance threshold. The buildable arm **B** (greedy + 2-opt) earns only **+$812/ep**, under the +$2.000 bar (`B/A` = **0,17**); **C** (feed-only re-match) is **−$441**. **Leg 2 misses and moves the WRONG way**: feed-round saturation stays **100%** from d9 on all three arms and `animals_underfed_days` **rises** (A +23,8%, B +7,2%), because a per-turn distance optimum aims freed turns at *near* crops and defers the *far* feeds — the 96,3% forced-walk floor (step 1) is largely the commute to distant animals. **④ is not the herd-13 unblock; measured, it is the opposite.** The §4.0 profile is **not** refuted (top-30 run 13 profitably) — only reaching it with this `assign()` planner + PASTURE geometry is, the same wall S3 step 2 hit from the herd side. Promotes the tape (§4.2) to the production route; closes ④, steps 3-8 not started. No `agent/` change, no submission. Report: `baselines/2026-08-15/item4_step2_report.md` |
-| **T2 market overlay on the shipped tape** (S3 step 3, strawberry-only, replace + augment, 2026-08-16) | ⛔ **STOP at SMOKE — the tape's realised STRAWBERRY price is pinned by shed capacity, not a re-timeable calendar** | Overlay our own sell logic (`_sell_batch_size` + v1i `OpponentSupplyTracker`, reused verbatim) on the Valmorlee (91456307) tape's `market` channel; keep `farmer`/`hands` + all BUY/HIRE verbatim. **Phase 0 (cash coupling, `t2_phase0_report.md`) → GO:** cash floor ≈$6 and 5 turns (48/72/120/168/252) fund buys from same-turn sells, but **STRAWBERRY is never a cash-funding dependency**, so a strawberry-only overlay is unconditionally cash-safe (production stayed byte-identical, `crop_tile_days` equal in every run). **But S3 step 3 STOPS on the shed:** the tape holds **zero** strawberry (shed=0 mid-day; it harvests the whole batch at hour 0 and sells it that same turn) because the shed already runs at **98/100** (WHEAT-feed 13 + FERT 31 + WOOL 16 + MILK 12 + STRAWBERRY 26). **replace** mode (metering strawberry to raise its price) makes it linger → `shed_overflow_burnt` **0→31-89**, WOOL revenue **−$1,3k→−$2,5k**, and a full shed **rejects `BUY_PRODUCT WHEAT`** (feed) → `animals_escaped` **0→11** → **bank −$3-4k/ep** on all 3 opponents (raw tape / Kaito / meta_route), even though it **wins the kill sub-metric** (strawberry $/u $90→$103 vs Kaito). **augment** mode (pull-forward-only, Phase 0's prescribed design) is a **literal no-op** — nothing held to pull forward. ROADMAP §2 item 9: a confirmed mechanism (metering raises $/u) that is not a viable increment (costs more shed than it earns). §3.4 wall in the sell dimension. `agent/tape_overlay.py` kept inert (never imported by `main.py`); no submission. Report: `baselines/2026-08-16/t2_report.md` |
+| **T2 market overlay on the shipped tape** (S3 step 3, strawberry-only, replace + augment, 2026-08-16) | ⛔ **STOP at SMOKE — the tape's realised STRAWBERRY price is pinned by shed capacity, not a re-timeable calendar** | Overlay our own sell logic (`_sell_batch_size` + v1i `OpponentSupplyTracker`, reused verbatim) on the Valmorlee (91456307) tape's `market` channel; keep `farmer`/`hands` + all BUY/HIRE verbatim. **Phase 0 (cash coupling, `t2_phase0_report.md`) → GO:** cash floor ≈$6 and 5 turns (48/72/120/168/252) fund buys from same-turn sells, but **STRAWBERRY is never a cash-funding dependency**, so a strawberry-only overlay is unconditionally cash-safe (production stayed byte-identical, `crop_tile_days` equal in every run). **But S3 step 3 STOPS on the shed:** the tape holds **zero** strawberry (shed=0 mid-day; it harvests the whole batch at hour 0 and sells it that same turn) because the shed already runs at **98/100** (WHEAT-feed 13 + FERT 31 + WOOL 16 + MILK 12 + STRAWBERRY 26). **replace** mode (metering strawberry to raise its price) makes it linger → `shed_overflow_burnt` **0→31-89**, WOOL revenue **−$1,3k→−$2,5k**, and a full shed **rejects `BUY_PRODUCT WHEAT`** (feed) → `animals_escaped` **0→11** → **bank −$3-4k/ep** on all 3 opponents (raw tape / Kaito / meta_route), even though it **wins the kill sub-metric** (strawberry $/u $90→$103 vs Kaito). **augment** mode (pull-forward-only, Phase 0's prescribed design) is a **literal no-op** — nothing held to pull forward. ROADMAP §2 item 9: a confirmed mechanism (metering raises $/u) that is not a viable increment (costs more shed than it earns). §3.4 wall in the sell dimension. `agent/tape_overlay.py` kept inert (never imported by `main.py`); no submission. Report: `baselines/2026-08-16/t2_report.md`. 🔴 **Reason widened 2026-08-17 (§4.1b), verdict unchanged:** the −61% realised STRAWBERRY this pass was built to close was measured against *other episodes' towns*, and 99-100% of that quantity's variance is the town's shop draw — so most of the "loss" was never contestable. Consistent with this pass's own data: **replace** mode *won* the strawberry $/u sub-metric while losing bank, i.e. it moved along the 1%-of-variance axis and paid for it in shed capacity. And **augment**'s no-op is donor-specific, not a property of the lever — the same design earns **+$1.911,9/ep, 60-0-0** for an agent that owns its route (§4.5b). The shed wall is real; "the price lever does not exist" is **not** what this row establishes |
 
 🔴 **Correction to item ④ step 2's leg 1, made 2026-08-16 by the author of the criterion.** The
 brief's leg 1 required `animals_escaped` "inside the ±5 noise floor". **That was a category error on
@@ -398,6 +422,14 @@ its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13
   ever applied to. But the pre-check must now read: **divide by $253/ep for a marginal increment, and
   do not apply it at all to a change that alters which opponents you beat.**
 
+- 🔴 **A cross-entity comparison needs the shared-environment control, and this repo skipped it on
+  its own headline (2026-08-17, v1v).** §4.1 ranked nine teams' realised prices against each other
+  although **no two of them played the same market**. The controlled quantity was available all
+  along — the two seats *inside* one episode — and it says 99-100% of that spread is the town's
+  shop draw. **Rule:** before comparing a per-entity number across replays, state which parts of the
+  environment the entities shared. If they shared none, the comparison is measuring the environment.
+  This is the fourth entry in the §3.4 list of meta numbers that measured something other than what
+  they appeared to, and the most expensive — it defined S5.
 - **A ratio is a diagnostic, never a target.** Any criterion of the form "share X of unit-turns
   falls below N%" is satisfiable by shrinking the denominator — v1p1b arm A1 hit `worker_turns_moving`
   46,0%, the largest commute reduction ever measured here, by doing *fewer* working turns than
@@ -455,6 +487,13 @@ refuted; our ability to reach it with the current routing is.
 
 ### 4.1 The finding that decides the strategy
 
+> 🔴 **HALF OF THIS SECTION IS REFUTED, 2026-08-17 (v1v).** Read the correction in **§4.1b**
+> before using any per-team price number below. In one line: *"production at the top is a
+> copied constant"* is **confirmed and strengthened**; *"they are differentiating which
+> premium they win"* is **not supported** — 99-100% of the realised-price spread below is the
+> town's random shop draw, which no agent controls. The nine-team table was never controlled
+> for it. §4.3 **S5 is withdrawn** and replaced by **S6**.
+
 **Production at the top is a copied constant. The entire remaining spread is realised price.**
 
 Nine teams with ≥6 seats each. Their tile-days and their *units sold* are nearly identical —
@@ -479,6 +518,100 @@ timing race on top of a shared production script.
 ⚠️ And our own realised prices (Θ1, 34 ladder replays) are **MILK $210,62 · WOOL $196,81**, at
 **1,7×** the opponent's wool volume. **Our sell side is not the problem — our production is**
 (415 crop tile-days against 1.316). That is the whole reason the plan below is ordered the way it is.
+
+### 4.1b 🔴 The correction — the price spread is the *town*, not the agent (2026-08-17)
+
+Full report: [baselines/2026-08-17/v1v_shop_demand_report.md](baselines/2026-08-17/v1v_shop_demand_report.md).
+Script `analysis/v1v_shop_demand.py`, guards `tests/test_v1v_shop_demand.py` (7),
+data `data/derived/v1v_shop_demand.json`. **150 episodes / 300 seats** from the official
+`kaggle/kaggriculture-episodes-2026-08-16` dataset, rating-sorted, **all on engine 1.32.7**.
+
+**The control §4.1 owed and never paid.** Shops are drawn **with replacement** from the eight
+`SHOPS` types, one every 3 days, capped at 8 instances
+([kaggriculture.py:886-891](engine_reference/kaggriculture.py#L886-L891)); every 4 steps each
+instance consumes `multiplier` units of every product it lists — **2 for single-product
+shops**, 1 otherwise ([:733-742](engine_reference/kaggriculture.py#L733-L742)). That drain is
+the *denominator* of realised price and it is **redrawn every episode**.
+
+| Product | shop types | E[units/tick] | **P(no buyer at all)** |
+|---|---:|---:|---:|
+| WHEAT | 5 | 5,0 | 0,04% |
+| STRAWBERRY | 4 | 4,0 | 0,4% |
+| MILK | 3 | 3,0 | 2,3% |
+| CARROT | 2 (PET_CAFE ×2) | 3,0 | 10,0% |
+| EGG / TOMATO | 2 | 2,0 | 10,0% |
+| **WOOL** | **1** (YARN_STORE ×2) | 2,0 | **34,4%** |
+| **MELON** | **0** | **0** | **100%** |
+| **FERTILIZER** | **0** (also out of `TOWN_CENTER_PRODUCTS`) | **0** | **100%** |
+
+**Measured decomposition of seat-level realised $/unit:**
+
+| product | median $/u | p10→p90 | **between towns** | within town |
+|---|---:|---:|---:|---:|
+| STRAWBERRY | 113,7 | 44→208 (4,76×) | **99%** | 1% |
+| WOOL | 114,9 | 43→239 (5,55×) | **100%** | 0% |
+| MILK | 58,2 | 24→211 (8,70×) | **100%** | 0% |
+| **MELON** | 130,5 | 125→200 (1,59×) | 35% | **65%** |
+| WHEAT | 44,9 | 42→47 (1,13×) | 99% | 1% |
+| FERTILIZER | 52,1 | 45→54 (1,19×) | 94% | 6% |
+
+Monotone dose-response in every case — realised $/u against that town's drain: **STRAWBERRY
+13→236 (18×)** over 0→7 units/tick, **MILK 18→252 (14×)**, **WOOL 46→244 (5,3×)**. **51 of
+150 towns (34,0%) drew no YARN_STORE at all** — the predicted 34,4%, measured.
+
+⇒ **Hak's $105,1 strawberry against Valmorlee's $38,2 is, on this evidence, overwhelmingly a
+statement about their towns.** §4.1's nine-team table compares teams that never played each
+other in the same market. This is §3.4's standing trap — *"at what moment and on what entity
+was it measured"* — caught on our own headline finding.
+
+#### What the top of the ladder is actually doing
+
+Winner vs loser, median over the same 150 episodes:
+
+| product | W $/u | L $/u | **price ratio** | W units | L units | volume ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| STRAWBERRY | 117,1 | 112,7 | **1,04** | 254 | 253 | 1,00 |
+| WOOL | 117,2 | 111,8 | **1,05** | 120 | 120 | 1,00 |
+| MILK | 60,9 | 57,5 | **1,06** | 273 | 272 | 1,00 |
+| MELON | 131,6 | 130,2 | 1,01 | 114 | 120 | 0,95 |
+| WHEAT | 45,0 | 44,8 | 1,00 | 599 | 598 | 1,00 |
+| FERTILIZER | 52,1 | 52,0 | 1,00 | 242 | 242 | 1,00 |
+
+**Both seats sell the same basket in the same volume, to within 1%, in 150/150 episodes.**
+That is our own independent measurement of what the reference-agents `NOTICE` reports from 530
+replays — identical 712-turn farmer/hand sequences across *"one group of 29 teams, another of
+15, another of 8, with 104 distinct teams"* (§4.5). **The top of the ladder is a mirror
+match**, and the winner's entire edge is a **1,04-1,06× realised price on the three premium
+products**.
+
+The town draw is **common-mode**: it lifts both banks together (median loser bank $50,7k →
+$114,1k as premium drain goes 3→14 units/tick) while the gap stays small.
+
+| \|bank gap\| | p10 | p25 | **p50** | p75 | p90 | mean |
+|---|---:|---:|---:|---:|---:|---:|
+| top-ladder episodes | $406 | $1.104 | **$2.826** | $5.494 | $11.165 | $4.508 |
+
+**Median premium (STR+WOOL+MILK) revenue is $71.924/seat** ⇒ **+1% realised price = +$719/ep**,
+and the **+5% edge today's winners already hold = +$3.596/ep**. Episodes reachable by an extra
+$X of realised revenue: **+$2.000 → 40,7% · +$3.000 → 52,7% · +$5.000 → 72,7%**.
+
+#### The three consequences that bind
+
+1. **§4.3 S5 is withdrawn.** Its stated objective — *"beating Hak's $105,1 strawberry and
+   $192,7 wool"* — is a number no agent controls. Replaced by **S6** below.
+2. **MELON is the only product with a real within-town contest** (65% of its variance, **zero**
+   shop buyers in 150/150 towns, flat ~$144 whatever the draw) — and it is our single largest
+   revenue hole (§3.2(7): **−$27.263**, 0 units against 132).
+3. **§3.4's amended rating rule applies in its second form.** A premium-price edge changes
+   *which episodes you win* at the top of the ladder, so the **$253/ep marginal rate must not
+   be applied to it**. That rate is for increments inside a band you already lose.
+
+⚠️ **Not claimed:** shop *count* and shop *timing* are confounded here (a YARN_STORE drawn on
+day 3 drains far more than one drawn on day 24) and were not separated. The within-town control
+is tight for the town and **loose for strategy** — with both seats running the same route it
+cannot see an edge every top agent already has. And 150 episodes is a stride sample of one
+day's rating-sorted dataset; nothing here describes the ladder below the top.
+
 ### 4.2 Decision taken (2026-08-11), and what the rules actually say
 
 The repo's standing ban on replay-derived priors ("Open #11") is **withdrawn by the user's explicit
@@ -1104,19 +1237,163 @@ L1/L2 did.
 
 ---
 
-**S5 — Innovate on top of the frozen optimum.** *(the actual goal)*
+**S5 — ⛔ WITHDRAWN 2026-08-17, not stopped: its objective was mis-measured.**
 
-Once production is a constant we control, the mirror gate becomes meaningful again **because the
-population genuinely is the mirror** — 26/30 of the top-30 share one opening. The named target is
-§4.1's finding: **strawberry / wool / milk realised price, where the measured spread is 2,75× /
-3,70× / 3,49× at identical volume.** Beating Hak's $105,1 strawberry and $192,7 wool is a
-well-posed, falsifiable objective, and our own realised prices ($210,62 milk, $196,81 wool) say we
-are already good at exactly this.
+S5 read: *"the named target is §4.1's finding: strawberry / wool / milk realised price, where the
+measured spread is 2,75× / 3,70× / 3,49× at identical volume. Beating Hak's $105,1 strawberry and
+$192,7 wool is a well-posed, falsifiable objective."* §4.1b measured that **99-100% of that spread
+is the town's shop draw**. The objective was well-posed and falsifiable; it was also aimed at a
+quantity no agent controls, so it is withdrawn rather than attempted and stopped.
 
-Candidate levers, all inside §2's method: differentiate *which* premium we win rather than
-contesting all three; gate the pre-emption on public-state checkpoints the way the top farms do
-(steps 216/240/264); and exploit the one thing a fixed tape cannot do — react when the opponent's
-visible farm says their harvest is coming.
+**What survived S5 intact, and is now the premise of S6:** *"once production is a constant we
+control, the mirror gate becomes meaningful again because the population genuinely is the mirror."*
+§4.1b measured that too, and much more strongly than S5 assumed — **both seats sell the same basket
+in the same volume in 150/150 top-ladder episodes.** S5 was right about the arena and wrong about
+the prize.
+
+---
+
+**S6 — Win the mirror match on the 1,05× margin.** *(replaces S5; the actual goal)*
+
+The measured situation, in one line: **at the top of the ladder two identical routes play the same
+town, and the winner takes a median $2.826 out of ~$85k on a 1,04-1,06× realised-price edge over
+three products.** We currently field a raw donor tape with **no market layer of our own** — it
+emits its donor's sell queue verbatim — so we are not in that fight at all.
+
+Everything below is run under §2's loop and nothing skips a rung:
+**real losses → one failure mechanism → challengers → multiple teams and both seats → reject most
+→ freeze the winner → re-validate on later episodes.**
+
+#### S6 step 0 — the loss, and the one mechanism (pre-registered before any build)
+
+*Real loss:* the T1/T2 tapes' realised premium prices, measured against the **same-town** control
+§4.1b now makes available — not against other teams' towns, which is the error T2 inherited.
+
+*The one failure mechanism, stated so it can be wrong:* **our shipped tape's market queue is frozen
+at its donor's ordering, so (a) its per-turn SELL slot order is whatever the donor happened to emit,
+and (b) it cannot condition on `obs.town.unlocked_shops` — the variable that moves realised price
+5-18× and is redrawn every episode.** A tape is maximally exposed to both; a policy is not.
+
+*Phase 0, mandatory and cheap:* re-measure the tapes' premium $/unit against the **same-town**
+opponent, decomposed by that episode's drain. If the tapes are already at the winner's 1,05×, the
+mechanism is refuted before anything is built and S6 stops here. This is the T2 lesson applied
+early: T2 spent a pass on a lever whose size it never bounded first.
+
+#### S6 step 1 — the challengers (build all three, reject most)
+
+**C-A — the Cleo rule: in-place sell reordering.** Reorder SELL orders **within the slots the
+donor already used for selling**; never move a sell into a slot holding a purchase; never change
+quantities; never hold inventory overnight. This is the only design that survives **both** of T2's
+own root causes — the shed runs at 98/100 so we add zero inventory, and sells fund same-turn buys
+so we cross no slot boundary. It is also the exact lesson the reference ladder's tier-9 agent is
+built to teach (§4.5), and its authored A/B partners (tiers 7/8) bracket how much it is worth.
+*Prior:* the reference league measures tier 7↔8↔9 — identical production, market layer only —
+separating by **$164 to $2.617/ep**, i.e. the same order as the $2.826 median gap.
+
+**C-B — shop-conditioned premium ordering.** Order the premium products inside the turn by *this
+town's* measured drain, using `agent/demand.py::shop_buyer_counts` and `npc_daily_demand` — both
+already built, already gated, already used by `checkpoints/v1i`. In a 0-YARN_STORE town (34% of
+towns) WOOL goes last; in a 7-instance strawberry town STRAWBERRY goes first. **This is the one
+thing a fixed tape structurally cannot do**, which is what makes it the right first original
+increment rather than a tuning knob.
+
+**C-C — MELON entry.** The only product with a within-town contest (§4.1b), zero shop buyers in
+150/150 towns, flat ~$144, and our largest single revenue hole. This is a **production** change,
+not a market one, so it does **not** ride on the tape — it goes behind whatever route we control,
+and it inherits every §3.3 STOP about adding tier-0/1 work. Sequenced last, deliberately.
+
+#### S6 step 2 — the bench (this is the part §2 says we have been getting wrong)
+
+Every arm is scored against a bench that **retains earlier meta generations**, not only the current
+top-30. **Decided by the user 2026-08-17: adopt A1 + A2, skip A3.** Concretely, closing **R4**:
+
+- **A1 — tiers 0-5 of the reference-agent ladder** (§4.5): MIT, original work, documented, graded
+  from a do-nothing floor ($3.000) to a livestock build ($46.211), all sharing a byte-identical
+  scheduler so every gap between them is an *economic* decision. Cheap regression opponents that
+  fail **loudly and differently from each other**. *Ceiling acknowledged:* they top out at $46k
+  against our tape's $118k, so they catch catastrophic breaks — they do not spar.
+- **A2 — our own three extracted donor tapes** (Valmorlee `91456307` · Ueddy `90999409` · Kaito
+  `90891564`): these already **are** the shared meta line (§4.1b measured 150/150 top episodes
+  selling one basket; the reference `NOTICE` counts 104 teams on identical sequences). They need
+  **no new licence**, they are already on disk and gitignored, and as **fixed-production** opponents
+  they give the cleanest possible A/B for a market-layer change — the production is held constant by
+  construction, so any difference *is* our layer. This is the sparring partner A1 cannot be.
+- **⛔ A3 — reference tiers 6-9: skipped by decision.** Their base85 `_TRACE` field plan is
+  explicitly outside the MIT grant, and A2 reproduces the same fight from material we already hold.
+  Their published separation ($164-$2.617/ep between identical-production agents) is retained as a
+  **calibration figure**, which is free to cite and needs none of their code.
+- **our own frozen checkpoints as earlier metas** — `v1h`, `v1i`, `v1o_2`, `v1u_base`. We have been
+  deleting this signal by always gating `v_n` against `v_{n-1}`.
+- **`meta_route`** and the two earlier-meta notebook references already retained on purpose
+  (`v13-r3`, `177-180 v21.1` — Appendix A).
+- **both seats, always** (§2.1.1), and **`--town-pin basket`** for anything touching occupancy.
+
+*Open action:* nothing from the reference dataset has been downloaded beyond `LICENSE`/`NOTICE`/
+`*.csv` (to scratch, outside the repo). A1 needs the six tier-0-5 `.py` files fetched into a
+**gitignored** local bench directory — MIT permits redistribution, but they are not ours to carry
+in this repo and nothing needs them to be.
+
+⚠️ **The town is now a known confounder in every market-only A/B.** §2.1.2 classifies a
+market-order change as *"market-only ⇒ a fixed seed is a genuine controlled experiment"*. That
+still holds for occupancy, but §4.1b shows a fixed seed also fixes the **shop draw** — so a
+market-only screen on few seeds can be measuring one town. **Any S6 arm reports its seed set's
+realised drain distribution alongside its dollars**, and the acceptance arm needs enough seeds to
+span the draw (a 0-YARN_STORE town occurs 34% of the time and is a different game).
+
+#### S6 step 3 — score it in the ladder's own currency
+
+Add **Bradley-Terry** to `harness/` and report it beside `median_bank` / W-L / `mean_diff`. The
+competition ranks by BT over post-deadline episodes (§1); we have never once computed it locally,
+which is a large part of why §1's central puzzle — *"measured local wins that convert into ~nothing
+on the ladder"* — has stayed open. A win against tier 2 and a win against tier 9 are the same row
+in `results.json` today and must stop being so. This does **not** replace §2.1.4's three numbers;
+it sits beside them and is the one that is comparable to the thing we are actually judged on.
+
+✅ **BUILT AND RUN, 2026-08-17** — [harness/ladder.py](harness/ladder.py),
+`python -m harness.cli ladder`, 11 guards (**R22**). Two runs, and both paid immediately:
+
+**(i) Round-robin over our own lineage** (seeds 0-1, both seats, `--round-robin`) reproduces our
+development history as a clean monotone ladder, which is the validation:
+
+| # | agent | BT | record | mean margin |
+|---:|---|---:|---|---:|
+| 1 | live `main.py` (v1o.2) | **2556** | 20-0-0 | $35.848 |
+| 2 | v1i | 2063 | 16-4-0 | $28.714 |
+| 3 | v1h | 1675 | 12-8-0 | **$28.749** |
+| 4 | v1e | 1325 | 8-12-0 | −$214 |
+| 5 | `starter` | 937 | 4-16-0 | −$43.870 |
+| 6 | `pass` | 444 | 0-20-0 | −$49.227 |
+
+Note rows 2-3: **v1h has the higher mean margin and the lower BT rating.** That is the whole
+point — BT scores *who* you beat, `mean_margin` scores *by how much*, and the two disagree on real
+data from our own repo.
+
+🔴 **(ii) And it localises §1's central puzzle rather than solving it.** Our local ladder ranks
+**v1i above v1h**; the real ladder scored **v1h 652,5 and v1i 593,8**. (Read a day apart, so §1's
+decay caveat applies and this is suggestive, not decisive — but they are ordered the *opposite*
+way, not merely close.) Since the BT fit is now pinned by tests, the remaining suspect is the one
+S6 step 2 names: **the opponent population**. A bench made of our own lineage plus `meta_route`
+can be measured perfectly and still rank agents in an order the ladder reverses. This is the
+strongest evidence yet that the bench, not the metric, is what has been wrong.
+
+⚠️ **R21 fired on the very first run**, which is what it was added for. Over seeds 0-3 (56
+episodes) the sampled shop draw was **WOOL zero-drain in 27/56 episodes — 48%, against the
+population's 34%**. A small-seed screen on those seeds is materially biased toward wool-dead
+towns, and any wool-side result from it would have been a statement about the seed set. MILK
+ranged 0-7 u/tick, STRAWBERRY 1-7.
+
+*Gate (unchanged protocol, §2.1.3-5):* SMOKE 0-11 → DEV acceptance against the **non-mirror**
+bench → unpinned holdout 100-147 → immutable checkpoint.
+*Kill, pre-registered per arm:* an arm that does not move realised premium $/unit **against the
+same-town control** has missed the only thing it was built for — stop and record, do not tune.
+
+#### S6 step 4 — re-validate on strictly later episodes
+
+The chronological protocol (§4.3 S1), applied to ourselves: **fit and screen on episodes up to and
+including 2026-08-16; confirm on the daily datasets from 2026-08-18 onward.** §4.4#1 says a frozen
+policy decays (87/90 → 14/27 measured), and §1 has measured our own frozen agent losing 632,2 →
+600,2 with no code change. An arm that only wins on the meta it was screened against is exactly
+what this step exists to catch.
 
 ### 4.4 Risks in this plan, stated up front
 
@@ -1141,6 +1418,85 @@ visible farm says their harvest is coming.
    removes it; the tape path defers it to a conversation with the Sponsor if we finish top-10.
 6. **Timing/size is a non-issue either way.** A 719-entry table is trivially fast; a parameterised
    planner already fits the 1s budget with margin.
+
+7. 🔴 **Added 2026-08-17 — our two tapes are inside the shared meta line, not outside it.** §4.1b
+   measured both seats of 150/150 top episodes selling the same basket in the same volume, and the
+   reference-agents `NOTICE` reports identical 712-turn sequences across **104 distinct teams**
+   over 530 replays. So the Valmorlee and Ueddy tapes are not two independent assets — they are
+   two samples of one crowded route, and a large share of their opponents play **the same
+   trajectory**. This weakens the §6bis differentiation argument for the current active pair
+   (differentiated from each other, but both inside the modal line) and *raises* the value of S6's
+   C-B, which is differentiation the crowd structurally cannot copy from a replay.
+
+### 4.5 New sources read 2026-08-17, and what each is good for
+
+Two competitor notebooks were read this session. **§2 item 8 applies unchanged: their markdown,
+tables and printed statistics are read freely as evidence; the `main.py` / `submission.tar.gz`
+blobs they embed are not opened, decompressed or executed.** Neither was. Both were extracted
+prose-only to [docs/source/notebooks/](docs/source/notebooks) and the `.ipynb` files were then
+**deleted, never committed** — see the handling rule at the end of Appendix A, which is now
+standing policy for any competitor notebook.
+
+**One thing they got wrong that we already had right**, worth recording because it is the only
+place their engine reading and ours disagree: the rank-your-agent checklist reports *"the rules say
+`CARE` banks +2 per day; the engine adds +1"* as a discovery. That is our **D1**, tested since the
+first engine pass (`test_care_bonus_plus_one_not_two`). `docs/reference/engine_deltas.md` is ahead
+of the public material here, not behind it.
+
+**(a) `kaggriculture-rank-your-agent.ipynb`** (Rayk Kretzschmar). A Bradley-Terry ranking harness
+over a published **[Kaggriculture Reference Agents](https://www.kaggle.com/datasets/raykkretzschmar/kaggriculture-reference-agents)**
+dataset — ten documented agents in graded tiers. Only its `LICENSE`, `NOTICE` and `*.csv` tables
+were pulled (statistics, §2.8); **no `.py` agent file was downloaded.** What it gives us:
+
+| Band | Agents | Bank | What it isolates |
+|---|---|---:|---|
+| **tiers 0-5** | Fallow Finn → Rancher Rita | $3.000 → $46.211 | Authored from scratch, **byte-identical scheduler**, differing only in a `POLICY` dict ⇒ every gap is an *economic* decision. **MIT, original work of the author** |
+| **tiers 6-9** | Broker Bea, Ledger Lena, Slotter Silas, Closer Cleo | $148.546 → $164.540 | The **same** shared meta field plan, differing **only in the market layer**. Their spread is the S6 target, measured |
+
+Three things in it are load-bearing for us:
+
+1. **The tier 6-9 band is a measured price on S6.** Identical production, market layer only,
+   separating by **$164 → $2.617/ep** — the same order as §4.1b's $2.826 median gap.
+2. **Closer Cleo's lesson is our own T2 STOP, with the fix attached:** *"Sells fund the buys that
+   follow them in the same queue; hoist the sells out of their original slots and a
+   `BUY_PRODUCT WHEAT` later in the turn fails on a near-zero balance, animals go unfed."* We
+   measured that mechanism independently in T2's Phase 0 (cash floor ≈$6; escapes 0→11) and then
+   stopped. Cleo is the design that respects it — **S6's C-A**.
+3. **An independent correction to the price model** — *"`units_until_price_floor` measures a
+   **static** market … what decides your realised price is how many shops demand your product."*
+   This is the same mechanism §4.1b measured from replays, arrived at independently. Its own shop
+   table has an arithmetic slip we should not inherit: it prices CARROT at 12 units/day, missing
+   that PET_CAFE is a single-product shop and therefore consumes at **multiplier 2** (correct: 18).
+   Our numbers come from the engine and the tests pin them.
+
+⚠️ **Licensing is a live decision, not settled here.** `NOTICE` grants **MIT** over the `.py`
+files, and states plainly that **tiers 0-5 are the author's original work and MIT in full**, while
+for **tiers 6-9 the base85 `_TRACE` field plan is explicitly not covered** — it is the shared public
+meta line, which the author declines to claim. Recommendation: **adopt tiers 0-5 as bench opponents**
+(clean, MIT, and exactly the graded earlier-generation regression ladder §2 and R4 have been asking
+for); treat **tiers 6-9 as a separate call by the user**, because their uncovered `_TRACE` carries
+the identical §3.14a question the user already resolved for the tape.
+
+**(b) `kaggriculture-3000-socre.ipynb`** (HarvestForge-X / V16-RC5). Markdown and result tables
+only. Two things worth carrying:
+
+1. **A route-reconstruction method strictly better than our verbatim tape.** It compares **three**
+   public traces of the *same* submission (`55440039`, eps 92165990 / 92185587 / 92223213), finds
+   the production sequence near-identical and the **market decisions agreeing at ~99,91%** of
+   decision points, and takes the **per-decision majority vote** as an executable policy — then adds
+   worker-count adaptation and an obstruction-recovery step. That is a *measurement* of a policy
+   rather than a copy of one performance: it degrades gracefully where a tape desyncs (§4.4#1), and
+   it is the natural upgrade path for §4.2's tape if S6 needs a route it can modify.
+2. **A price on the market overlay when you own the route:** its premium-lead layer beats its own
+   reconstructed production core **60-0-0, mean margin +$1.911,9, worst margin +$68**. A small,
+   *perfectly consistent* edge — which is the shape §3.4's amended rating note says converts well.
+   Its design is also the exact one T2 found inert on a tape ("augment" mode, a literal no-op
+   because the tape held zero inventory), confirming that **T2's STOP was donor-specific, not a
+   property of the lever.**
+
+⚠️ Its census reads **8 COW + 4 SHEEP**, and the reference ladder's meta line reads **8C + 5S**,
+against our §4.0's **9C + 4S** from 120 seats. Three independent reads inside ±1 animal: treat the
+herd row as **8-9 COW / 4-5 SHEEP**, not as a pinned constant.
 
 ## 5. Phase 2 — gated on 2800+, decide later, do not build now
 
@@ -1183,7 +1539,7 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R1** ✅ | Added **D27** (the full 1.32.6 balance change) to [docs/reference/engine_deltas.md](docs/reference/engine_deltas.md) and re-pinned its header 1.32.5 → 1.32.6 | Those facts existed **only** in the MASTERPLAN this pass deletes. A DERIVED doc lagging the installed engine is exactly the failure mode that file exists to prevent |
 | **R2** ✅ | [docs/INDEX.md](docs/INDEX.md) now records that `kaggle kernels pull` is **source-only** and that `kaggle kernels output` is what carries the numbers, plus the "never refresh the *visualized* notebook" rule | Recorded so it is not re-broken; it cost us five notebooks' outputs today |
 | **R3** | Re-run [analysis/b1_top5_profile.py](analysis/b1_top5_profile.py) against the refreshed archive whenever the ladder top-5 changes | The top-5 turned over completely between 2026-08-05 and 2026-08-11 |
-| **R4** | Build one **older-generation** bench opponent (v21/v22-era statistics) alongside `meta_route` | §2 requires regression opponents from earlier metas; today every bench is the current one |
+| **R4** 🟡 | **Route found 2026-08-17 (§4.5), not yet executed — no agent file has been downloaded.** Rather than authoring one older-generation opponent, adopt **tiers 0-5 of the reference-agent ladder** — six documented agents sharing a byte-identical scheduler and differing only in a `POLICY` dict, spanning $3.000 → $46.211, **MIT and the author's original work** — plus our own frozen `v1h` / `v1i` / `v1o_2` checkpoints as earlier metas. Wired into §2's bullet and S6 step 2 as the *intended* bench. ⚠️ **Blocked on R23** — nothing from that dataset beyond `LICENSE`/`NOTICE`/`*.csv` has been fetched, and the `.py` download is the user's call. **A third option exists and may be better: our own three extracted donor tapes** (Valmorlee 91456307 · Ueddy 90999409 · Kaito 90891564) already *are* the shared meta line, need no new licence, and as fixed-production opponents make the cleanest possible A/B for a market-layer change | §2 requires regression opponents from earlier metas; every bench to date was the current one, one generation deep |
 | **R5** ✅ | **Decided 2026-08-11 by the user: a public replay may seed a route.** Recorded in §4.2, then refined once the rules were read — replicate the measured *profile*, keep the *tape* as a documented option | Competitor *notebook source code* remains out of scope — a separate, undecided question |
 | **R10** ✅ | **Rules read** (supplied 2026-08-11). Using replays for development is clearly permitted (§2.4a, §2.6a, §2.11); the exposure is §3.14a "own original work", §2.5/§2.8 winner licensing, and §2.4b redistribution **into this public repo**. Resolved in §4.2 by replicating the *profile* rather than shipping a *tape* | Closes the one item that could have invalidated §4.3. The activity is not prohibited — the exposure is narrow, lands only at the prize stage, and the profile path removes it entirely |
 | **R11** | Keep any extracted donor action stream **gitignored and local** | §2.4b forbids redistributing Competition Data to non-participants, and this repo is public |
@@ -1200,6 +1556,13 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R17** ✅ | Added `worker_turns_working` to `_V1K_REPORT_METRICS` (2026-08-14, S3 step 1d) — same 3-line-plus-print-line change as R15, generic over the tuple. Pinned by extending `test_compare_metrics_reads_agent_a_seat_in_each_orientation` rather than a parallel test | v1p1b arm A1 hit `worker_turns_moving` 46,0% — the largest commute cut ever measured here — by doing *fewer* working turns and shedding 30% of `crop_tile_days` into idle. A ratio alone would have let it pass; the absolute counterweight now sits next to it in every gate artefact (§3.4) |
 | **R18** | **Replay-analysis scripts: two indexing traps, found and fixed in `analysis/v1q_onboarding_escape.py` (2026-08-14).** (a) Two checkpoint packages that are both literally named `main.py` collide under `harness.play`'s filename sanitizer if given the same `run_dir` — the second `play()` call silently overwrites the first's replay before it's read. Give each orientation/arm its own `run_dir` subdirectory and consume each replay before the next `play()` call. (b) In a recorded episode's `env.toJSON()`, `steps[i][0]` is always seat 0's log entry — `observation` mirrors both farms (safe to index by `[0]` regardless of which seat's *state* you want, verified directly), but `action` is logged per acting agent and must be read from `steps[i][seat]`, not `steps[i][0]`, or a lookup for the non-zero seat silently returns nothing. **(c) added 2026-08-14 (S3 step 1e): the action logged at `steps[i]` is the one that *produced* `steps[i]`'s observation, not the one applied to it.** Pairing an order at step *i* with the money at step *i+1* shifts every purchase one turn later and makes the settlement look lagged — it is not. Read the order and the resulting state from the *same* `steps[i]` entry | Both bugs produced a plausible-looking but wrong result before being caught — the first made escapes appear to track *seat* rather than *agent*, the second made every "which unit acted" lookup fail silently (`None`) for seat 1. Neither raised an exception. Trap (c) is what made S3 step 1d misread the HIRE settlement as gapped and the purchase schedule as identical — corrected in §4.3 |
 | **R19** | **Config-override package builders must REPLACE the target key and assert the effective value, never insert it (2026-08-14, S3 step 1e).** `analysis/v1r_build_stacked.py` first inserted an arm flag as a new key *before* the same key's existing default in the copied `config.py`; the later dict literal wins, so the flag was a silent no-op and every A1-stacked screen ran inert — returning a plausible "identical to the unfixed reproducer" result. The builder now string-replaces the existing key line and re-loads the built config to assert the effective value before writing the package. **General rule:** any tool that edits a config by source-text must round-trip through `load_config` and check the value it intended to set — a dict with a duplicate key does not raise | The result *looked* like a clean "the fix does nothing" finding; it was a dead flag. Caught only by instrumenting the executor's own reserve and seeing the C1 package compute the undercounted number. An A/B whose treatment arm is byte-identical to control is a red flag to trace, not a finding to publish |
+| **R21** | **Report the seed set's realised shop draw in every market-side gate artefact.** §4.1b makes the town a first-class confounder: a fixed seed fixes the shop draw, so a small-seed market-only screen can be measuring one town. Emit per-arm the distribution of `units_per_tick` for STRAWBERRY / WOOL / MILK across the seed set, next to the dollars | §2.1.2 licenses fixed seeds for market-only changes on *occupancy* grounds, which is still true — and is not the same as the arm being unconfounded. A 0-YARN_STORE town (34% of towns) is a different game, and a 12-seed screen can contain zero of them or six |
+| **R22** ✅ | **Bradley-Terry landed 2026-08-17** — [harness/ladder.py](harness/ladder.py) + `python -m harness.cli ladder`, 11 guards in `tests/test_ladder.py`. MM fit (Hunter 2004) with a half-phantom-win prior so an agent that sweeps a graded bench stays finite, reported on the competition's own Elo-like scale (400 pts/10× strength, mean 1500). Both seats on every pairing and **the per-seat split is reported separately** (§2.1.1 — an agent that wins only from seat 0 has a market-ordering dependency, not a strength). `--round-robin` plays the bench against itself so the comparison graph is connected; without it the printout says so rather than letting weakly-identified bench ratings look authoritative. `--shop-draw` discharges **R21** in the same command | This is a large part of why §1's central puzzle — measured local wins converting to ~nothing on the ladder — has stayed open for five weeks. The pinned defect is `test_beating_a_strong_opponent_outranks_beating_a_weak_one`: two agents with identical 60% records must not receive identical strengths, and under `median_bank`/W-L they do. S6 step 3 |
+| **R23** ✅ | **Decided by the user 2026-08-17: A1 + A2, skip A3.** Tiers 0-5 (MIT, original work) as the graded regression ladder; **our own three extracted donor tapes** as the fixed-production mirror bench; **tiers 6-9 not used** — their uncovered `_TRACE` is avoidable because A2 reproduces the same fight from material we already hold. Their published $164-$2.617/ep separation is kept as a citation-only calibration figure. Wired into S6 step 2 | The uncovered `_TRACE` was the only ambiguity in the dataset, and it is now simply not touched |
+| **R25** | **Fetch the six tier-0-5 agents into a gitignored local bench dir** and add them to `harness/bench_agents/`'s resolution path. MIT permits redistribution; carrying them in this public repo is still unnecessary | A1 is decided but not executed — nothing beyond `LICENSE`/`NOTICE`/`*.csv` has been downloaded |
+| **R26** | **Build the A2 mirror bench**: wrap the three extracted donor tapes (Valmorlee / Ueddy / Kaito) as bench opponents, reusing `analysis/tape_agent.py`. Route files stay gitignored (§2.4b / R11) | The fixed-production opponent is what makes an S6 market-layer A/B clean — production held constant by construction |
+| **R27** | **Never let the top submission fall out of the active pair as a side effect of shipping.** Eviction is by submission **date**, not score (§6bis, measured): uploading anything today evicts Valmorlee (1.617,6), not Ueddy. Decide the eviction before the upload, and price the re-upload (restarts at 600,1, ~1 day to re-converge) | Measured 2026-08-17: an inactive submission plays **zero** episodes (v1h dead 8 days) and the final Bradley-Terry runs on the latest 2 only. The official overview's "every bot continues to play" is boilerplate and is false here |
+| **R24** | **Re-test the §3.3 `shop-adaptive sell floor` STOP against `v1u_base`.** It failed at 415 crop tile-days as *"production-constrained, never glut-constrained"* — true then, and false at the tape's production. Engine-stale as well (1.32.6) | §2's STOP protocol: a STOP is final once its own mechanism has no untested implication left. This one's stated mechanism explicitly names a production level we have since left |
 | **R20** ✅ | **Per-product units + realised revenue in every gate artefact (2026-08-15, S3 step 2).** `harness/compare.py::_attach_v1k_diagnostics` read `units_sold_by_product`/`revenue_by_product` but wrote only the MELON pair (`melon_units_*`/`melon_revenue_*`), so MILK/WOOL **realised price** — the §4.1 currency every herd-13 economic risk turns on — could not be read from a gate artefact at all. Generalised over module-level `_V1K_REPORT_PRODUCTS = ("MELON","MILK","WOOL")`, emitting `{product.lower()}_units_{arm}` / `_revenue_{arm}`; the six longhand melon sites (`_attach_v1k_diagnostics`, the `CompareResult` fields, the four aggregation/None-fill blocks) each now loop the tuple, with the MELON keys **byte-preserved** (MELON is first, keyed by `.lower()`). Added the MILK/WOOL fields to `CompareResult`, `cli.py`'s `results.json` dict and the CLI summary. Pinned by extending the existing metrics test | Named the §3.3 MILK-saturation-on-9-COW mechanism directly from the herd-13 gate output (MILK $/u 151 → 131-139 on H2/H2R) with no separate script. R20's six-site loop deliberately avoids the "miss one None-fill block" trap the brief flagged: a missed block silently absents the key from exactly the failed-metrics artefacts |
 
 ---
@@ -1234,6 +1597,58 @@ Bradley-Terry tournament runs. They must be **champion + a challenger differenti
 own list of common mistakes puts it plainly: *"two near-identical active submits → meta shift kills
 both."* In the final week before 2026-09-30, both are frozen.
 
+#### 🔴 Slot mechanics, measured 2026-08-17 — two traps, both counter-intuitive
+
+The question that prompted this: *"once a submission converges at 1.600+, is there any point
+letting it live? Its rating can only move a few points, and it still counts toward the leaderboard."*
+**Measured, both halves of that are false, and acting on them would retire our best asset.**
+
+**Trap 1 — an inactive submission stops playing entirely, and is excluded from the final.** Newest
+episode per submission, read 2026-08-17 10:46 UTC:
+
+| Submission | Score | Newest episode | Status |
+|---|---:|---|---|
+| `55383610` v1h | 652,5 | **2026-08-09 20:28** | dead **8 days** |
+| `55414570` v1i | 593,8 | 2026-08-16 05:04 | died when the T1 tape took its slot |
+| `55438252` v1o.2 | 647,5 | 2026-08-17 05:26 | died when the Ueddy tape took its slot |
+
+A submission outside the latest 2 plays **zero** episodes. Its score freezes where it stood; it is
+not "still competing at a converged level." And the overview is explicit that *"the latest 2
+submissions are **also used for final leaderboard evaluation**"* — the final Bradley-Terry
+tournament runs on **post-deadline episodes**, which a retired bot does not play. **A frozen 1.617,6
+would contribute nothing to the ranking that pays.**
+
+⚠️ **The official overview contradicts itself here and our measurement settles it.** The same page
+also says *"Every bot submitted will continue to play episodes until the end of the competition."*
+That is generic Kaggle simulation boilerplate and **it is not true in this competition** — the three
+rows above are the counter-evidence. Trust "only the latest 2 are tracked."
+
+**Trap 2 — we cannot choose which slot to free. Eviction is by submission *date*, not by score.**
+Confirmed against our own history: shipping the T1 tape on 08-16 dropped **v1i (08-10)**, the
+*older* one, while keeping the higher-scoring v1o.2. So with the pair currently
+**Valmorlee `55548339` (08-16, 1.617,6) + Ueddy `55575305` (08-17, 1.027,8)**, uploading anything
+new evicts **Valmorlee — our best submission** — and keeps Ueddy plus the newcomer.
+
+**Consequence for the agreed policy** (*one top tape + one innovation slot*): to ship an S6
+challenger while keeping the top tape, the tape must be **re-uploaded first** so it becomes the
+newer of the two, then the challenger goes second. That costs the tape's converged rating — a
+re-upload restarts at **600,1** and has to re-converge (T1 took ~1 day to go 1.091 → 1.617). Budget
+that, or accept losing Valmorlee.
+
+**And a converged rating is not stable — it decays.** §1 records `55414570` at **632,2 → 618,4 →
+600,2** across three reads with **no code change**, and §4.4#1 measured a frozen agent going 87/90
+→ 14/27 against a newer field. A converged submission is a **depreciating** asset that must keep
+playing to hold its place, which is the opposite of the premise above.
+
+**Standing rule from this:** never let the top submission fall out of the active pair as a side
+effect of shipping something else. Decide the eviction deliberately, before the upload.
+
+⏳ **Not yet decided: which tape is "the top tape".** Valmorlee is at 1.617,6 and converged; Ueddy
+is at 1.027,8 on **7 episodes** from a 600,1 start, and T1 took a full day to converge. Ueddy's
+holdout was *stronger* than Valmorlee's (median $124k, 96-0, 0 seats under floor). **Let Ueddy
+converge before ranking them** — the comparison is not yet available, and §1's decay note says it
+must be read on the same day.
+
 ✅ **Standing debt cleared, 2026-08-11.** It read: *"the active pair is `55414570` (v1i) +
 `55409945` (v1m_d2), which differ only in market-order emission ordering — same herd (4C/6S),
 same tiles, same sell-side thresholds. That is the exact pattern the rule warns about."* Θ1
@@ -1261,14 +1676,19 @@ v1o.2's ~$60k). `55414570` (v1i) drops inactive. Pre-upload checklist all green:
 
 ## 7. Where this stands
 
-*(Updated 2026-08-13. The paragraph this replaces — "nothing under `agent/` has been
+*(Updated 2026-08-17. The paragraph this replaces — "nothing under `agent/` has been
 touched" — was true up to and including S1/S2; it no longer is.)*
 
-The plan is set and running: **§4.3 S1 → S5, replicate → freeze → innovate**, with the target
-profile measured from 120 current-engine seats rather than guessed. **R10 is closed** — the rules
-were read, using replays for development is clearly permitted, and §4.2 routes around the one
-clause that would have bitten (§3.14a) by replicating the profile rather than shipping someone
-else's tape.
+The plan is **§4.3 S1 → S4 → S6, replicate → freeze → innovate**, with the target profile measured
+from 120 current-engine seats rather than guessed. **R10 is closed** — the rules were read, using
+replays for development is clearly permitted, and the user's 2026-08-15 decision settled §4.2 in
+favour of shipping the tape.
+
+🔴 **S5 was withdrawn on 2026-08-17 and replaced by S6.** Not stopped — *mis-measured*: its
+objective was a realised-price spread that §4.1b shows is 99-100% the town's random shop draw.
+What survived is the premise S5 got right and understated: **the top of the ladder is a mirror
+match**, and the whole fight there is a **1,05× realised-price edge worth a median $2.826/ep**.
+S6 is that fight, run under §2's loop with a bench that finally retains earlier meta generations.
 
 - **S1 ✅ and S2 ✅** (2026-08-11): the target profile reproduces across 9 teams with near-zero
   structural spread (`data/derived/b3_target_profile.json`), and S2's kill criterion did **not**
@@ -1446,10 +1866,44 @@ else's tape.
   `55438252` (v1o.2)**; `55414570` drops inactive. Route + submission gitignored (§2.4b). Full
   record: `baselines/2026-08-15/t1_repair_justification.md`.
 
-**The next ladder read is an L-series diagnostic on `55438252` once it has episodes**, done
-exactly as L1/L2 were (§3.2). It is the only thing that can tell us whether +$5k/ep of local
-production transfers — and §1's newly-recorded rating decay (632,2 → 618,4 on a frozen agent in
-one day) is the reason it must be read against same-day opponents, never against a stored score.
+- **v1v — the realised-price spread is the town, not the agent: 🔴 §4.1 half-refuted, S5
+  withdrawn, S6 opened (2026-08-17).** Episodes updated to the
+  `kaggle/kaggriculture-episodes-2026-08-16` daily dataset (700 episodes). Two results:
+  **(1) engine 1.32.7 is LIVE** — `v1t_engine_probe` reads **61/61** as 1.32.7 against 28/28 as
+  1.32.6 on the 08-14 dataset, so §1's "not yet live" row closes and every pre-`v1u_base` dollar
+  figure is engine-stale. **(2)** `analysis/v1v_shop_demand.py` over **150 episodes / 300 seats**
+  decomposes seat-level realised $/unit into between-town and within-town variance and finds
+  **99-100% between-town** on STRAWBERRY / WOOL / MILK, with a monotone dose-response against the
+  town's shop drain (**STRAWBERRY 13→236, 18×**; MILK 14×; WOOL 5,3×) and **34,0% of towns drawing
+  no YARN_STORE**, matching the engine's predicted 34,4%. §4.1's nine-team price table compared
+  teams that never shared a market. **What the top actually does:** both seats sell the same basket
+  in the same volume in **150/150** episodes, and the winner's whole edge is **1,04-1,06× realised
+  price**, worth a median **$2.826** bank gap — against which a **+5% premium edge is +$3.596/ep and
+  reaches 52,7% of currently-lost episodes**. `pytest tests/` **286 → 293** (+7
+  `test_v1v_shop_demand.py`, which also pin two engine indexing facts: `_town_consume` gets the
+  pre-increment step, and step 0 fires the shop *and* town-centre intervals together). No `agent/`
+  change, no submission. Report:
+  [baselines/2026-08-17/v1v_shop_demand_report.md](baselines/2026-08-17/v1v_shop_demand_report.md).
+- **Two competitor notebooks read (markdown/tables only, §2 item 8 respected — no embedded
+  `main.py` blob opened, decompressed or executed).** §4.5 records what each is for: a
+  Bradley-Terry harness over a **graded, MIT, documented reference ladder** that closes **R4** and
+  supplies the earlier-generation bench §2 has always required; an independent confirmation of the
+  shop-drain price mechanism; a **measured price on the S6 target** (identical production, market
+  layer only, separating by $164-$2.617/ep); the Closer Cleo design that is our own T2 cash-coupling
+  STOP with the fix attached; and a **route-reconstruction method** (majority vote over three traces
+  of one submission, agreeing at ~99,91% of market decisions) that is the natural upgrade from a
+  verbatim tape to a route we can modify.
+
+**The next pass is S6 step 0** — the mandatory Phase 0 that bounds the lever before anything is
+built: re-measure the two shipped tapes' premium $/unit against the **same-town** control §4.1b
+makes available, decomposed by that episode's drain. If they already sit at the winner's 1,05×,
+the stated mechanism is refuted and S6 stops there. That is the T2 lesson applied early — T2 spent
+a whole pass on a lever whose size it never bounded first.
+
+**Still open and unchanged:** an L-series ladder diagnostic on the tapes once they have enough
+episodes, done exactly as L1/L2 were (§3.2), read against **same-day** opponents — §1's recorded
+rating decay (632,2 → 618,4 → 600,2 on a frozen agent, no code change) is why a stored score is
+never a comparison.
 
 ---
 
@@ -1477,6 +1931,24 @@ was no prior extract, so that run's outputs are gone locally (the kernel is publ
 | `kaggriculture-structured-economic-policy` | **keep** | Independent structural convergence (3 quadrants, 12-13 hands) from a different method |
 | `kaggriculture-visualized-what-every-crop-pays` | **keep, do NOT refresh** | Every `viz cell N` reference across `docs/` is anchored to *this* run. Refreshing silently invalidates dozens of citations |
 | `kaggriculture-getting-started` | **keep** | Official reference notebook |
+| `kaggriculture-rank-your-agent` (read 2026-08-17) | **extracted → `.ipynb` DELETED** | Bradley-Terry harness over a graded, documented, **MIT** ten-agent reference ladder. Closes **R4**, motivated **R22** (now shipped as [harness/ladder.py](harness/ladder.py)), prices the S6 target ($164-$2.617/ep between identical-production agents), and independently confirms the §4.1b shop-drain price mechanism. See §4.5(a) |
+| `kaggriculture-3000-socre` (read 2026-08-17) | **extracted → `.ipynb` DELETED** | Majority-vote reconstruction of one submission's policy from **three** of its own traces (~99,91% market-decision agreement) plus drift/obstruction recovery — the upgrade path from a verbatim tape to a route we can modify. Also prices a premium-lead market layer at **+$1.911,9/ep, 60-0-0** when you own the route, which is the same design T2 found inert on a tape. See §4.5(b) |
+
+🔴 **Handling rule applied to both, 2026-08-17, and it is the standing one for any competitor
+notebook from here.** Each was extracted with `analysis/nb_extract.py --no-code` to
+[docs/source/notebooks/](docs/source/notebooks) — **prose, tables and printed outputs only, code
+cells excluded by construction**, so neither extract can contain the base85+zlib `main.py` /
+`submission.tar.gz` payload each notebook embeds (verified: zero matches for the blob markers, and
+the longest line in each extract is a pandas table). The `.ipynb` files were then **deleted and
+never committed** — this repo is public (§2.4b), and committing a competitor's embedded submission
+archive would redistribute it. Nothing was decompressed or executed at any point (§2 item 8).
+
+⚠️ **Do not vendor the reference-agent CSVs.** `NOTICE` licenses that dataset's `*.csv` under
+**CC BY-SA 4.0** — copyleft, and this repo is MIT. Only `LICENSE`/`NOTICE`/`*.csv` were pulled, to
+a scratch directory outside the repo, and **no `.py` agent file was downloaded at all.** Every
+engine number we now rely on (shop table, drain rates, floors) is derived from
+`engine_reference/` and pinned by `tests/test_v1v_shop_demand.py`, so nothing of theirs needs to
+live here.
 | `v13-r3-top-meta-order-safe-premium-control` | **keep — regression reference** | The original sell-ahead evidence (31-1, +$2.304 mean margin). Deliberately retained as an **earlier-meta** opponent per §2 |
 | `177-180-fresh-top-30-v21-1-conditional-memory` | **keep — regression reference** | v21.1-era top-30. Deliberately retained as the second earlier-meta reference; superseded for *current* meta but still active on the ladder |
 | `your-seed-does-not-fix-the-town` | **keep** | Sole independent verification of the shop-unlock RNG coupling (§2.1.1); unique methodology content |

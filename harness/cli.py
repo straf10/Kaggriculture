@@ -2,6 +2,7 @@
 
     python -m harness.cli play main.py starter --seed 17 --record
     python -m harness.cli compare main.py starter --seeds 0-23 --out runs/<name>
+    python -m harness.cli ladder main.py --bench pass,starter,meta_route --seeds 0-2
     python -m harness.cli profile main.py --seed 17
     python -m harness.cli report runs/<name>/seed17_seat0-main.py_seat1-starter.json.gz
 
@@ -16,6 +17,7 @@ from pathlib import Path
 
 from harness.checkpoint import DEFAULT_CHECKPOINT_ROOT, create_checkpoint
 from harness.compare import ARM_ROLES, PRICED_SOURCE_METRICS, VALID_STAGES, compare
+from harness.ladder import format_ladder, run_ladder
 from harness.play import play
 from harness.profile import report
 from harness.report import load_receipts, load_replay, write_report
@@ -304,6 +306,30 @@ def _cmd_compare(args):
         print(f"results also written to {gates_path} (tracked)")
 
 
+def _cmd_ladder(args):
+    """ROADMAP R22 / S6 step 3 — rank against a graded bench in the ladder's own currency."""
+    bench = {}
+    for spec in args.bench.split(","):
+        spec = spec.strip()
+        if not spec:
+            continue
+        name, _, path = spec.partition("=")
+        bench[name] = path or name
+    if not bench:
+        raise SystemExit("--bench is empty")
+    result = run_ladder(args.agent, bench, _parse_seeds(args.seeds),
+                        challenger_name=args.name or args.agent,
+                        steps=args.steps, round_robin=args.round_robin,
+                        shop_draw=args.shop_draw,
+                        run_dir=Path(args.out) if args.out else None)
+    print(format_ladder(result))
+    if args.out:
+        out_path = Path(args.out) / "ladder.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(result, indent=1), encoding="utf-8")
+        print(f"\nwrote {out_path}")
+
+
 def _cmd_profile(args):
     agent_a, agent_b = (args.agent, args.opponent) if args.seat == 0 else (args.opponent, args.agent)
     result = play(agent_a, agent_b, args.seed, steps=args.steps,
@@ -444,6 +470,29 @@ def main(argv=None):
                                  "GO is always False for it")
     p_compare.add_argument("--out")
     p_compare.set_defaults(func=_cmd_compare)
+
+    p_ladder = sub.add_parser(
+        "ladder", help="Bradley-Terry ranking against a graded bench (ROADMAP R22)")
+    p_ladder.add_argument("agent")
+    p_ladder.add_argument(
+        "--bench", required=True,
+        help="comma-separated opponents, each 'name' or 'name=path'. Keep it GRADED and keep "
+             "earlier meta generations in it (ROADMAP §2), e.g. "
+             "'pass,starter,meta_route,v1i=checkpoints/v1i/main.py'")
+    p_ladder.add_argument("--seeds", default="0-2",
+                          help="e.g. '0-11'; every pairing is played from BOTH seats (§2.1.1)")
+    p_ladder.add_argument("--name", default=None, help="label for the challenger")
+    p_ladder.add_argument("--steps", type=int, default=None)
+    p_ladder.add_argument(
+        "--round-robin", action="store_true",
+        help="also play the bench against itself. Slower, and it is what makes the bench's own "
+             "BT ratings identified rather than inferred through the challenger alone")
+    p_ladder.add_argument(
+        "--shop-draw", action="store_true",
+        help="report the shop draw this seed set actually sampled (ROADMAP R21 / §4.1b — "
+             "realised premium price moves 5-18x with it). Implies recording replays")
+    p_ladder.add_argument("--out", default=None, help="directory for ladder.json + replays")
+    p_ladder.set_defaults(func=_cmd_ladder)
 
     p_profile = sub.add_parser("profile")
     p_profile.add_argument("agent")
