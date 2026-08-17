@@ -9,6 +9,52 @@
 
 ---
 
+## 2026-08-17 — Session: **T2 — market overlay στο tape· ⛔ STOP· η realised STRAWBERRY τιμή είναι κλειδωμένη από το shed capacity, όχι από re-timeable calendar**
+
+**Εντολή:** εκτέλεση του T2 pass brief — hybrid: open-loop production (tape's farmer/hands verbatim),
+closed-loop market (overlay το δικό μας sell logic στο `market` channel του Valmorlee tape 91456307),
+για να πιάσουμε το −61% realised-STRAWBERRY loss που μέτρησε το T1. Reports (τοπικά):
+[baselines/2026-08-16/t2_phase0_report.md](baselines/2026-08-16/t2_phase0_report.md) +
+[t2_report.md](baselines/2026-08-16/t2_report.md).
+
+### Phase 0 (cash coupling) → GO, με cash-constrained σχεδίαση
+
+Το `market` channel κουβαλά **και** τις αγορές (HIRE 268, BUY_PRODUCT 142 feed-wheat, BUY_SEED,
+BUY_ANIMAL) **και** τα SELL (155) — άλλαξε τα sells → αλλάζει το money → ένα BUY σιωπηλά αποτυγχάνει
+(D15). Cash floor **≈$6**· 5 turns (48/72/120/168/252) χρηματοδοτούν τις αγορές τους από same-turn
+sell revenue. **Κρίσιμο: η STRAWBERRY δεν είναι ΠΟΤΕ cash-funding dependency** ⇒ ένα strawberry-only
+overlay είναι unconditionally cash-safe (η παραγωγή έμεινε byte-identical, `crop_tile_days` ίσο σε
+κάθε run). `analysis/t2_phase0_cash_coupling.py`.
+
+### S3 step 3 (overlay) → ⛔ STOP στο SMOKE — ο τοίχος είναι το shed
+
+`agent/tape_overlay.py` (reuse `_sell_batch_size` + v1i `OpponentSupplyTracker` verbatim). Δύο modes:
+- **replace** (strip tape's straw sells, βάλε δικά μας): **wins το kill sub-metric** (straw $/u
+  $90→$103 vs Kaito) αλλά **bank −$3-4k/ep** σε 3 opponents. Μηχανισμός: το tape πουλά τη strawberry
+  **τη στιγμή που τη μαζεύει** (shed=0 mid-day· harvest όλο το batch στην hour 0 και το πουλά ίδιο
+  turn) γιατί το shed τρέχει στο **98/100** (WHEAT-feed 13 + FERT 31 + WOOL 16 + MILK 12 + STRAW 26).
+  Metering → η strawberry μένει → `shed_overflow_burnt` **0→31-89**, WOOL revenue **−$1,3k→−$2,5k**,
+  και full shed **απορρίπτει BUY_PRODUCT WHEAT** (feed) → `animals_escaped` **0→11**.
+- **augment** (pull-forward-only, ό,τι πρότεινε το Phase 0): **literal no-op** — δεν υπάρχει held
+  strawberry να τραβήξεις μπροστά.
+
+⇒ ROADMAP §2 item 9: confirmed mechanism (metering ανεβάζει $/u) που **δεν** είναι viable increment.
+Είναι ο **§3.4 τοίχος στη sell διάσταση**: κάθε προσπάθεια να βελτιώσεις τη realised strawberry τιμή
+καταναλώνει shed capacity και καίει higher-value output· το tape ήδη λειτουργεί στο capacity frontier.
+Δεν διαψεύδει το §4.1 — απλώς ο price lever **δεν είναι προσβάσιμος σε αυτό το donor tape** (τα sells
+του είναι load-bearing για το shed). `agent/tape_overlay.py` inert (δεν το κάνει import το `main.py`),
+καμία αλλαγή σε `agent/`, κανένα submission. `analysis/t2_{kill_gate,floor_probe,bank_leak,augment_test}.py`.
+
+### Δεύτερο donor (φθηνό task του brief) — χτίστηκε, pending approval
+
+Χτίστηκα τα tape artifacts για **Ueddy (90999409, home $119k)** και **Kaito (90891564, home $84k)** ως
+το άλλο μισό του pair (αντικαθιστά τον αδύναμο v1o.2 643,9). Gitignored `baselines/2026-08-17/`.
+Σύσταση: **Ueddy** (καλύτερο worst-case ανά T1 robustness: $75k vs Kaito $57,6k). **Upload = απόφαση
+χρήστη** (standing conditions §4.2: provenance στο description, route gitignored, §3.14a/§2.5 με Sponsor
+αν top-10). `pytest tests/`: 286 passed (+3 pre-existing `test_v1h2d_*` fails, unchanged).
+
+---
+
 ## 2026-08-16 — Session: **T1 — η μετρημένη tape διαδρομή· 🟢 SHIPPED ως challenger (`55548339`, Valmorlee)· το repair layer REFUTED από τη μέτρηση, δεν χτίστηκε**
 
 **Εντολή:** εκτέλεση του `docs/plans/` T1 pass brief — ship το tape agent ως challenger (εντολή
