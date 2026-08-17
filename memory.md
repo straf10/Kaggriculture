@@ -9,6 +9,55 @@
 
 ---
 
+## 2026-08-17 γ — Session: **S6 step 0 — φράξε τον μοχλό πριν τον χτίσεις· ⛔ το C-A διαψεύδεται, το edge είναι cross-turn timing**
+
+**Εντολή:** το pass brief του S6 step 0 (ROADMAP §4.3 S6) — bound τον μοχλό πριν χτιστεί κάτι. Τρία
+legs, καμία αλλαγή σε `agent/`, κανένα submission (R27). Report:
+[baselines/2026-08-17/s6_step0_report.md](baselines/2026-08-17/s6_step0_report.md) (gitignored).
+`pytest tests/` **304 → 316 passed** (+12 `test_s6_step0.py`), τα 3 γνωστά `test_v1h2d_*` fails ίδια.
+
+### Τι χτίστηκε
+- **R26 / A2** — `analysis/donor_streams.py`: φορτώνει τα 3 gitignored donor tapes (Valmorlee 91456307
+  · Ueddy 90999409 · Kaito 90891564), sha256-verify από το provenance, τα τυλίγει με
+  `make_tape_agent`. Fixed-production bench.
+- **R25 / A1** — κατέβηκαν **μόνο** τα έξι tier-0-5 `.py` (MIT) στο **gitignored**
+  `harness/bench_agents/reference/` (fallow_finn 0 → wheat_walter 1 → rotation_rosa 2 → homestead_hana 3
+  → melon_mateo 4 → rancher_rita 5). Resolver `harness/bench_agents/reference_ladder.py` (committed,
+  0 competition data). **Tiers 6-9 ΔΕΝ κατέβηκαν** (R23)· τα CC BY-SA CSVs διαβάστηκαν transient, δεν
+  vendored. Τρέχουν clean (Finn $3.000 floor, Rita ~$40k).
+
+### Τα τρία legs
+- **Leg 1 — same-town control (32 seeds, both seats).** Το ΚΑΘΑΡΟ τεστ: tape εναντίον **του ίδιου του
+  route** (identical production+sells) δίνει realised ratio seat0/seat1 = **1,000** σε STR/WOOL/MILK.
+  Το frozen queue ordering **δεν κοστίζει τίποτα**. Το seed set κάλυψε το draw: **WOOL zero-drain
+  66/192 = 34%** (ακριβώς το προβλεπόμενο 34,4%, R21). Cross-donor: **Valmorlee 1,25× strawberry /
+  1,13× wool** vs τα άλλα δύο tapes ΣΤΗΝ ΙΔΙΑ ΠΟΛΗ σε ΙΔΙΟ όγκο — πραγματικό edge (~$2,8k τάξη) αλλά
+  από **cross-turn timing** (σε ποια turns πουλάει), όχι in-turn order. Το literal kill (≥1,05× και στα
+  τρία) ΔΕΝ πυροδότησε → proceed, αλλά ο μηχανισμός διαψεύδεται από το 1,000 self-pair.
+- **Leg 2 — C-A surface (priced στο engine market path).** 29-39 nominally reorderable turns/tape,
+  **0 turns πάνω από το 10-order cap**, best legal within-turn permutation = **$0-18/ep** (Valmorlee
+  $0). Μηχανιστικός λόγος (καρφωμένος σε test): το SELL commit αγγίζει **μόνο το inventory του δικού
+  του προϊόντος** ⇒ reorder ενός fixed multiset είναι revenue-neutral. **Το C-A είναι νεκρό πριν
+  χτιστεί.**
+- **Leg 3 — town readability (150 episodes).** Το premium drain rank σταθεροποιείται median **day 15**
+  = ακριβώς όταν πυροδοτεί το `shop_evidence_min_unlocks=5` gate· και τα 8 shops μόνο day 24. Readable
+  in time μόνο **29%/34%/43%** για WOOL/MILK/STRAWBERRY ως το πρώτο-sell-day τους (6/9/14). Η πόλη
+  **δεν** διαβάζεται εγκαίρως για τα πρώιμα premium sells ⇒ το C-B δουλεύει αξιόπιστα μόνο στο πίσω
+  μισό της σεζόν.
+- **R22 ladder** (`--round-robin --shop-draw`): Valmorlee **BT 3008 (56-0-0)** › Ueddy 2349 › Kaito
+  2182 › v1u_base 1701 › meta_route 1299 › tier5 818 › tier2 651 › pass. R21: WOOL zero-drain 73/224.
+
+### Συμπέρασμα (§2 item 9)
+**Μηχανισμός:** in-place SELL reordering δεν μετακινεί realised premium price (self-pair 1,000, ≤$18/ep).
+**Πού είναι πραγματικά ο μοχλός:** cross-turn sell timing — αλλά στο shipped tape είναι **πίσω από το
+T2 shed wall** (§3.3), χρειάζεται *modifiable* route με shed headroom (§4.5(b) reconstruction path),
+μεγαλύτερο project από C-A/B/C. **C-A ⛔ μην το χτίσεις.** C-B ζωντανό αλλά late-only & within-turn
+(~$0). **C-C (MELON, −$27.263) το μόνο step-1 lever με μετρημένο έπαθλο** — τελευταίο, πίσω από route
+που ελέγχουμε. Ενημερώθηκαν ROADMAP §4.3 S6 (step-0 results block + C-A/C-B annotations), §4.5 open
+action, §6 R21/R25/R26 ✅.
+
+---
+
 ## 2026-08-17 β — Session: **v1v — episodes update· 🔴 το §4.1 price spread είναι η ΠΟΛΗ, όχι ο agent· S5 αποσύρεται, ανοίγει το S6**
 
 **Εντολή:** update episodes → ανάλυση των δύο notebooks που μπήκαν στο repo root → νέο plan κάτω

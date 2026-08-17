@@ -33,3 +33,16 @@ data/kaggriculture-episodes/
 
 # Raw AI code-review dumps — internal working notes
 docs/reviews/
+
+# R25: the MIT tier-0-5 reference agents (Rayk Kretzschmar, kaggriculture-reference-agents).
+# MIT permits redistribution, but they are not ours to carry in this public repo and nothing
+# needs them to be (ROADMAP §4.5). Fetched locally only. Tiers 6-9 and the CC BY-SA CSVs are
+# never fetched (R23 / §4.5).
+/harness/bench_agents/reference/
+
+# S6-step-0 derived outputs computed by replaying the gitignored donor tapes — derived from
+# competition data, kept local (§2.4b). Leg 3 (data/derived/s6_step0_leg3.json) is from the
+# public dataset and stays tracked.
+/data/derived/s6_step0_leg1.json
+/data/derived/s6_step0_leg1_smoke.json
+/data/derived/s6_step0_leg2.json

@@ -30,8 +30,9 @@
 | | Value | Source |
 |---|---|---|
 | 🟢 Our best public score | **1.617,6** — `55548339`, the **T1 open-loop donor tape**, read 2026-08-17 (up from 1.091,1 on 08-16 as it kept converging). Beats our best-ever hand-built agent (**652,5**, v1h) by ~**+965**, and v1o.2 (647,5) by ~**+970** | `kaggle competitions submissions` |
-| 🟢 Our rank | **1247 / 4887** (2026-08-17 09:41 UTC) — from **1719 / 4690** yesterday and **2736 / 4555** the day before. **+1.489 places in two days, on two tape submissions** | `kaggle competitions list -s kaggriculture -v` |
-| 🟢 Second tape converging | `55575305` (Ueddy) read **1.027,8** at 09:41 UTC, 7 public episodes in, from a 600,1 start — tracking the T1 tape's own convergence curve | same |
+| 🟢 Our rank | **1263 / 4947** (2026-08-17 late read) — from **1719 / 4690** yesterday and **2736 / 4555** the day before | `kaggle competitions list -s kaggriculture -v` |
+| 🟢 Second tape converging | `55575305` (Ueddy) **1.027,8 → 1.398,7** across this session, still climbing from a 600,1 start. Valmorlee sits at **1.614,0** (from 1.617,6 — converged, drifting slightly down) | same |
+| 🔵 A first: a local metric that tracks the ladder | S6 step 0's **same-town** control ranked **Valmorlee above Ueddy** on realised premium price (1,25× STRAWBERRY / 1,13× WOOL against the other donors in a shared town), and the ladder currently agrees (**1.614,0 vs 1.398,7**). ⚠️ Ueddy has **not** converged, so this is *consistent so far*, not confirmed — but it is the first time a local number in this repo has predicted a ladder ordering, and it did so precisely because the comparison held the town fixed (§4.1b) | `baselines/2026-08-17/s6_step0_report.md` |
 | 🟢 What this settles | **The §4.2 tape decision was correct, and it is now measured on the ladder, not locally.** The whole v1e→v1o.2 planner chain moved us 557,0 → 643,9 across five weeks. One tape moved us to **1.091,1**. §3.4's crop/animal-equilibrium finding predicted exactly this: **the configuration was the product, not the scheduler** | same |
 | ⚠️ Caveat on the local number | The gate read median **$128k** unpinned, but that bench is soft — S2 recorded `meta_route` as an easy opponent (all 3 donors *better* there, +2,9% to +57,2%). The honest predictor was always S2's **hard**-opponent figure (7-37% degradation, $57,6-76k), and the ladder's 1.091,1 is the number that counts. Do not quote $128k as a ladder expectation | `baselines/2026-08-11/s2_failure_map.json` |
 | Our active submissions | **`55548339` Valmorlee T1 tape — 1.617,6** (converged) · **`55575305` Ueddy T2 tape — 1.027,8** (shipped 2026-08-17 09:24, holdout med $124k / 96-0; still converging) · `55438252` v1o.2 — 647,5 **now inactive** (only the latest two count) | same |
@@ -310,6 +311,8 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **deferred item ④ — min-cost matching, offline oracle** (item ④ step 2, 3 arms A/B/C, 2026-08-16) | ⛔ STOP — **both pre-registered legs miss on all arms; ④ refuted** as a route to the §4.0 profile with this planner | The optimal per-turn matcher, substituted into the live agent and played out (SMOKE 0-11, both seats, basket, vs `checkpoints/v1u_base` built on 1.32.7, 24 eps/arm). **The routing prize is real** — arm A (whole-pool optimal) banks **+$4.709/ep winning 23/24**, `worker_turns_working` +5,6%, `crop_tile_days` +8,4% (step 1's 4,30% regret, now in dollars). 🔴 **Leg 1's escape clause was mis-specified, and the correction matters — see the block below this table.** A's `animals_escaped` **3→11** is a real *mechanism* (the v1o.3/G-8 crop-vs-animal exchange in reverse) but **not** an acceptance failure: priced at the repo's own gate it is `priced_loss_delta` **$333,3/ep against a $470,9 budget — a PASS at 1,4×**. The ±5 figure is §3.3's *detectability* floor, not an acceptance threshold. The buildable arm **B** (greedy + 2-opt) earns only **+$812/ep**, under the +$2.000 bar (`B/A` = **0,17**); **C** (feed-only re-match) is **−$441**. **Leg 2 misses and moves the WRONG way**: feed-round saturation stays **100%** from d9 on all three arms and `animals_underfed_days` **rises** (A +23,8%, B +7,2%), because a per-turn distance optimum aims freed turns at *near* crops and defers the *far* feeds — the 96,3% forced-walk floor (step 1) is largely the commute to distant animals. **④ is not the herd-13 unblock; measured, it is the opposite.** The §4.0 profile is **not** refuted (top-30 run 13 profitably) — only reaching it with this `assign()` planner + PASTURE geometry is, the same wall S3 step 2 hit from the herd side. Promotes the tape (§4.2) to the production route; closes ④, steps 3-8 not started. No `agent/` change, no submission. Report: `baselines/2026-08-15/item4_step2_report.md` |
 | **T2 market overlay on the shipped tape** (S3 step 3, strawberry-only, replace + augment, 2026-08-16) | ⛔ **STOP at SMOKE — the tape's realised STRAWBERRY price is pinned by shed capacity, not a re-timeable calendar** | Overlay our own sell logic (`_sell_batch_size` + v1i `OpponentSupplyTracker`, reused verbatim) on the Valmorlee (91456307) tape's `market` channel; keep `farmer`/`hands` + all BUY/HIRE verbatim. **Phase 0 (cash coupling, `t2_phase0_report.md`) → GO:** cash floor ≈$6 and 5 turns (48/72/120/168/252) fund buys from same-turn sells, but **STRAWBERRY is never a cash-funding dependency**, so a strawberry-only overlay is unconditionally cash-safe (production stayed byte-identical, `crop_tile_days` equal in every run). **But S3 step 3 STOPS on the shed:** the tape holds **zero** strawberry (shed=0 mid-day; it harvests the whole batch at hour 0 and sells it that same turn) because the shed already runs at **98/100** (WHEAT-feed 13 + FERT 31 + WOOL 16 + MILK 12 + STRAWBERRY 26). **replace** mode (metering strawberry to raise its price) makes it linger → `shed_overflow_burnt` **0→31-89**, WOOL revenue **−$1,3k→−$2,5k**, and a full shed **rejects `BUY_PRODUCT WHEAT`** (feed) → `animals_escaped` **0→11** → **bank −$3-4k/ep** on all 3 opponents (raw tape / Kaito / meta_route), even though it **wins the kill sub-metric** (strawberry $/u $90→$103 vs Kaito). **augment** mode (pull-forward-only, Phase 0's prescribed design) is a **literal no-op** — nothing held to pull forward. ROADMAP §2 item 9: a confirmed mechanism (metering raises $/u) that is not a viable increment (costs more shed than it earns). §3.4 wall in the sell dimension. `agent/tape_overlay.py` kept inert (never imported by `main.py`); no submission. Report: `baselines/2026-08-16/t2_report.md`. 🔴 **Reason widened 2026-08-17 (§4.1b), verdict unchanged:** the −61% realised STRAWBERRY this pass was built to close was measured against *other episodes' towns*, and 99-100% of that quantity's variance is the town's shop draw — so most of the "loss" was never contestable. Consistent with this pass's own data: **replace** mode *won* the strawberry $/u sub-metric while losing bank, i.e. it moved along the 1%-of-variance axis and paid for it in shed capacity. And **augment**'s no-op is donor-specific, not a property of the lever — the same design earns **+$1.911,9/ep, 60-0-0** for an agent that owns its route (§4.5b). The shed wall is real; "the price lever does not exist" is **not** what this row establishes |
 
+| **C-A, in-place SELL reordering ("the Cleo rule")** — S6 step 0, 2026-08-17 | ⛔ **REFUTED before being built, analytically and empirically** | The one mechanism S6 step 0 pre-registered, killed by its own bounding pass. **Leg 1 (same-town self-pair):** a tape against an *identical* route in the same town realises **ratio 1,000** on all three premium products (96 episodes, both seats) — the frozen queue ordering costs exactly nothing, where the mechanism predicted "below 1,0×". **Leg 2 (surface area, priced on the engine's own market path):** despite 29-39 nominally reorderable turns per tape, the best legal permutation against the emitted one is worth **$0/ep (Valmorlee), $3-18/ep (Ueddy/Kaito)** — **0-0,6%** of the $2.826 median gap. **Engine-level reason, verified at [kaggriculture.py:544-597](engine_reference/kaggriculture.py#L544-L597):** market orders run in **per-slot lockstep across both players**, and a SELL depletes **only its own product's pool**, so permuting a fixed multiset of your own sells inside one turn cannot move your realised revenue. The residual $3-18 is entirely the opponent-slot-alignment channel, which we do not control. The 10-order cap never binds on these routes. ⇒ **the 1,04-1,06× winner's edge is not a queue-ordering effect.** Report: `baselines/2026-08-17/s6_step0_report.md` |
+
 🔴 **Correction to item ④ step 2's leg 1, made 2026-08-16 by the author of the criterion.** The
 brief's leg 1 required `animals_escaped` "inside the ±5 noise floor". **That was a category error on
 my part.** §3.3's ±5 is a *detectability* floor — it says when a change in the counter is signal
@@ -422,6 +425,22 @@ its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13
   ever applied to. But the pre-check must now read: **divide by $253/ep for a marginal increment, and
   do not apply it at all to a change that alters which opponents you beat.**
 
+- 🔴 **Bound a lever's *surface area* on paper before building it, and prefer the engine to the
+  experiment when the engine can answer (2026-08-17, S6 step 0).** C-A was killed by two cheap
+  things: a same-town **self-pair** (identical route, both seats — any difference is the lever and
+  it read 1,000) and a **paper permutation** priced on the recorded route with no new episodes at
+  all. The engine then explained both in one line — per-slot lockstep across players, per-product
+  pools — which is a *stronger* result than any number of seeds, because it holds for every route.
+  T2 spent a full pass on a lever it never bounded; step 0 spent an afternoon and returned a
+  refutation plus a relocated target. **Every future challenger states its surface area first:
+  what is the maximum this rule could earn if it fired perfectly on every opportunity in the
+  recorded data?**
+- 🔵 **The same-town control is the first local metric here that has tracked the ladder
+  (2026-08-17).** S6 step 0 ranked Valmorlee above Ueddy on realised premium price with the town
+  held fixed; the ladder currently reads 1.614,0 vs 1.398,7 (Ueddy still converging, so consistent
+  rather than confirmed). Every earlier local metric in this repo compared across environments and
+  §1's puzzle is exactly what that produced. **Hold the environment fixed and the number starts to
+  mean something** — this is the practical form of the lesson below.
 - 🔴 **A cross-entity comparison needs the shared-environment control, and this repo skipped it on
   its own headline (2026-08-17, v1v).** §4.1 ranked nine teams' realised prices against each other
   although **no two of them played the same market**. The controlled quantity was available all
@@ -1279,7 +1298,84 @@ opponent, decomposed by that episode's drain. If the tapes are already at the wi
 mechanism is refuted before anything is built and S6 stops here. This is the T2 lesson applied
 early: T2 spent a pass on a lever whose size it never bounded first.
 
-#### S6 step 1 — the challengers (build all three, reject most)
+✅ **RUN 2026-08-17 — the C-A mechanism is REFUTED; the edge is cross-turn timing, not in-turn
+order.** Report: [baselines/2026-08-17/s6_step0_report.md](baselines/2026-08-17/s6_step0_report.md).
+Scripts `analysis/s6_step0_leg{1,2,3}.py`, `analysis/donor_streams.py` (R26/A2),
+`harness/bench_agents/reference_ladder.py` (R25/A1); guards `tests/test_s6_step0.py` (12);
+`pytest tests/` **316 passed** (3 pre-existing `test_v1h2d_*`). No `agent/` change, no submission
+(R27). Three legs:
+
+- **Leg 1 (same-town control, 32 seeds, both seats).** Against an *identical* route the two seats
+  realise **1,000×** on STRAWBERRY/WOOL/MILK — queue ordering costs nothing. The seed set spanned
+  the draw (**WOOL zero-drain 66/192 = 34%**, R21). The literal kill (≥1,05× on all three) did not
+  fire, so by protocol the pass proceeded — but the pre-registered *mechanism* is refuted directly
+  by the 1,000 self-pair. What leg 1 *did* find: cross-donor, **Valmorlee realises 1,13-1,25× on
+  strawberry/wool vs the other two donors in the same town at the same volume** — a real
+  market-layer edge (~$2,8k order), but from *which turns* it sells on, i.e. **cross-turn timing**,
+  not in-turn order.
+- **Leg 2 (C-A surface, priced on the engine's own market path).** 29-39 nominally reorderable
+  turns per tape, **0 turns exceed the 10-order cap**, and the best legal within-turn permutation is
+  worth **$0-18/ep** (Valmorlee $0). Mechanistic root, pinned in the tests: a SELL commits against
+  its own product's inventory only, so reordering a fixed multiset is revenue-neutral. **C-A is dead
+  before it is built.**
+- **Leg 3 (town readability, 150 episodes).** Premium drain rank stabilises on **median day 15** =
+  exactly when the `shop_evidence_min_unlocks=5` gate fires; all 8 shops only at day 24. Only
+  **29% / 34% / 43%** of episodes have WOOL/MILK/STRAWBERRY's rank readable by its first-sell day
+  (6/9/14). The town is **not** readable in time for the early premium sells; C-B's reliable surface
+  is the back half of the season.
+- **R22 ladder** (`--round-robin --shop-draw`, tapes + A1 tiers + v1u_base + meta_route + pass):
+  Valmorlee **BT 3008 (56-0-0)** › Ueddy 2349 › Kaito 2182 › v1u_base 1701 › meta_route 1299 ›
+  tier5 818 › tier2 651 › pass. R21 over 224 ladder eps: WOOL zero-drain 73/224 = 33%.
+
+**Consequence for step 1 (§2 item 9 — mechanism vs increment).** *Mechanism:* in-place SELL
+reordering cannot move realised premium price (self-pair 1,000, ≤$18/ep). *Where the increment
+actually is:* **cross-turn sell timing** — but on our shipped tape that is behind the **T2 shed
+wall** (§3.3), so it needs a *modifiable* route with shed headroom (the §4.5(b) reconstruction
+path), a larger project than C-A/B/C. C-A ⛔ do not build. C-B alive but late-only and within-turn
+(~$0); its only real value is as a cross-turn metering trigger, again T2-blocked on the tape. C-C
+(MELON, −$27.263) is the only step-1 lever with a measured prize; sequence last.
+
+> **The 1,05× is cross-turn sell timing, not in-turn ordering.** That is the tier-6-9 lever
+> (§4.5a) and the §4.5(b) premium-lead lever, and on a verbatim tape it is behind the **T2 shed
+> wall** — metering needs headroom a 98/100 tape does not have. Which is what redefines step 1.
+
+#### S6 step 1 — 🔴 REDEFINED by step 0: own a modifiable route
+
+The three challengers step 0 was written to bound are resolved as follows, and **none of them is
+the next pass**:
+
+- **C-A — ⛔ refuted** (§3.3 row). Not built, not revisited.
+- **C-B (shop-conditioned ordering) — alive but small and late.** Within a turn it is worth ~$0
+  (legs 1-2 apply to it identically — it is also a within-turn reorder). Its only non-trivial form
+  is as a **cross-turn metering trigger** ("hold WOOL in a town that drew no YARN_STORE" — 34% of
+  towns), which is the same shed-blocked lever. Do **not** build it on a tape.
+- **C-C (MELON) — the only step-1 candidate with a measured prize** (−$27.263, §3.2(7); the only
+  product with a real within-town contest, §4.1b). A *production* change, so it inherits every
+  §3.3 tier-0/1 STOP, and it rides behind a route we control. Still sequenced last.
+
+**All three roads run through the same missing asset: a route we can modify.** Our tapes are
+verbatim performances — they cannot meter (T2), cannot be given headroom, and decay (§4.4#1). The
+§4.5(b) reconstruction method is the way to one: **majority-vote across multiple traces of a single
+strong submission** (V16-RC5 measured ~99,91% market-decision agreement across three traces of
+`55440039`), plus worker-count adaptation and obstruction recovery. That yields a *measurement* of a
+policy rather than a copy of one performance — better under §3.14a, graceful under drift, and it is
+the only thing that unblocks the cross-turn lever leg 1 just priced at ~$2,8k scale.
+
+**Step 1 is therefore: cost and then build the reconstruction.** Its Phase 0 is donor selection,
+and it is a measurement, not a preference — see the pass brief in [prompt.md](prompt.md).
+
+⚠️ **A constraint found while updating this section:** in the 150-episode stride sample of the
+08-16 dataset, **39 distinct teams appear and Valmorlee is not among them**, while **Ueddy has 17
+seats** and **27 teams have ≥3**. The donor whose calendar wins leg 1 may not have enough recent
+traces to reconstruct from. Donor selection has to be measured over the **full 700**, not assumed.
+
+> ⛔ **C-A REFUTED at step 0 (2026-08-17). Do not build it.** In-place within-turn reordering of a
+> fixed sell multiset is revenue-neutral (independent per-product inventory pools; the 10-order cap
+> never binds on these routes): self-pair ratio **1,000**, best-permutation upper bound **$0-18/ep**
+> against the $2.826 gap. The tier-7↔8↔9 separation the *Prior* below cites is **cross-turn metering
+> and sell-timing**, which C-A explicitly forbids (no overnight hold) — so the prior was mis-mapped
+> onto the wrong lever. The real edge is cross-turn timing (leg 1: Valmorlee 1,13-1,25× on the same
+> route class), and on our tape it is behind the T2 shed wall. See the step-0 results block above.
 
 **C-A — the Cleo rule: in-place sell reordering.** Reorder SELL orders **within the slots the
 donor already used for selling**; never move a sell into a slot holding a purchase; never change
@@ -1296,6 +1392,14 @@ already built, already gated, already used by `checkpoints/v1i`. In a 0-YARN_STO
 towns) WOOL goes last; in a 7-instance strawberry town STRAWBERRY goes first. **This is the one
 thing a fixed tape structurally cannot do**, which is what makes it the right first original
 increment rather than a tuning knob.
+
+> ⚠️ **Scoped down at step 0 (2026-08-17).** Leg 3 measured the town unreadable in time for the
+> early premium sells (premium rank stable only from median day 15 = the `shop_evidence_min_unlocks`
+> gate; WOOL/MILK/STRAWBERRY readable-in-time in only 29%/34%/43% of episodes; all 8 shops at day
+> 24). And leg 1/leg 2 showed *within-turn* ordering is worth ~$0. So C-B's within-turn form is dead
+> like C-A; its only non-trivial value is as a **cross-turn metering trigger** on the back half of
+> the season — which hits the same T2 shed wall on our tape. Not a clean step-1 increment on the
+> tape; revisit only behind a route with shed headroom.
 
 **C-C — MELON entry.** The only product with a within-town contest (§4.1b), zero shop buyers in
 150/150 towns, flat ~$144, and our largest single revenue hole. This is a **production** change,
@@ -1328,10 +1432,11 @@ top-30. **Decided by the user 2026-08-17: adopt A1 + A2, skip A3.** Concretely, 
   (`v13-r3`, `177-180 v21.1` — Appendix A).
 - **both seats, always** (§2.1.1), and **`--town-pin basket`** for anything touching occupancy.
 
-*Open action:* nothing from the reference dataset has been downloaded beyond `LICENSE`/`NOTICE`/
-`*.csv` (to scratch, outside the repo). A1 needs the six tier-0-5 `.py` files fetched into a
-**gitignored** local bench directory — MIT permits redistribution, but they are not ours to carry
-in this repo and nothing needs them to be.
+*Open action:* ✅ **done 2026-08-17 (R25).** The six tier-0-5 `.py` are fetched into the
+**gitignored** `harness/bench_agents/reference/`; `harness/bench_agents/reference_ladder.py`
+(committed, no competition data) resolves them by tier/slug/name. A2 is `analysis/donor_streams.py`
+(R26). Both are exercised by the S6-step-0 R22 ladder — Valmorlee tape BT 3008 sweeps the graded
+bench (tiers 0-5 + tapes + v1u_base + meta_route + pass).
 
 ⚠️ **The town is now a known confounder in every market-only A/B.** §2.1.2 classifies a
 market-order change as *"market-only ⇒ a fixed seed is a genuine controlled experiment"*. That
@@ -1556,11 +1661,12 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R17** ✅ | Added `worker_turns_working` to `_V1K_REPORT_METRICS` (2026-08-14, S3 step 1d) — same 3-line-plus-print-line change as R15, generic over the tuple. Pinned by extending `test_compare_metrics_reads_agent_a_seat_in_each_orientation` rather than a parallel test | v1p1b arm A1 hit `worker_turns_moving` 46,0% — the largest commute cut ever measured here — by doing *fewer* working turns and shedding 30% of `crop_tile_days` into idle. A ratio alone would have let it pass; the absolute counterweight now sits next to it in every gate artefact (§3.4) |
 | **R18** | **Replay-analysis scripts: two indexing traps, found and fixed in `analysis/v1q_onboarding_escape.py` (2026-08-14).** (a) Two checkpoint packages that are both literally named `main.py` collide under `harness.play`'s filename sanitizer if given the same `run_dir` — the second `play()` call silently overwrites the first's replay before it's read. Give each orientation/arm its own `run_dir` subdirectory and consume each replay before the next `play()` call. (b) In a recorded episode's `env.toJSON()`, `steps[i][0]` is always seat 0's log entry — `observation` mirrors both farms (safe to index by `[0]` regardless of which seat's *state* you want, verified directly), but `action` is logged per acting agent and must be read from `steps[i][seat]`, not `steps[i][0]`, or a lookup for the non-zero seat silently returns nothing. **(c) added 2026-08-14 (S3 step 1e): the action logged at `steps[i]` is the one that *produced* `steps[i]`'s observation, not the one applied to it.** Pairing an order at step *i* with the money at step *i+1* shifts every purchase one turn later and makes the settlement look lagged — it is not. Read the order and the resulting state from the *same* `steps[i]` entry | Both bugs produced a plausible-looking but wrong result before being caught — the first made escapes appear to track *seat* rather than *agent*, the second made every "which unit acted" lookup fail silently (`None`) for seat 1. Neither raised an exception. Trap (c) is what made S3 step 1d misread the HIRE settlement as gapped and the purchase schedule as identical — corrected in §4.3 |
 | **R19** | **Config-override package builders must REPLACE the target key and assert the effective value, never insert it (2026-08-14, S3 step 1e).** `analysis/v1r_build_stacked.py` first inserted an arm flag as a new key *before* the same key's existing default in the copied `config.py`; the later dict literal wins, so the flag was a silent no-op and every A1-stacked screen ran inert — returning a plausible "identical to the unfixed reproducer" result. The builder now string-replaces the existing key line and re-loads the built config to assert the effective value before writing the package. **General rule:** any tool that edits a config by source-text must round-trip through `load_config` and check the value it intended to set — a dict with a duplicate key does not raise | The result *looked* like a clean "the fix does nothing" finding; it was a dead flag. Caught only by instrumenting the executor's own reserve and seeing the C1 package compute the undercounted number. An A/B whose treatment arm is byte-identical to control is a red flag to trace, not a finding to publish |
-| **R21** | **Report the seed set's realised shop draw in every market-side gate artefact.** §4.1b makes the town a first-class confounder: a fixed seed fixes the shop draw, so a small-seed market-only screen can be measuring one town. Emit per-arm the distribution of `units_per_tick` for STRAWBERRY / WOOL / MILK across the seed set, next to the dollars | §2.1.2 licenses fixed seeds for market-only changes on *occupancy* grounds, which is still true — and is not the same as the arm being unconfounded. A 0-YARN_STORE town (34% of towns) is a different game, and a 12-seed screen can contain zero of them or six |
+| **R21** ✅ | **Report the seed set's realised shop draw in every market-side gate artefact.** §4.1b makes the town a first-class confounder: a fixed seed fixes the shop draw, so a small-seed market-only screen can be measuring one town. Emit per-arm the distribution of `units_per_tick` for STRAWBERRY / WOOL / MILK across the seed set, next to the dollars. **Discharged in `--shop-draw` (R22) and directly in S6 step 0 leg 1 (2026-08-17): the 32-seed set sampled WOOL zero-drain 66/192 = 34%, the predicted 34,4%** | §2.1.2 licenses fixed seeds for market-only changes on *occupancy* grounds, which is still true — and is not the same as the arm being unconfounded. A 0-YARN_STORE town (34% of towns) is a different game, and a 12-seed screen can contain zero of them or six |
 | **R22** ✅ | **Bradley-Terry landed 2026-08-17** — [harness/ladder.py](harness/ladder.py) + `python -m harness.cli ladder`, 11 guards in `tests/test_ladder.py`. MM fit (Hunter 2004) with a half-phantom-win prior so an agent that sweeps a graded bench stays finite, reported on the competition's own Elo-like scale (400 pts/10× strength, mean 1500). Both seats on every pairing and **the per-seat split is reported separately** (§2.1.1 — an agent that wins only from seat 0 has a market-ordering dependency, not a strength). `--round-robin` plays the bench against itself so the comparison graph is connected; without it the printout says so rather than letting weakly-identified bench ratings look authoritative. `--shop-draw` discharges **R21** in the same command | This is a large part of why §1's central puzzle — measured local wins converting to ~nothing on the ladder — has stayed open for five weeks. The pinned defect is `test_beating_a_strong_opponent_outranks_beating_a_weak_one`: two agents with identical 60% records must not receive identical strengths, and under `median_bank`/W-L they do. S6 step 3 |
 | **R23** ✅ | **Decided by the user 2026-08-17: A1 + A2, skip A3.** Tiers 0-5 (MIT, original work) as the graded regression ladder; **our own three extracted donor tapes** as the fixed-production mirror bench; **tiers 6-9 not used** — their uncovered `_TRACE` is avoidable because A2 reproduces the same fight from material we already hold. Their published $164-$2.617/ep separation is kept as a citation-only calibration figure. Wired into S6 step 2 | The uncovered `_TRACE` was the only ambiguity in the dataset, and it is now simply not touched |
-| **R25** | **Fetch the six tier-0-5 agents into a gitignored local bench dir** and add them to `harness/bench_agents/`'s resolution path. MIT permits redistribution; carrying them in this public repo is still unnecessary | A1 is decided but not executed — nothing beyond `LICENSE`/`NOTICE`/`*.csv` has been downloaded |
-| **R26** | **Build the A2 mirror bench**: wrap the three extracted donor tapes (Valmorlee / Ueddy / Kaito) as bench opponents, reusing `analysis/tape_agent.py`. Route files stay gitignored (§2.4b / R11) | The fixed-production opponent is what makes an S6 market-layer A/B clean — production held constant by construction |
+| **R25** ✅ | **Done 2026-08-17.** Fetched the six tier-0-5 `.py` (MIT) into the **gitignored** `harness/bench_agents/reference/` (with `LICENSE`/`NOTICE`/`PROVENANCE.md`); resolver `harness/bench_agents/reference_ladder.py` (committed, carries no competition data) maps tier/slug/name → local path. Tiers 6-9 not fetched (R23); CC BY-SA CSVs read transiently, never vendored (§4.5). Verified loadable + graded (Finn $3.000 floor → Rita ~$40k). Wired into the S6-step-0 R22 ladder | A1 is decided but not executed — nothing beyond `LICENSE`/`NOTICE`/`*.csv` has been downloaded |
+| **R26** ✅ | **Done 2026-08-17.** `analysis/donor_streams.py` wraps the three donor tapes via `analysis/tape_agent.py::make_tape_agent`, sha256-verified against provenance on load; used programmatically by S6-step-0 leg 1 and by the R22 ladder (tape `main.py` paths). Route files stay gitignored (§2.4b / R11) | The fixed-production opponent is what makes an S6 market-layer A/B clean — production held constant by construction |
+| **R28** | **The BT bench now has a ceiling problem, and it is the good kind.** The 2026-08-17 round-robin reads Valmorlee **3008 (56-0-0)** › Ueddy 2349 › Kaito 2182 › `v1u_base` 1701 › `meta_route` 1299 › tier-5 818 › tier-2 651 › `pass` −8. **The tapes sweep every rung we hold**, so nothing on this bench can score a challenger that is *better than a tape* — which is exactly what S6 step 1 exists to produce | A graded bench whose top rung is the thing under test measures nothing above it. Step 1's reconstruction produces sibling traces of one donor family as a by-product; those are the natural next rung |
 | **R27** | **Never let the top submission fall out of the active pair as a side effect of shipping.** Eviction is by submission **date**, not score (§6bis, measured): uploading anything today evicts Valmorlee (1.617,6), not Ueddy. Decide the eviction before the upload, and price the re-upload (restarts at 600,1, ~1 day to re-converge) | Measured 2026-08-17: an inactive submission plays **zero** episodes (v1h dead 8 days) and the final Bradley-Terry runs on the latest 2 only. The official overview's "every bot continues to play" is boilerplate and is false here |
 | **R24** | **Re-test the §3.3 `shop-adaptive sell floor` STOP against `v1u_base`.** It failed at 415 crop tile-days as *"production-constrained, never glut-constrained"* — true then, and false at the tape's production. Engine-stale as well (1.32.6) | §2's STOP protocol: a STOP is final once its own mechanism has no untested implication left. This one's stated mechanism explicitly names a production level we have since left |
 | **R20** ✅ | **Per-product units + realised revenue in every gate artefact (2026-08-15, S3 step 2).** `harness/compare.py::_attach_v1k_diagnostics` read `units_sold_by_product`/`revenue_by_product` but wrote only the MELON pair (`melon_units_*`/`melon_revenue_*`), so MILK/WOOL **realised price** — the §4.1 currency every herd-13 economic risk turns on — could not be read from a gate artefact at all. Generalised over module-level `_V1K_REPORT_PRODUCTS = ("MELON","MILK","WOOL")`, emitting `{product.lower()}_units_{arm}` / `_revenue_{arm}`; the six longhand melon sites (`_attach_v1k_diagnostics`, the `CompareResult` fields, the four aggregation/None-fill blocks) each now loop the tuple, with the MELON keys **byte-preserved** (MELON is first, keyed by `.lower()`). Added the MILK/WOOL fields to `CompareResult`, `cli.py`'s `results.json` dict and the CLI summary. Pinned by extending the existing metrics test | Named the §3.3 MILK-saturation-on-9-COW mechanism directly from the herd-13 gate output (MILK $/u 151 → 131-139 on H2/H2R) with no separate script. R20's six-site loop deliberately avoids the "miss one None-fill block" trap the brief flagged: a missed block silently absents the key from exactly the failed-metrics artefacts |
