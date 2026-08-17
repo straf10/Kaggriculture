@@ -36,7 +36,8 @@
 | 🔴 **The donor cross-check nobody had run** | **A copied route's ladder ceiling is its donor submission's own rating, and ours was a rank-1018 agent.** Public leaderboard, read **2026-08-17 17:16 UTC** (4.979 teams): **Valmorlee — the T1 donor — is #1018 at 1.842,4**, last submission **08-11 20:34**, i.e. the exact generation we taped. Our tape converged at **1.617,6 = 88% of it**. The tape did not stall because it is a tape; it stalled because **the donor tops out at ~1.8k**. Direct counter-evidence that open-loop is the limit: **Peter Parker is a *pure* frozen tape** (12 traces, **1** distinct full-market fingerprint — zero town-conditioning) and sits at **#29 / 2.844,2**. And the S6 donor **ReCurSiON is #4 at 3.004,6**, last submission **08-14 14:14** — *before* the 08-16 episode dataset, so the 50 traces we reconstructed from are that submission's generation. **カワシギ #1 (3.190,1)** is the town-adaptive team Phase 0 rejected as unreconstructible (agreement 0,31), which confirms §4.3's anti-correlation finding from outside the repo | `kaggle competitions leaderboard kaggriculture -d`, this session |
 | 🟢 What this settles | **The §4.2 tape decision was correct, and it is now measured on the ladder, not locally.** The whole v1e→v1o.2 planner chain moved us 557,0 → 643,9 across five weeks. One tape moved us to **1.091,1**. §3.4's crop/animal-equilibrium finding predicted exactly this: **the configuration was the product, not the scheduler** | same |
 | ⚠️ Caveat on the local number | The gate read median **$128k** unpinned, but that bench is soft — S2 recorded `meta_route` as an easy opponent (all 3 donors *better* there, +2,9% to +57,2%). The honest predictor was always S2's **hard**-opponent figure (7-37% degradation, $57,6-76k), and the ladder's 1.091,1 is the number that counts. Do not quote $128k as a ladder expectation | `baselines/2026-08-11/s2_failure_map.json` |
-| Our active submissions | **`55548339` Valmorlee T1 tape — 1.617,6** (converged) · **`55575305` Ueddy T2 tape — 1.027,8** (shipped 2026-08-17 09:24, holdout med $124k / 96-0; still converging) · `55438252` v1o.2 — 647,5 **now inactive** (only the latest two count) | same |
+| Our active submissions | 🔄 **updated 2026-08-17 22:51 UTC:** **`55586926` ReCurSiON reconstruction — 1.125,9 on 7 episodes** (shipped 22:29, i.e. **22 minutes** old; DEV +$15.276 / unpinned holdout +$12.212 IMPROVED vs the raw Valmorlee tape) · **`55575305` Ueddy T2 tape — 1.375,9 on 72 episodes** · `55548339` Valmorlee T1 tape — **1.599,1 on 111 episodes, now INACTIVE** (evicted by date per the user's decision — only the latest two count) | `kaggle competitions submissions` · `episodes <id> -v` |
+| 🟢 The early signal, hedged correctly | **+526 points in 7 episodes** (600,0 → 1.125,9). Rating moves only by *winning*, so a climb this steep against a rating-sorted opponent pool is the strongest early read this repo has produced — and after 7 episodes it is a **signal, not a result**. The comparison that will settle it is **rating against episode count**, not against wall-clock: Ueddy needed **72** episodes to reach 1.375,9 and Valmorlee **111** to reach 1.599,1. Already past every hand-built agent this repo ever fielded (best 652,5, v1h) | same |
 | ⚠️ v1o.2's verdict | +$5.069/ep of holdout production (crop tile-days 413→562) landed at **620,4** — **+20 over its own pairmate**, read the same day, and **−32 under frozen v1h**. The §3.2.1 "local→ladder transfers whole" finding does **not** generalise past v1h.2d | same |
 | ⚠️ Rating decay, observed | `55414570` **632,2 → 618,4 → 600,2** over 08-10/08-11/08-15 with no code change — a frozen agent's score falls as the meta moves (§4.4#1), so a score is only comparable to others read the same day | same |
 | Rank before the tape | 2736 / 4555 (2026-08-15; 2218 / 3811 on 08-11 — 518 places lost while changing nothing). Kept as the decay baseline | same |
@@ -442,6 +443,23 @@ its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13
   rather than confirmed). Every earlier local metric in this repo compared across environments and
   §1's puzzle is exactly what that produced. **Hold the environment fixed and the number starts to
   mean something** — this is the practical form of the lesson below.
+- 🔴 **A rating is a function of episodes played, so every ladder criterion must be written in
+  episodes, never in hours (2026-08-17, S6 step 1b).** Kill (iii) was pre-registered as *"once
+  converged (~1 day)"*. Read 22 minutes after the upload, the new submission sat at **1.125,9 on 7
+  episodes** against the incumbent tape's **1.375,9 on 72** — and a criterion phrased in wall-clock
+  invites exactly the comparison that would have "refuted" a submission gaining **+526 points in 7
+  episodes**. Ueddy needed 72 episodes to reach 1.375,9; Valmorlee 111 to reach 1.599,1. **Any
+  ladder-side criterion states an episode count, and any two scores compared are read on the same day
+  *and* at comparable episode counts.** This is §1's decay caveat's twin: that one says *when* to read,
+  this one says *how much play* is behind the number you read.
+- 🔴 **Sum the loss counters that are already in every gate artefact before designing the next lever
+  (2026-08-17, evaluating S6 step 1b).** The shipped route's own-farm losses —
+  `unexpected_weeds_lost` 5,0/ep at the repo's own $300 and `plant_decay_units_lost` 15,0/ep, unpriced —
+  add to **~$2,8-3,1k/ep**, *larger than the entire premium-lead overlay ceiling* (+$1.912/ep) the next
+  pass was queued to chase. Both numbers were sitting in `results.json` on both arms of every tape gate
+  since 08-16, and both are near-identical on the incumbent, i.e. **the whole tape line has been paying
+  them the entire time.** R13 already said *price a counter, don't floor it*; this adds: **price it even
+  when it passes**, because a counter inside its budget is still a bill. §4.3 S6 step 2a.
 - 🔴 **A copied route's ladder ceiling is its donor submission's own rating — read the leaderboard
   before choosing a donor (2026-08-17, evaluating S6 step 1 Phase 0).** The cheapest external check
   available in this competition had never been run: **the donor's public score**. Run once, it
@@ -1481,10 +1499,105 @@ own standing pre-check applied to the pass that produced it — price the gain i
 spending a pass — and it is the first time in this repo that the arithmetic has favoured *shipping*
 over building.
 
-#### S6 step 1b — 🟢 THE NEXT PASS: package, gate and field the reconstruction
+#### S6 step 1b — ✅ SHIPPED (2026-08-17→18): reconstruction fielded as `55586926`
 
-*The whole increment already exists.* Nothing is invented here: 1b takes the artefact step 1 built
-and puts it through §2.1.3's protocol and §6bis's checklist, because an unfielded route earns zero.
+✅ **RUN and SHIPPED.** Both pre-registered gate kills resolved (neither fired); the ReCurSiON
+majority-vote reconstruction was packaged, gated and uploaded as **`55586926`** (public **600,0**,
+validated `COMPLETE`, converging). **Valmorlee `55548339` evicted per the user's decision**; active
+pair now **{Ueddy `55575305` (1.371,1), ReCurSiON `55586926`}**. Report:
+[baselines/2026-08-17/s6_step1b_report.md](../baselines/2026-08-17/s6_step1b_report.md). Scripts
+`analysis/s6_step1b_cluster.py`, `analysis/build_reconstruction_submission.py`,
+`analysis/s6_step1b_gate.py`; tracked evidence `gates/s6_step1b_gate_{dev,holdout}/results.json`;
+`pytest tests/` **326 passed**.
+
+- **Item 1 — kill (ii) does not fire (ONE MODE).** 2-medoid on market-decision distance is a
+  degenerate 48/2 peel of two low-reward adaptive-degradation outliers; **majority-vote invariance
+  1,000** (the 50-vote is byte-identical to the dominant-48 vote), dominant-48 silhouette 0,153 (no
+  internal structure). The single majority vote measures the dominant policy's mode.
+- **Item 4 — kill (i) does not fire.** vs the raw Valmorlee tape (incumbent): DEV 48-0 **+$15.276
+  IMPROVED**; **unpinned holdout 100-147 both seats 48-0 +$12.212 IMPROVED**, median $88.463. Priced
+  loss recon $1.500/ep < tape $3.836/ep (`priced_loss_delta $0`); **zero escapes / zero shed overflow**
+  vs the tape's 107/680; crop tile-days 1316 vs 1236. R21 draw spanned for every seed set (WOOL
+  15-25% zero-drain). `GO=False` is the **T1-precedent structural N/A for a code-less tape**
+  (`plant_decay ~15/ep`, *equal* to the incumbent tape's ~14,9/ep) — the substantive §2.1.4 gate is
+  passed ≫ floor, which is what kill (i) is defined on.
+- **Item 5 — §6bis all green.** G12, timing both seats (max×3<1s), G13, mirror `clean=True`, size,
+  pytest 326.
+- **Kill (iii) — OPEN, and its instrument was mis-specified.** ~~pending (~1 day)~~ The criterion was
+  written against **wall-clock** ("~1 day"), and a rating is a function of **episodes played**, not
+  hours. Read 2026-08-17 22:51 UTC — **22 minutes** after the upload — `55586926` is at **1.125,9 on 7
+  episodes** against Ueddy's **1.375,9 on 72**. Comparing those two numbers today would "fire" kill
+  (iii) on an artefact of episode count, which would have been a serious mis-read of a submission that
+  has gained **+526 points in 7 episodes**. **Restated criterion:** record **(episode count, score)
+  pairs for both submissions on the same reads** until `55586926` has **≥72 episodes** — Ueddy's count
+  — and compare there; a converged-looking early number is not evidence either way. Does **not** carry
+  to step 2 (which would evict Ueddy — separate decision, §6bis).
+
+⚠️ **Two loose ends from this pass, both cheap, neither affecting the verdict.**
+**(a) Item 3's BT number was never produced.** The report's item 3 carries an unfilled
+`<!-- BT_LADDER_RESULT -->` placeholder and no BT artefact exists on disk; what it actually reports is a
+**challenger-only 24-0-0 sweep with margins** (Valmorlee +17.054, Ueddy +15.117, Kaito +21.194,
+`meta_route` +97.730, tiers +99k-170k). That sweep is real and is the substance, but **R28's rung is a
+*Bradley-Terry rating*, and it is still unmeasured** — `--round-robin` is what makes the graph
+connected, and it was either not run or not captured. Carry it into the next pass; it is one command.
+**(b) No `memory.md` entry was written** for the pass; added retroactively in the evaluation session
+below it. **(c) The report's "Gate evidence (tracked)" line is false** — `.gitignore:10` ignores
+`gates/` wholesale, so `gates/s6_step1b_gate_{dev,holdout}/results.json` exist **only on this machine**.
+That is the **R14 failure repeating one directory over**: the evidence for the largest shipping decision
+in this repo's history is not in git. See **R34** — the numbers themselves are verified (I re-read both
+files this session and they match the report exactly), but verified-by-me is not the same as
+recoverable.
+
+*The whole increment already existed.* Nothing was invented: 1b took the artefact step 1 built and
+put it through §2.1.3's protocol and §6bis's checklist, because an unfielded route earns zero.
+
+#### S6 step 2a — 🟢 THE NEXT PASS: the route is blind to its own farm, and that costs more than the overlay would earn
+
+🔴 **Read out of step 1b's own gate artefacts this session, and it re-orders step 2.** The holdout
+artefact (`gates/s6_step1b_gate_holdout/results.json`, 96 episodes, unpinned, both seats) contains a
+loss decomposition nobody summed:
+
+| loss, per episode | reconstruction | incumbent tape | priced at | ≈ $/ep |
+|---|---:|---:|---|---:|
+| `unexpected_weeds_lost` | **5,0 tiles** | 5,5 | $300/tile (§2.1.5) | **$1.500** |
+| `plant_decay_units_lost` | **15,0 units** | 14,9 | *unpriced* — structural counter | **~$1.300-1.600** ⚠️ |
+| `animals_escaped` | 0 | 1,1 | $1.000 | $0 |
+| `shed_overflow_burnt` | 0 | 7,1 | $150/unit | $0 |
+
+The first row **is** the whole of the reconstruction's `priced_loss_a` ($1.500/ep, exactly 5,0 × $300).
+The second is 15 units/ep of crop passing its max-yield tick uncollected (D6) and has **never been
+priced** — the ⚠️ figure assumes strawberry at the route's realised $90-105/u and **must be decomposed
+by product, not assumed**. Together they are of order **$2,8-3,1k/ep**, against the premium-lead
+overlay's entire ceiling of **+$1.912/ep** (§4.5b). And they are near-identical on the incumbent tape,
+so this is **inherent to open-loop replay in a foreign town** — a loss the whole tape line has been
+paying since 08-16 while every pass looked at the market layer.
+
+**The one failure mechanism, stated so it can be wrong: the reconstruction is blind to its own farm
+state.** It plays a stream calibrated to the donor's town, so when *this* town's weeds spawn on a
+planted tile the stream does not clear, or a crop passes its max-yield tick the stream does not
+harvest, the loss is taken silently. §4.5(b)'s method prescribes exactly this layer — "worker-count
+adaptation and obstruction recovery" — and step 1 deferred it as an afterthought to the overlay.
+**Measured, it is the larger lever of the two**, it is *own-farm* (no opponent interaction, and
+critically **no town confounder** — §4.1b's 99% does not apply to a weed on our own tile), and it is
+the cleanest increment shape this repo has had available.
+
+**Why it might still be worth nothing, which is the point (§3.4).** A repair inserts an action the
+route did not emit. If a unit is **idle** at that step it is nearly free; if it **displaces** a route
+action, §3.3's crop/animal equilibrium — five independent mechanisms, same wall — says it loses more
+than it earns. *That* is the surface area to bound on paper first, and it is the whole risk of the pass:
+**if fewer than ~$500/ep of the events above coincide with an idle unit-turn, the lever does not exist
+and the pass goes straight to step 2b.** No episodes are needed to find out; the recorded replays and
+the reconstruction's own stream answer it.
+
+**And the selection between 2a and 2b should be made on our own live losses, not on a prior.** We now
+have something this repo has never had at this quality: **our own shipped route's public episodes**, in
+real towns, against rating-sorted opponents, both seats — the §3.2 L1/L2 diagnostic, with §4.1b's
+same-town control available inside every episode. §4.5(b)'s +$1.911,9/ep is *V16-RC5's* number for
+*its* route; ours is unmeasured. Read our own losses first.
+
+> **Step 2b (the premium-lead overlay) keeps its place in the queue and its own Phase 0 and kill** — it
+> is not withdrawn, it is *second*, because the thing ahead of it is bigger, cleaner and cheaper to
+> bound. If 2a's Phase-0 bound comes in under $500/ep, 2b becomes the next pass instead.
 
 **Surface area, stated first (§3.4):** the donor scores **3.004,6 (#4)**; a faithful reconstruction
 of it cannot exceed that and should approach it (fidelity 0,12%, calendar ≥ Valmorlee's, 24-0-0 vs
@@ -1826,6 +1939,9 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R25** ✅ | **Done 2026-08-17.** Fetched the six tier-0-5 `.py` (MIT) into the **gitignored** `harness/bench_agents/reference/` (with `LICENSE`/`NOTICE`/`PROVENANCE.md`); resolver `harness/bench_agents/reference_ladder.py` (committed, carries no competition data) maps tier/slug/name → local path. Tiers 6-9 not fetched (R23); CC BY-SA CSVs read transiently, never vendored (§4.5). Verified loadable + graded (Finn $3.000 floor → Rita ~$40k). Wired into the S6-step-0 R22 ladder | A1 is decided but not executed — nothing beyond `LICENSE`/`NOTICE`/`*.csv` has been downloaded |
 | **R26** ✅ | **Done 2026-08-17.** `analysis/donor_streams.py` wraps the three donor tapes via `analysis/tape_agent.py::make_tape_agent`, sha256-verified against provenance on load; used programmatically by S6-step-0 leg 1 and by the R22 ladder (tape `main.py` paths). Route files stay gitignored (§2.4b / R11) | The fixed-production opponent is what makes an S6 market-layer A/B clean — production held constant by construction |
 | **R28** 🟢 | **The BT bench had a ceiling problem — S6 step 1 produced the new rung (2026-08-17).** The round-robin read Valmorlee **3008 (56-0-0)** › Ueddy 2349 › Kaito 2182 › `v1u_base` 1701 › … — the tapes swept every rung, so nothing could score a challenger *better than a tape*. **The ReCurSiON reconstruction now sits above them: 24-0-0 vs the Valmorlee tape (+$14.267/ep), 24-0-0 vs Ueddy/Kaito** (SMOKE 0-11, both seats). It is a local tape agent (parameterised by its majority-vote stream), not a file path, so wiring it into `harness.cli ladder` for a full BT number needs a packaged local `main.py` (gitignored) — **now item 2-3 of step 1b, this coming pass** | A graded bench whose top rung is the thing under test measures nothing above it. Step 1's reconstruction is that next rung |
+| **R34** 🟡 | **`gates/` is gitignored wholesale, so no gate result is in git — R14 repeating one directory over.** R14 found `checkpoints/` ignored, contradicting the invariant that directory exists to enforce, and the user's fix was **track the manifests only** (`/checkpoints/**` + `!/checkpoints/**/` + `!/checkpoints/*/manifest.json`, in that order — git cannot re-include a file under an excluded parent). The same argument applies verbatim to `gates/`: step 1b's DEV and unpinned-holdout `results.json` are the evidence for shipping `55586926`, they hold **aggregates only** (banks, counters, verdicts — no action streams, so no §2.4b exposure), and they exist on one laptop. **Recommendation: track `gates/*/results.json` only, same pattern.** Flagged rather than done — R14 was the user's call and this is the same call | An accepted-gate record that lives only on the machine that produced it is not a record. Every "measured, not narrative" claim in this file rests on artefacts like these |
+| **R32** | **Price *every* loss counter in the artefact, including the ones that pass, and state the total (2026-08-17, evaluating S6 step 1b).** The shipped reconstruction's `priced_loss_a` reads a comfortable $1.500/ep against budget — and is **100% `unexpected_weeds_lost`** (5,0 tiles × $300). Beside it sits `plant_decay_units_lost` **15,0 units/ep**, structural, unpriced, and ~equal on the incumbent tape (14,9). Summed: **~$2,8-3,1k/ep of own-farm loss on both arms of every tape gate since 08-16**, never once totalled, and **bigger than the +$1.912/ep lever the next pass was queued to build**. Add a per-episode **loss ledger** (counter → count → unit price → $) to the gate summary, with unpriced structural counters listed at "unpriced" rather than omitted | A counter inside its budget is still a bill. R13 fixed *floored-instead-of-priced*; this fixes *passed-therefore-invisible*. It is also the answer to "where does this agent lose": it was in the artefact all along |
+| **R33** | **`--round-robin` BT is still unmeasured for the reconstruction (R28's rung).** Step 1b's item 3 reports a genuine challenger-only **24-0-0 sweep with margins** but its BT table is an unfilled `<!-- BT_LADDER_RESULT -->` placeholder and no artefact exists on disk. A challenger-only sweep cannot produce a rating — the round-robin is what connects the comparison graph (R22's own caveat). One command, carried into step 2a | R28 exists because the tapes swept every rung, so nothing could score *above* a tape. The reconstruction is that rung and its rating is still a blank |
 | **R30** | **Read the donor's public leaderboard score before selecting it, and quote it as the pass's surface area (2026-08-17, evaluating S6 step 1 Phase 0).** `kaggle competitions leaderboard kaggriculture -d` is one call and it is the only number in this competition that is *already* in the units we are judged in. Run it, it says: T1's donor **Valmorlee #1018 / 1.842,4** (tape at 1.617,6 = 88% of it — the ceiling was the donor), S6's donor **ReCurSiON #4 / 3.004,6** (⇒ step 1b's ~+1.383-point surface area), and **Peter Parker #29 / 2.844,2 as a *pure* frozen tape** (1 distinct market stream in 12 traces). ⚠️ Only valid where the team's `LastSubmissionDate` **precedes** the episode dataset the traces come from — otherwise the score belongs to a submission you did not trace (true for ReCurSiON 08-14 and boatlee 08-15; **not** for Ueddy/カワシギ/Tschinkel, all 08-17) | Five weeks of §1's central puzzle had a one-call component nobody spent: our best asset was a faithful copy of a rank-1018 agent. R29 says never rank on reward because reward is the town; this says **do** rank on rating, because rating is the ladder |
 | **R31** | **"Same submission" is tested on the *market/full* stream, never on the opening (2026-08-17, S6 step 1 Phase 0).** The 48-step opening is byte-identical across 1.219 of 1.398 live seats (87%), so it discriminates nothing — yet the Phase 0 provenance line still claims one submission *from* the opening fingerprint. Measured: ReCurSiON's 50 traces show **50 distinct** `fp_market_full` and **16 distinct** `fp_prod_full`. Any future donor-provenance claim states the test used, and a majority vote over a mixed population must first show the population has **one** mode (2-cluster on pairwise market-decision distance — step 1b, item 1) | A majority vote across two near-identical submissions is a blend that measures neither. The fidelity result (0,12%) makes this unlikely here, but "unlikely" is not the same claim as the report made |
 | **R29** | **Donor/route selection ranks on the *town-controlled* ratio, never on reward or bank (2026-08-17, S6 step 1 Phase 0).** The first shortlist ranked candidate teams by median reward and **missed ReCurSiON — the field's best calendar — entirely**, because reward is 99% the town (§4.1b). `analysis/s6_step1_phase0.py calendar --all` (candidate realised price ÷ same-town opponent's, straight from the recorded episode) is the selector, and it must scan **every** eligible team, not a reward-triaged shortlist. Same tool answers criterion 2 (`agreement`, per channel) and the `cluster` inventory. §3.4 lesson logged | The environment dominates every raw aggregate here; a triage that ranks on it hides exactly the entity worth finding. Cost was near-zero only because the all-teams scan caught it mid-pass |

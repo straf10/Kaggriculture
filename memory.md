@@ -9,6 +9,67 @@
 
 ---
 
+## 2026-08-17 ζ — Session: **S6 step 1b ✅ SHIPPED (`55586926`) + evaluation: το route είναι τυφλό στο δικό του χωράφι — το step 2 αναδιατάσσεται σε 2a (repair) πριν το 2b (overlay)**
+
+**Εντολή (user):** διάβασε το `baselines/2026-08-17/s6_step1b_report.md` + το τελευταίο session,
+αξιολόγησε, ενημέρωσε το plan αν χρειάζεται, δώσε prompt. Με τη ρητή πειθαρχία: *real losses → ένας
+μηχανισμός → challengers → πολλές ομάδες & και οι δύο θέσεις → απόρριψε τους περισσότερους → freeze →
+test σε μεταγενέστερα episodes*, και **«πού χάνει αυτός ο agent, και ποιο πείραμα θα διέψευδε τη
+βελτίωση;»**
+
+### Τι έκανε το step 1b (δεν είχε γραφτεί memory entry — γράφεται εδώ αναδρομικά)
+Package → gate → **SHIP**. Submission **`55586926`** (22:29 UTC), evict Valmorlee `55548339` κατά την
+απόφαση του user. Active pair **{Ueddy `55575305`, ReCurSiON `55586926`}**.
+- **Kill (ii) δεν άναψε (R31):** 2-medoid στο market-decision distance = **ONE MODE** + 2 outliers
+  (low-reward 65k/78k), **majority-vote invariance 1,0000** (η ψήφος των 48 = η ψήφος των 50),
+  dominant-48 silhouette 0,153.
+- **Kill (i) δεν άναψε:** DEV 48-0 **+$15.276 IMPROVED**· **unpinned holdout 100-147, και οι δύο
+  θέσεις, 48-0 +$12.212 IMPROVED**, median $88.463· priced_loss recon $1.500 < tape $3.836
+  (`priced_loss_delta $0`)· **0 escapes / 0 shed overflow** vs 107/680· crop tile-days 1316 vs 1236.
+  **Επαλήθευσα τα νούμερα απευθείας από τα `gates/s6_step1b_gate_{dev,holdout}/results.json` —
+  ταιριάζουν ακριβώς.** `GO=False` = το T1-precedent structural N/A για code-less tape.
+- §6bis checklist all green· `pytest` **326**.
+
+### Αξιολόγηση — δύο εκκρεμότητες και μία λάθος-διατυπωμένη kill
+1. **Το kill (iii) ήταν γραμμένο σε wall-clock («~1 day») και αυτό είναι λάθος όργανο.** Διάβασα τη
+   ladder **22 λεπτά** μετά το upload: recon **1.125,9 σε 7 episodes**, Ueddy **1.375,9 σε 72**,
+   Valmorlee 1.599,1 σε 111 (frozen). Σύγκριση σήμερα θα «άναβε» το kill πάνω σε artefact του episode
+   count — για ένα submission που πήρε **+526 πόντους σε 7 episodes**. Νέο κριτήριο: **(episode count,
+   score) pairs, σύγκριση όταν το recon φτάσει ≥72 episodes.** Νέο §3.4 lesson: *rating = συνάρτηση
+   episodes, όχι ωρών.*
+2. **R33 — το BT του R28 παραμένει ΑΜΕΤΡΗΤΟ.** Το item 3 του report έχει άδειο
+   `<!-- BT_LADDER_RESULT -->` και κανένα artefact στο disk· αυτό που αναφέρει είναι challenger-only
+   24-0-0 sweep με margins (πραγματικό, αλλά **δεν** βγάζει rating — το `--round-robin` συνδέει το
+   graph). Μία εντολή, πάει στο επόμενο pass.
+3. Δεν γράφτηκε memory entry (αυτό εδώ).
+
+### 🔴 Το εύρημα που αναδιατάσσει το plan (R32) — «πού χάνει ο agent»
+Άθροισα τους loss counters που ήταν **μέσα στο artefact** και κανείς δεν είχε αθροίσει (holdout, 96 eps,
+unpinned, both seats), ανά episode:
+- `unexpected_weeds_lost` **5,0 tiles** × $300 = **$1.500/ep** — και είναι **το 100% του priced_loss**.
+- `plant_decay_units_lost` **15,0 units** — **απρικάριστο** structural counter (D6: crop περνά το
+  max-yield tick ασυγκόμιστο) ≈ **$1,3-1,6k/ep** ⚠️ *υπόθεση strawberry — πρέπει να σπάσει ανά product*.
+- Σύνολο **≈$2,8-3,1k/ep**, **μεγαλύτερο από ΟΛΟΚΛΗΡΟ το ceiling του step-2b overlay (+$1.912/ep)**.
+- Και είναι **~ίδια στο incumbent tape** (14,9 / 5,5) ⇒ **όλη η tape line τα πληρώνει από τις 08-16**.
+
+**Ένας μηχανισμός, διατυπωμένος για να μπορεί να διαψευστεί: το route είναι τυφλό στο δικό του farm
+state.** Παίζει stream καλιμπραρισμένο στην πόλη του donor. Είναι *own-farm* (καμία αλληλεπίδραση με
+αντίπαλο, **κανένα town confounder** — το 99% του §4.1b δεν ισχύει για weed στο δικό μας tile).
+**Γιατί μπορεί να μην αξίζει τίποτα:** ένα repair εισάγει action που το route δεν έβγαλε — αν η μονάδα
+είναι **idle** είναι σχεδόν δωρεάν, αν **εκτοπίζει** τότε το §3.3 crop/animal equilibrium λέει ότι χάνει.
+**Phase 0 (paper, χωρίς episodes): πού/πότε συμβαίνουν τα events, υπάρχει idle unit εκείνο το step, και
+πόσο είναι το free half. < $500/ep ⇒ STOP και πάμε 2b.**
+
+### Επόμενο
+Νέο `prompt.md` = **S6 step 2a**: live-episode L1/L2 diagnostic στα δικά μας public episodes (με το
+§4.1b same-town control μέσα σε κάθε episode) → Phase 0 bound → arms **A** (harvest repair) / **B** (weed
+repair) / **C** (idle-only control) → SMOKE→DEV non-mirror→unpinned holdout, R21+R17 → freeze ≤1 → **S6
+step 4 στα 08-18+ datasets** (πρώτη φορά runnable). Μαζί: R33 (BT round-robin) και το σωστά
+οργανωμένο kill (iii). **Κανένα upload (R27)** — το επόμενο upload πετάει το Ueddy και αφήνει δύο
+σχεδόν-ίδια actives· η απόφαση μπαίνει στην **αρχή** του pass που θα στείλει.
+
+---
+
 ## 2026-08-17 ε — Session: **Evaluation του Phase 0 report — το gate στέκει, αλλά έλειπε ΕΝΑ API call: ο donor είναι #4 (3.004,6)· step 2 αναβάλλεται, step 1b = ship the route**
 
 **Εντολή (user):** διάβασε το `baselines/2026-08-17/s6_step1_phase0_report.md`, το τελευταίο session
