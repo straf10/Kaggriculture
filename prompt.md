@@ -1,119 +1,97 @@
-# Pass brief — S6 step 1: own a modifiable route (Phase 0 = donor selection, measured)
+# Pass brief — S6 step 1b: package, gate and field the reconstruction
 
-> **Read first:** [ROADMAP.md](ROADMAP.md) §4.3 **S6 step 0's result and the redefined step 1**,
-> **§4.5(b)** (the reconstruction method), §4.1b, §3.3's **T2 row** and the new **C-A row**,
-> §3.4's two new lessons (bound the surface area first; the same-town control), §4.4#1 (decay),
-> §6bis slot mechanics + **R27**, **R28**; the top entries of [memory.md](memory.md); and
-> `baselines/2026-08-17/s6_step0_report.md`.
+> **Read first:** [ROADMAP.md](ROADMAP.md) §4.3 **S6 step 1's result block, the second-read
+> evaluation, and the step 1b section** (they are the spec for this pass); §1's new
+> **donor-cross-check** row; §3.4's new **R30** lesson; **§6bis** in full — the pre-upload checklist,
+> the two slot traps, and the eviction block; **R27 / R28 / R30 / R31**; §4.2's three mandatory
+> conditions; §2.1.3-5; the top of [memory.md](memory.md); and
+> `baselines/2026-08-17/s6_step1_phase0_report.md`.
 
 ## Where we are
 
-Step 0 did its job by refuting its own pre-registered lever. **C-A is dead** — against an identical
-route in the same town the two seats realise **1,000×**, the best within-turn permutation is worth
-**$0-18/ep**, and the engine says why ([kaggriculture.py:544-597](engine_reference/kaggriculture.py#L544-L597):
-per-slot lockstep across players, per-product pools). Queue ordering is not where the money is.
+Step 1 Phase 0 succeeded: **we own a modifiable route.** A majority-vote reconstruction of **ReCurSiON**
+over 50 traces reproduces recorded banks to **0,12%**, carries a calendar **≥ the Valmorlee tape's**
+(WOOL +23%, MILK +7%, STRAWBERRY a tie), holds **~28 units of shed headroom** where the tape ran at
+98/100, and beats all three incumbent tapes **24-0-0** on SMOKE (+$14.267/ep vs Valmorlee).
 
-But leg 1 **relocated** the target, and that is the finding this pass is built on:
+Then the evaluation pass ran the one call Phase 0 had not, and it re-ordered the plan:
 
-> **Valmorlee realises 1,25× STRAWBERRY and 1,13× WOOL against the other two donor tapes in the
-> same town at the same volume — purely from *which turns* it sells on. The 1,05× is cross-turn
-> sell timing.**
+> **ReCurSiON is #4 on the public leaderboard at 3.004,6.** Our shipped best is **1.621,5**. And the
+> tape's donor, **Valmorlee, is #1018 at 1.842,4** — our 1.617,6 tape was already at **88% of a
+> ceiling nobody had looked up.** A *pure* frozen tape (Peter Parker, 1 distinct market stream in 12
+> traces) holds **#29 / 2.844,2**, so the format was never the limit; **the donor was.**
 
-That lever is worth roughly the $2.826 median gap, it is what separates reference tiers 6-9
-($164-$2.617/ep), and §4.5(b) prices a premium-lead overlay at **+$1.911,9/ep, 60-0-0** for an
-agent that owns its route. **It is not reachable on a verbatim tape** — T2 already STOPPED there:
-metering overflows a shed already at 98/100.
+So the asset built last pass has a surface area of roughly **+1.383 rating points** — the §1 **3000**
+gate — and it is **not fielded**. Step 2's entire ceiling is **+$1.912/ep** on top of it. **Shipping
+comes first.** That is this pass, and it invents nothing: it puts an existing artefact through the
+protocol.
 
-**So the missing asset is a route we can modify.** That is this pass.
+## Surface area, stated up front (§3.4 / R30)
 
-## What to build
+- **Ceiling:** the donor's own **3.004,6**. A faithful reconstruction cannot exceed it.
+- **Floor that matters:** the **1.842,4** donor-ceiling class our current product belongs to.
+  **1.9k-3.0k is a result. Below ~1.6k it has not beaten the thing it replaces.**
+- ⚠️ The 3.004,6 is the *team's* leaderboard score and its `LastSubmissionDate` is **08-14**, which
+  precedes the 08-16 episode dataset — so the traces are that generation (this is why the check is
+  valid here and would not be for Ueddy/カワシギ/Tschinkel, all 08-17). State that caveat, don't drop it.
 
-**§4.5(b)'s method: reconstruct a policy from multiple traces of a single submission** — per
-decision point, take the majority action across that submission's own episodes; add worker-count
-adaptation and obstruction recovery so it survives drift. This is a *measurement* of a policy
-rather than a copy of one performance: it degrades gracefully where a tape desyncs (§4.4#1), it
-carries shed headroom we can actually spend, and it is the better answer under §3.14a.
+## What to do, cheapest-first
 
-### ⚠️ Phase 0 — donor selection, and it is the whole risk
+1. **One submission, or two?** (R31 — the report's one unsupported claim.) The opening fingerprint is
+   dead as a submission test: 87% of the field shares it, and ReCurSiON's 50 traces carry **50 distinct**
+   `fp_market_full` / **16 distinct** `fp_prod_full`. Paper check, no episodes: 2-cluster the 50 traces
+   on pairwise market-decision distance and show **one** mode. If it splits, re-vote per cluster and
+   carry the larger one forward — a blend of two policies measures neither.
+2. **Package** the majority-vote route as a self-contained `main.py`, exactly as T1/T2 were, under the
+   **gitignored** `baselines/2026-08-17/tape_submissions/`. Full provenance (team, all 50 episode ids +
+   seats, per-trace sha256, per-channel agreement, the majority-vote rule itself) in the checkpoint
+   ledger and in the submission description. §4.2's three mandatory conditions apply unchanged.
+3. **BT over the graded bench** (R28's new rung, now measurable because item 2 produces a file path):
+   `python -m harness.cli ladder --round-robin --shop-draw` against A1 tiers 0-5 + the three tapes +
+   `v1u_base` + `meta_route`. Report the **per-seat split** (§2.1.1) — a route that only wins from seat 0
+   has a market-ordering dependency, not a strength.
+4. **Gate it properly.** SMOKE 0-11 → **DEV acceptance against the non-mirror bench** → **unpinned
+   holdout 100-147** → immutable checkpoint. The incumbent for the comparison is the **raw Valmorlee
+   tape**. Two things the last pass owed and this one must pay:
+   - **R21 for every seed set, including the bank sweep** — the 24-0-0 headline never had its realised
+     shop draw printed, and it is the number the ship decision rests on.
+   - **R13/§2.1.5** — declare a mechanism for every counter that *can* be non-zero (the headroom
+     predicts `shed_overflow_burnt` ≈ 0 unpinned; verify rather than assume), and price, never floor.
+5. **§6bis pre-upload checklist, all of it:** G12 loader contract · cold-process timing both seats
+   (`max_turn × 3 < 1s`) · G13 determinism under two `PYTHONHASHSEED` values · mirror smoke
+   `clean=True` · size · `pytest tests/` green (**326** now; the 3 `test_v1h2d_*` are the known
+   pre-existing failures).
+6. ⏸️ **STOP HERE AND ASK. Do not upload.** The eviction is the user's call (R27) and it is a
+   prerequisite, not a consequence: an upload drops **Valmorlee (1.614,0)** by date. Put the numbers to
+   the user — Valmorlee's donor is #1018/1.842,4 so its ceiling is known; only the latest 2 play the
+   post-deadline Bradley-Terry; the deadline is ~6 weeks out; the resulting pair {Ueddy tape,
+   ReCurSiON} is differentiated in *premium mix* (Ueddy the milk specialist, ReCurSiON broad), which is
+   the only differentiation still available now that 87% of the field shares one production line.
+   **The ROADMAP's recommendation is to accept losing Valmorlee and ship** — but the user decides.
 
-**Measured, not preferred.** Step 0's own finding names the donor we want (Valmorlee's calendar) —
-and while updating the ROADMAP, **Valmorlee did not appear at all in the 150-episode stride sample
-of the 08-16 dataset** (39 distinct teams; Ueddy had 17 seats; 27 teams had ≥3). *Do not assume the
-donor.* Search the **full 700** episodes of `data/archive/raw/2026-08-16/` (already on disk,
-gitignored) and select on three measured criteria, in this order:
+## Kill, pre-registered
 
-1. **Trace count.** ≥3 episodes attributable to one team *on one submission*. Multiple seats of a
-   team is **not** the same thing — a team may have changed submissions mid-day. State how you
-   established same-submission (action-stream prefix identity is the obvious test, and it is also
-   criterion 2's numerator).
-2. **Cross-trace agreement.** V16-RC5 reports **~99,91%** market-decision agreement across its three
-   traces. Measure ours: per decision point, the share of traces agreeing on the action, for the
-   `farmer`/`hands` channel and the `market` channel **separately** (they will differ — production is
-   deterministic, market reacts to prices). **A donor whose traces agree at 60% is not
-   reconstructible and must be rejected**, however good its rating.
-3. **Rating and calendar quality.** Prefer a high-rated team, and cross-check with step 0's
-   same-town instrument: replay the candidate against our three existing tapes and read its realised
-   premium $/unit ratio. **We now have a measurement that tells us whether a donor's calendar is
-   good before we spend a pass on it** — use it. That instrument is `analysis/s6_step0_leg1.py`.
-
-*Gate:* a named donor with ≥3 same-submission traces, a stated per-channel agreement rate, and a
-same-town price ratio ≥ the Valmorlee tape's. **If no donor clears all three, STOP and report it** —
-that is a real result and it redirects S6 to C-C (MELON) rather than wasting the pass.
-
-### Then
-
-- Build the majority-vote route. Where traces disagree, record **why** (the disagreement set is the
-  part that is state-dependent, and it is exactly what the adaptive layer has to cover).
-- **Fidelity check first, before any overlay:** the reconstruction must replay against the donor's
-  own recorded opponent to within a stated tolerance of the recorded bank — the S1.2 protocol,
-  unchanged. A reconstruction that is worse than the raw tape is not a platform.
-- **Then measure the headroom the whole pass exists for:** what is the reconstruction's shed
-  occupancy curve? T2 measured the Valmorlee tape at **98/100**. If the reconstruction is also at
-  98/100, the cross-turn lever is *still* blocked and that must be said plainly rather than
-  discovered in step 2.
-
-**Do not build the premium-lead overlay in this pass.** Owning the route and proving it has headroom
-is the deliverable. The overlay is step 2, and it gets its own pre-registered kill.
-
-## Gate
-
-Standing protocol (§2.1.3-5): SMOKE 0-11 → DEV acceptance against the **non-mirror** bench →
-unpinned holdout 100-147 → immutable checkpoint. **The comparison is against the raw Valmorlee
-tape**, not against `v1u_base` — the tape is the incumbent.
-
-- **Both seats on everything** (§2.1.1); `--town-pin basket` for anything touching occupancy.
-- **R21 binding**: report the seed set's realised shop draw beside every dollar figure.
-- **R22**: report BT via `python -m harness.cli ladder --round-robin --shop-draw` against the bench
-  R25/R26 built. ⚠️ **R28** — the tapes already sweep that bench (Valmorlee BT 3008, 56-0-0), so it
-  cannot score anything *better* than a tape. The donor family's sibling traces are the natural new
-  rung and this pass produces them; add them.
-- **§2 item 9**: confirmed mechanism and viable increment stated separately, in that order.
-- §3.4's new rule: **state the surface area up front** — what is the maximum the finished
-  reconstruction could earn if the overlay later fired perfectly? Step 0 killed C-A with that
-  question and an afternoon.
-
-**Kill:** if the reconstruction cannot beat the raw tape on the same-town instrument, the extra
-machinery is buying nothing and the tape stays the product. Stop and record.
+- **(i)** The reconstruction misses the §2.1.3 gate — DEV acceptance on the non-mirror bench, or the
+  unpinned holdout — ⇒ **do not ship; the tape stays the product.** Standing kill, unchanged.
+- **(ii)** The trace population is **two** submissions ⇒ stop, re-vote per cluster, re-gate the larger.
+- **(iii)** *(after the user's decision, if it ships)* Once converged (~1 day, per T1) it reads **below
+  the Ueddy tape's live score** ⇒ the reconstruction method is refuted **on the ladder**, which is a
+  stronger result than any local number and is worth having. Record it and return to the tape line.
 
 ## Standing conditions
 
-Provenance (episode ids, seat, team, per-trace sha256, **and the agreement rate**) in the checkpoint
-ledger and any submission description; extracted routes and the reconstruction stay **gitignored and
-out of this public repo** (§2.4b / R11); competitor notebook source is never opened, decompressed or
-executed (§2 item 8); reference tiers 6-9 are not fetched (R23) and the CC BY-SA CSVs are not
-vendored (§4.5).
-
-**⚠️ R27 — no upload this pass.** Eviction is by submission **date**, not score: any upload drops
-**Valmorlee (1.614,0)**, our best. Ueddy is still converging (1.027,8 → **1.398,7** this session),
-so which tape is "the top tape" is still not decidable. When step 2 eventually ships something,
-the tape must be re-uploaded *first* to survive — and that costs its converged rating (restart at
-600,1, ~1 day).
+Routes, reconstruction, packaged `main.py` and all derived data stay **gitignored and out of this
+public repo** (§2.4b / R11). Competitor notebook source is never opened, decompressed or executed
+(§2 item 8). Reference tiers 6-9 are not fetched (R23); CC BY-SA CSVs are not vendored (§4.5).
+**No `agent/` change** — this is a route package, not a planner change.
 
 ## Out of scope
 
-- **The premium-lead overlay itself** — step 2, with its own Phase 0 and kill.
-- **C-A** — ⛔ refuted (§3.3). Not revisited.
-- **C-B on a tape** — within-turn it is worth ~$0 (step 0 legs 1-2) and its cross-turn form is the
-  same shed-blocked lever. It only becomes interesting *after* this pass proves headroom.
-- **C-C (MELON)** — still sequenced last, and it is the fallback if Phase 0 finds no donor.
-- **Any `agent/` production change.** Item ④ is closed; the planner is 650-1.300 BT behind the tapes.
+- **The premium-lead overlay and the adaptive layer** (the 17,7% state-dependent market steps) — that
+  is **step 2**, and it gets its own Phase 0 and kill, with the shipped reconstruction as its baseline.
+- **A second donor.** boatlee (#10 / 2.945,1, agreement 0,956) is a valid backup and is *recorded*, not
+  built. カワシギ (#1) and Thomas Tschinkel (#2) stay rejected on criterion 2 — the anti-correlation is
+  the finding, and the leaderboard now confirms it from outside.
+- **C-A** ⛔ refuted. **C-B** only after step 2. **C-C (MELON)** still last.
+- **Re-running Phase 0.** Its verdict stands; three corrections are logged in §4.3 and are all covered
+  above.

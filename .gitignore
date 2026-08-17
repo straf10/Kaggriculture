@@ -46,3 +46,15 @@ docs/reviews/
 /data/derived/s6_step0_leg1.json
 /data/derived/s6_step0_leg1_smoke.json
 /data/derived/s6_step0_leg2.json
+
+# S6-step-1 Phase 0 (donor selection) — inventories, fingerprints, agreement, calendar and the
+# reconstruction are all derived from competition action streams; kept local (§2.4b / R11).
+/data/derived/s6_step1_inventory.jsonl
+/data/derived/s6_step1_clusters.json
+/data/derived/s6_step1_agreement.json
+/data/derived/s6_step1_calendar.json
+/data/derived/s6_step1_calendar_replay.json
+/data/derived/s6_step1_replay_0-23.log
+/data/derived/s6_step1_reconstruction_*.json
+/data/derived/s6_step1_shed_*.json
+/data/derived/s6_step1_bank_*.json

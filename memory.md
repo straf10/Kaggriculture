@@ -9,6 +9,107 @@
 
 ---
 
+## 2026-08-17 ε — Session: **Evaluation του Phase 0 report — το gate στέκει, αλλά έλειπε ΕΝΑ API call: ο donor είναι #4 (3.004,6)· step 2 αναβάλλεται, step 1b = ship the route**
+
+**Εντολή (user):** διάβασε το `baselines/2026-08-17/s6_step1_phase0_report.md`, το τελευταίο session
+του memory.md και το ROADMAP· **αξιολόγησε** το report του agent, **ενημέρωσε το επόμενο βήμα αν
+χρειάζεται**, commit+push, και δώσε prompt + summary. Καμία νέα μέτρηση episodes, κανένα `agent/`,
+κανένα submission.
+
+### Αξιολόγηση: το gate verdict στέκει, η μέθοδος είναι η καλύτερη του repo
+Criterion 3 μετρημένο με την πόλη σταθερή **δύο φορές** (recorded same-town ratio + leg-1 instrument
+σε κοινό incumbent pool)· το all-42-team scan είναι το σωστό default και έπιασε reward-biased
+shortlist μέσα στο pass· το mechanism claim (agreement ⟂ calendar quality, μία εξαίρεση) είναι
+falsifiable και υποστηρίζεται από τον δικό του πίνακα· fidelity/shed/bank απαντούν **διαφορετικές**
+ερωτήσεις· και τα δύο δυσάρεστα caveats δηλώνονται μόνα τους (08-11→08-16 meta advance· frozen
+candidate υπο-εκτιμά adaptive donor). **GO, donor = ReCurSiON — επιβεβαιώνεται.**
+
+### Τρεις διορθώσεις + μία παράλειψη που αλλάζει τη σειρά του plan
+1. **Guards/tests stale:** 10 guards (όχι 8), `pytest tests/` **326** (όχι 324) — ξανα-τρεγμένο εδώ.
+2. **Το "one submission" δεν αποδεικνύεται (R31).** Το ίδιο το report σκοτώνει το opening ως
+   submission test (87% του field το μοιράζεται) και μετά το χρησιμοποιεί στο provenance. Μέτρησα από
+   το inventory του pass: τα 50 traces έχουν **50 distinct** `fp_market_full`, **16 distinct**
+   `fp_prod_full`. Αναμενόμενο για town-conditioned policy στο 0,987 — αλλά **δεν αποκλείει δύο
+   σχεδόν-ίδια active submissions** blended. Cheap check → step 1b item 1.
+3. **R21 μη-εξοφλημένο για το bank sweep** (SMOKE 0-11) — το νούμερο πάνω στο οποίο κρίνεται το ship.
+4. 🔴 **Η παράλειψη: το leaderboard rating του donor.** Ένα API call, ποτέ δεν έγινε. Το έτρεξα
+   (2026-08-17 17:16 UTC, 4.979 teams):
+   - **ReCurSiON #4 — 3.004,6**, last submission **08-14** ⇒ *προηγείται* του 08-16 dataset, άρα τα 50
+     traces είναι αυτής της γενιάς. Δικό μας shipped best: **1.621,5**. Surface area ≈ **+1.383 points**.
+   - **Valmorlee (ο T1 donor) #1018 — 1.842,4**, last submission **08-11 20:34** = η γενιά που
+     ταπώσαμε. Το tape μας στο 1.617,6 ήταν **στο 88% ενός ceiling που κανείς δεν είχε κοιτάξει.**
+   - **Peter Parker #29 — 2.844,2** και είναι **pure frozen tape** (1 distinct market stream σε 12
+     traces) ⇒ **το format δεν ήταν ποτέ το ceiling· ο donor ήταν.**
+   - **カワシギ #1 — 3.190,1**: η town-adaptive ομάδα που το Phase 0 απέρριψε ως μη-reconstructible
+     (agreement 0,31) — το anti-correlation finding επιβεβαιώνεται **από έξω**.
+   - Ueddy #13 2.912,4 / Tschinkel #2 3.155,3 / boatlee #10 2.945,1 — αλλά Ueddy/カワシギ/Tschinkel
+     έχουν last submission **08-17**, μετά το dataset ⇒ το score τους **δεν** ανήκει στα traces.
+
+### Τι άλλαξε στο plan
+**Το step 2 (premium-lead overlay, ceiling +$1.912/ep) αναβάλλεται ένα pass.** Νέο **S6 step 1b**:
+package → BT rung (R28) → §2.1.3 gate (DEV non-mirror + unpinned holdout, με R21/R13) → §6bis
+checklist → **⏸️ STOP για την απόφαση eviction του user (R27)**. Λογική: §3.4's δικό του pre-check —
+τίμησε το κέρδος σε rating points πριν ξοδέψεις pass — και είναι η **πρώτη φορά** στο repo που η
+αριθμητική ευνοεί το **ship** αντί του build. Νέα items: **R30** (διάβασε το LB score του donor ως
+surface area, με το `LastSubmissionDate` caveat), **R31** (submission identity στο market stream, όχι
+στο opening). Νέο `prompt.md` = το brief του step 1b. **Σύσταση για το eviction:** δέξου την απώλεια
+του Valmorlee και στείλε — μόνο τα 2 τελευταία παίζουν το post-deadline BT, το deadline είναι ~6
+βδομάδες μακριά, και το ceiling του Valmorlee είναι πλέον γνωστό (1.842,4).
+
+---
+
+## 2026-08-17 δ — Session: **S6 step 1 Phase 0 — donor selection μετρημένη· ✅ GO, donor = ReCurSiON· route owned με shed headroom**
+
+**Εντολή:** το pass brief του S6 step 1 (ROADMAP §4.3 S6) — Phase 0 = donor selection είναι όλο το
+ρίσκο. Ψάξε τα **full 699** episodes του 08-16 (1.398 seats), διάλεξε donor σε 3 criteria με σειρά,
+gate → αν κανένας δεν περνάει STOP προς C-C (MELON). Μετά: build majority-vote reconstruction,
+fidelity check, μέτρα shed headroom. **ΜΗΝ** χτίσεις το premium-lead overlay (step 2). Καμία αλλαγή
+`agent/`, κανένα submission (R27). Report:
+[baselines/2026-08-17/s6_step1_phase0_report.md](baselines/2026-08-17/s6_step1_phase0_report.md) (gitignored).
+`pytest tests/` **316 → 324** (+8 `test_s6_step1_phase0.py`, μετά +2 reconstruction guards = 10),
+τα 3 γνωστά `test_v1h2d_*` fails ίδια.
+
+### Τι χτίστηκε
+- `analysis/s6_step1_phase0.py` (inventory · cluster · agreement · calendar) — ο scanner όλης της
+  Phase 0. `analysis/s6_step1_calendar_replay.py` (criterion 3, το leg-1 instrument με candidate tapes
+  προστεθειμένα). `analysis/s6_step1_reconstruct.py` (build · fidelity · shed · bank). Όλα τα derived
+  (inventory/agreement/calendar/reconstruction/routes) **gitignored** (§2.4b/R11).
+
+### Phase 0 — τα ευρήματα με σειρά
+- **Το field είναι ΕΝΑ crowded meta line.** 1.398 live seats, μόνο **4 distinct openings**, το
+  μεγαλύτερο **1.219 (87%)**· το 48-step opening byte-identical σε GUGUGAGA/Ueddy/Dmitry/Utkarsh…
+  ⇒ **prefix identity νεκρή ως submission test** (§4.4#7 μετρημένο από τα raw streams). Submissions
+  χωρίζονται στο **full/market** stream. **42 ομάδες ≥3 traces** (criterion 1 άφθονο).
+- **Criterion 2 (agreement) και criterion 3 (calendar) είναι ANTI-correlated.** Town-adaptive teams
+  έχουν τα καλύτερα calendars (カワシギ 1,02-1,07× vs field) αλλά το majority-vote σβήνει το edge
+  τους (agreement 0,31)· near-frozen teams reconstruct αλλά πουλάνε neutral calendar.
+- **🔴 Ο donor χάθηκε παρα-λίγο — το πρώτο shortlist ήταν reward-biased.** Το reward είναι 99% η
+  πόλη (§4.1b), οπότε το ranking ήταν town luck. Το **town-controlled recorded-episode scan σε ΟΛΕΣ
+  τις 42 ομάδες** ανέδειξε το **ReCurSiON**: STRAWBERRY **1,339** (το καλύτερο premium calendar στο
+  field) **ΚΑΙ** reconstructible (market agreement **0,987**, unanimity 0,954 — το V16-RC5 ~99%
+  προφίλ). Νέο §3.4 lesson: **διάλεξε donors στο town-controlled ratio, ΠΟΤΕ στο reward.**
+- **Criterion 3 gate** (24 seeds, ίδιο incumbent pool, R21 WOOL zero-drain 153/432 = 35%): ReCurSiON
+  **ισοπαλία** με Valmorlee στο STRAWBERRY (1,243 vs 1,263 — μέσα στα CIs, frozen-tape under-estimate·
+  recorded 1,339) και **κερδίζει** WOOL **1,221 vs 0,992** και MILK **1,072 vs 0,974**. Το Valmorlee
+  είναι strawberry specialist· το ReCurSiON καλό και στα τρία. **Gate περνάει.**
+
+### Deliverable — own the route + prove headroom (και τα δύο ισχυρά)
+- **Reconstruction** από 50 traces: production modal 0,993, market 0,980· **17,7% state-dependent**
+  market steps = το scope του adaptive layer (step 2).
+- **Fidelity (S1.2):** reproduce recorded banks σε **median 0,12%** (11/12 μέσα σε 0,26%· 1 graceful
+  adaptive outlier 11,8%) — *καλύτερο* από raw tape (degrades gracefully, δεν desync-άρει σκληρά).
+- **Shed headroom:** peak **72/100, ΠΟΤΕ ≥90 (0,0%)** vs Valmorlee tape peak **100** / 0,9% ≥90. Το
+  T2 "sustained 98/100" ήταν το harvest spike· το ReCurSiON κρατά ~28 units headroom στο fullest ⇒
+  **ο cross-turn metering μοχλός ΔΕΝ είναι shed-blocked σε αυτό το route** (ο λόγος που δεν γινόταν
+  σε tape, τώρα λυμένος). Surface area (§3.4): perfect step-2 overlay ≤ **+$1.912/ep** (§4.5b).
+
+### Επόμενο
+**Step 2 = premium-lead overlay + adaptive layer** (worker-count/obstruction recovery για το 17,7%),
+δικό του Phase 0 + pre-registered kill. R27: κανένα upload — evict-άρει το Valmorlee (1.614,0). Το
+ReCurSiON reconstruction + sibling traces είναι το νέο BT rung που ζητούσε το R28.
+
+---
+
 ## 2026-08-17 γ — Session: **S6 step 0 — φράξε τον μοχλό πριν τον χτίσεις· ⛔ το C-A διαψεύδεται, το edge είναι cross-turn timing**
 
 **Εντολή:** το pass brief του S6 step 0 (ROADMAP §4.3 S6) — bound τον μοχλό πριν χτιστεί κάτι. Τρία
