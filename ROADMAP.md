@@ -1514,13 +1514,14 @@ Order of work, cheapest-first:
    every non-zero priced counter declared per R13/§2.1.5.
 5. **§6bis pre-upload checklist** — G12 loader contract, cold-process timing both seats, G13
    determinism, mirror smoke `clean=True`, size, `pytest` green.
-6. ⏸️ **STOP for the user's eviction decision (R27) — do not upload without it.** Uploading evicts
-   **Valmorlee (1.614,0)** by date, not by score. The recommendation to put to the user, with numbers:
-   ship it and let Valmorlee go, because (a) only the latest 2 count in the final and the deadline is
-   ~6 weeks out, (b) Valmorlee's own donor is #1018 at 1.842,4 so its ceiling is known and low, and
-   (c) the resulting pair {Ueddy tape, ReCurSiON} is differentiated in *premium mix* — Ueddy the milk
-   specialist, ReCurSiON broad across all three (§6bis's differentiation rule, which is otherwise
-   unsatisfiable now that 87% of the field shares one production line).
+6. ✅ **Eviction decided by the user, 2026-08-17: accept losing Valmorlee (1.614,0) and ship** (R27
+   satisfied — see §6bis for the full terms). Rationale on record: only the latest 2 play the
+   post-deadline Bradley-Terry, the deadline is ~6 weeks out, Valmorlee's own donor is #1018 at 1.842,4
+   so its ceiling is known and low, and the resulting pair {Ueddy tape, ReCurSiON} is differentiated in
+   *premium mix* — Ueddy the milk specialist, ReCurSiON broad across all three (§6bis's differentiation
+   rule, otherwise unsatisfiable now that 87% of the field shares one production line). ⚠️ **The
+   authorisation is conditional on the gate**: kills (i) and (ii) below still stop the upload, and it
+   does **not** carry to step 2's upload, which evicts the Ueddy tape and needs its own decision.
 7. **Step 4 becomes runnable the same week** — the 08-18+ daily datasets are the strictly-later
    confirmation this route was screened before, and §4.4#1 makes it the test that matters most.
 
@@ -1916,10 +1917,29 @@ uploading the reconstruction evicts **Valmorlee**. New information that bears on
 Valmorlee *donor submission* is **#1018 / 1.842,4** — the tape is at **88% of a ceiling we now know**,
 and re-uploading it to protect it costs its converged rating anyway (600,1 restart). The
 reconstruction's donor is **#4 / 3.004,6**. Only the latest 2 play the post-deadline Bradley-Terry, and
-the deadline is ~6 weeks out. **Recommendation: accept losing Valmorlee and ship.** It is the user's
-call and it is a prerequisite of the upload, not a consequence of it (R27).
+the deadline is ~6 weeks out. ~~Recommendation: accept losing Valmorlee and ship.~~
 
-⏳ **Not yet decided: which tape is "the top tape".** Valmorlee is at 1.617,6 and converged; Ueddy
+✅ **DECIDED BY THE USER, 2026-08-17: accept losing Valmorlee and ship the reconstruction.** R27 is
+satisfied — the eviction was decided deliberately and *before* the upload, which is the whole content
+of that rule. Two things this authorisation does **not** do:
+
+- **It does not waive the gate.** The decision is *which submission to sacrifice*, not *whether the
+  route qualifies*. Step 1b's kills (i) and (ii) still bind: if the reconstruction misses DEV
+  acceptance on the non-mirror bench or the unpinned holdout, or the 50 traces turn out to be two
+  submissions, **nothing is uploaded** and the tape stays the product. The authorisation covers a
+  package that has cleared §2.1.3 and §6bis, and nothing else.
+- **It does not extend to the next upload.** Once this ships the active pair is **{Ueddy tape,
+  ReCurSiON reconstruction}**, so the *following* upload evicts the **Ueddy tape** and would leave
+  **{reconstruction, reconstruction + overlay}** — two near-identical actives, exactly the pattern
+  §6bis warns kills both on a meta shift. **Step 2's eviction is therefore a separate and harder
+  question**, and it should be raised at the *start* of step 2, not at its end.
+
+⏳ ~~**Not yet decided: which tape is "the top tape".**~~ 🔴 **Settled by the decision above, not by
+convergence: Valmorlee leaves the pair, so the surviving tape is `55575305` (Ueddy)** — and it becomes
+the incumbent the reconstruction is judged against on the live ladder (step 1b kill (iii)). The
+original note is kept below because its reasoning about reading scores on the same day still binds.
+
+⏳ **Not yet decided *(superseded — retained for its reasoning)*: which tape is "the top tape".** Valmorlee is at 1.617,6 and converged; Ueddy
 is at 1.027,8 on **7 episodes** from a 600,1 start, and T1 took a full day to converge. Ueddy's
 holdout was *stronger* than Valmorlee's (median $124k, 96-0, 0 seats under floor). **Let Ueddy
 converge before ranking them** — the comparison is not yet available, and §1's decay note says it

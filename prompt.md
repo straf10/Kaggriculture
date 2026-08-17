@@ -61,13 +61,19 @@ protocol.
    (`max_turn × 3 < 1s`) · G13 determinism under two `PYTHONHASHSEED` values · mirror smoke
    `clean=True` · size · `pytest tests/` green (**326** now; the 3 `test_v1h2d_*` are the known
    pre-existing failures).
-6. ⏸️ **STOP HERE AND ASK. Do not upload.** The eviction is the user's call (R27) and it is a
-   prerequisite, not a consequence: an upload drops **Valmorlee (1.614,0)** by date. Put the numbers to
-   the user — Valmorlee's donor is #1018/1.842,4 so its ceiling is known; only the latest 2 play the
-   post-deadline Bradley-Terry; the deadline is ~6 weeks out; the resulting pair {Ueddy tape,
-   ReCurSiON} is differentiated in *premium mix* (Ueddy the milk specialist, ReCurSiON broad), which is
-   the only differentiation still available now that 87% of the field shares one production line.
-   **The ROADMAP's recommendation is to accept losing Valmorlee and ship** — but the user decides.
+6. ✅ **Ship it — the eviction is already decided (user, 2026-08-17): accept losing Valmorlee
+   (1.614,0).** R27 is satisfied; you do not need to re-ask. The resulting active pair is **{Ueddy tape
+   `55575305`, ReCurSiON reconstruction}**, differentiated in premium mix (Ueddy the milk specialist,
+   ReCurSiON broad) — the only differentiation still available now that 87% of the field shares one
+   production line. **Three conditions on that authorisation, all binding:**
+   - It is **conditional on the gate**. Kills (i) and (ii) stop the upload. If either fires, report and
+     ship nothing — the authorisation covers a package that cleared §2.1.3 and §6bis, and nothing else.
+   - **Full provenance in the submission description** (team, majority-vote rule, agreement rate) —
+     §4.2's mandatory condition, not optional.
+   - After the upload, **read the score on the same day as the Ueddy tape's** (§1's decay caveat) and
+     record both, plus the convergence curve — T1 took ~1 day from 600,1. That reading is kill (iii).
+   - It does **not** carry to step 2, whose upload evicts the **Ueddy tape** and would leave two
+     near-identical actives. Raise that at the *start* of step 2 (§6bis).
 
 ## Kill, pre-registered
 

@@ -56,6 +56,18 @@ surface area, με το `LastSubmissionDate` caveat), **R31** (submission identi
 του Valmorlee και στείλε — μόνο τα 2 τελευταία παίζουν το post-deadline BT, το deadline είναι ~6
 βδομάδες μακριά, και το ceiling του Valmorlee είναι πλέον γνωστό (1.842,4).
 
+### ✅ Απόφαση user (ίδιο session): «χάνουμε το Valmorlee και στέλνουμε»
+Το R27 εξοφλείται — το eviction αποφασίστηκε **πριν** το upload, που είναι όλο το περιεχόμενο του
+κανόνα. Καταγράφηκε σε §6bis + `prompt.md` item 6 με **τρεις όρους**: (α) είναι **conditional στο
+gate** — τα kills (i)/(ii) του step 1b σταματάνε το upload, η άδεια καλύπτει package που πέρασε
+§2.1.3 + §6bis· (β) full provenance στο submission description (§4.2)· (γ) **δεν** επεκτείνεται στο
+επόμενο upload: μετά το ship το active pair είναι **{Ueddy tape 55575305, ReCurSiON recon}**, άρα το
+upload του step 2 πετάει το **Ueddy** και αφήνει {recon, recon+overlay} = δύο σχεδόν-ίδια actives,
+ακριβώς το pattern που το §6bis λέει ότι σκοτώνει και τα δύο σε meta shift. Το eviction του step 2
+μπαίνει στην **αρχή** του step 2, όχι στο τέλος. Παράπλευρο: το «ποιο tape είναι το top tape»
+κλείνει από την απόφαση, όχι από convergence — μένει το **Ueddy**, και γίνεται ο incumbent που
+κρίνει το recon στο live ladder (kill (iii)).
+
 ---
 
 ## 2026-08-17 δ — Session: **S6 step 1 Phase 0 — donor selection μετρημένη· ✅ GO, donor = ReCurSiON· route owned με shed headroom**
