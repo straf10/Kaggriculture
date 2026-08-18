@@ -9,6 +9,55 @@
 
 ---
 
+## 2026-08-18 ι — Session: **Evaluation του 2b Phase 0 — το GO επιβεβαιώνεται (καλύτερα ελεγχόμενη μέτρηση του repo)· δύο claims ξεφουσκώνουν· το επόμενο pass ΑΝΑΚΤΑ τον κανόνα του donor αντί να τον εφεύρει**
+
+**Εντολή (user):** διάβασε το `baselines/2026-08-18/s6_step2b_phase0_report.md` + το τελευταίο session,
+ανάλυσε, ενημέρωσε το plan, δώσε prompt, commit+push.
+
+### Το GO είναι σωστό — και η μέτρηση είναι η καλύτερα ελεγχόμενη του repo
+Το pre-registered refutation πυροδότησε στους δικούς του όρους· το strawberry ratio υπολογίστηκε με το
+**ίδιο** instrument όπως το 1,339 του donor (`_realised_premium`, focal/opp)· το field calibration
+(ReCurSiON 1,339 outlier, 2ος boatlee 1,117, υπόλοιποι ~1,00) αποκλείει town/opponent artefact γιατί η
+πόλη είναι **common-mode** στα δύο seats· η **production μεταφέρθηκε ΑΚΕΡΑΙΑ (volume 286 = 286)**, που
+σκοτώνει το component (b)· και ο reconciliation με το §4.1b είναι σωστός — το §4.1b έτρεξε **modal route
+vs modal route** και το δήλωνε, άρα ήταν δομικά τυφλό σε edge που το έχουν και τα δύο seats. **Δύο
+instruments συμφωνούν σε ένα νούμερο, το ένα από τα δικά μας live ladder episodes. Χτίζεται.**
+
+### Δύο claims ΔΕΝ στηρίζονται στα στοιχεία τους (κανένα δεν αλλάζει το GO)
+1. **«Many hundreds of rating points» = εικασία.** Τα δολάρια είναι μετρημένα (+$7.833/ep έναντι +$1.076
+   median margin), η **μετατροπή σε πόντους όχι**. Λέμε δολάρια· τους πόντους τους τιμολογεί η ladder.
+2. 🔴 **Ο band table δεν μπορεί να στηρίξει τα δύο συμπεράσματα που κρέμονται πάνω του (→ R36).** Τα win
+   rates είναι **ασύμβατα με converged 1.906,5**: Elo-expected vs ~1.750 = 0,71 (observed **0,62**,
+   υπο-απόδοση) και vs ~2.250 = 0,12 (observed **0,65** σε n=20, 5× υπερ-απόδοση). Πιθανή αιτία: το
+   opponent rating έγινε join **από το σημερινό leaderboard με βάση το team name** = το τρέχον *καλύτερο*
+   rating της ομάδας, όχι του **submission** που παίξαμε τότε (η Kaggle ζευγαρώνει ανά submission). Άρα
+   «το 50% crossing είναι στα ~2500» και «ο μοχλός ανοίγει το 2500-3000 band» (n=3) **δεν στηρίζονται**.
+   Επιβιώνει το απλούστερο και αρκετό: converged 1.906,5 vs donor 2.985,6 **ΕΙΝΑΙ** gap 1.073 πόντων.
+3. **Ο skim είναι zero-sum** ⇒ ο μοχλός είναι ceiling *απέναντι στο pool που συναντάμε τώρα*. Οι 2500+
+   αντίπαλοι κάνουν και αυτοί conditioning ⇒ κανείς δεν παίρνει 1,31×. Η αξία στη ζώνη που θα μας πάει
+   πάνω από 2800 είναι **αμέτρητη** — μετριέται στο gate, δεν υποθέτεται.
+
+### Fresh ladder read (η δική μου μέτρηση)
+(85, 1.915,8) → (87, 1.912,8) → **(88, 1.906,5)** στις 10:32 UTC, `LastSubmissionDate` αμετάβλητο ⇒
+**converged ~1,91k και ελαφρώς κατηφορίζει** (μέσα στο frozen-decay band −20 έως −110/μέρα). Το «plateau»
+του report επιβεβαιώνεται με τρίτο σημείο (το ίδιο βασιζόταν σε 2 episodes).
+
+### Τι μπαίνει στο επόμενο pass (νέο `prompt.md`)
+- **Phase 0.5: ΑΝΑΚΤΗΣΕ τον κανόνα του donor, μην τον εφεύρεις.** Έχουμε τα 50 traces **και** τα
+  observations τους, και το disagreement set (127 steps) είναι ήδη υπολογισμένο ⇒ ο κανόνας
+  **ανακτάται**. Regress την απόφαση του donor πάνω σε observables του step.
+- 🔴 **Ο crux που ΔΕΝ είναι στο report: το leg 3 του step 0.** Το drain rank σταθεροποιείται median **day
+  15**, τα 8 shops μόνο day 24, και το STRAWBERRY rank είναι readable στην first-sell day (14) σε **μόνο
+  43%** των episodes. Αν ο κανόνας εξαρτάται από **shop identity** ⇒ achievable fraction **~43-60%** του
+  $7.833. Αν εξαρτάται από **own state** (inventory/price/day) ⇒ χωρίς cap. **Αυτό πρέπει να μετρηθεί.**
+- ⚠️ **Το T2 STOP είναι το named prior risk:** το metering strawberry σε route έκανε
+  `shed_overflow_burnt` 0→31-89, έκαψε WOOL, starve-άρισε FEED (escapes 0→11), −$3-4k/ep. Το headroom
+  (peak 72/100) μετρήθηκε στο **un-metered** route ⇒ re-measure shed σε κάθε arm, kill αν πλησιάζει 90.
+- Arms A (recovered rule) / B (metering fallback) / C (readable-only control)· kill (i)-(iv)· μέτρηση και
+  απέναντι σε **δυνατούς** αντιπάλους, όχι μόνο tapes.
+
+---
+
 ## 2026-08-18 θ — Session: **S6 step 2b Phase 0 — decompose the donor gap σε 85 LIVE δικά μας episodes· 🟢 GATE CLEARS → GO (overlay)· ο vote έσβησε το town-conditioning του ReCurSiON: strawberry ratio 1,339 → 1,010, μοχλός ~+$7.833/ep**
 
 **Εντολή (user):** τρέξε το S6 step 2b Phase 0 brief — decompose το ~1.070-point donor gap **πριν** χτιστεί ο overlay, με primary evidence τα δικά μας live episodes του `55586926`.
