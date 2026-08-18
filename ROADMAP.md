@@ -1741,6 +1741,50 @@ and it inherits every §3.3 STOP about adding tier-0/1 work. Sequenced last, del
 
 </details>
 
+#### S6 step 2c — ⛔ BRANCH (i), 2026-08-18: the *whole* market layer is town-invariant; family closed channel-wide
+
+> ⛔ **Phase 0.5's refutation was product-scoped; 2c tested the rest and it holds channel-wide.**
+> STRAWBERRY is only **23 of the 127** state-dependent market steps (and the sole product traded in just
+> **5**), so the **58 steps carrying a WOOL (26) or MILK (45) sell** were untested. Tested now with the
+> Phase 0.5 instrument generalised per-product, shop set driven from the engine's own `SHOPS` table.
+> **WOOL is the decisive case** — **40% of towns (20/50) never draw a `YARN_STORE`**, exceeding §4.1b's
+> predicted 34,4%, yet at all **20** contested wool steps holding both a zero-yarn and a yarn-present
+> sub-population the **modal action is identical across the drain split**; the big pulses (597/600/669/672,
+> 12-16 u) fire the same either way. **MILK** never presents a zero-drain population (0/50 towns lack a
+> milk shop). **WHEAT**'s residual is the same fixed 4-trace variant {43,45,46,49}; **MELON** has no
+> draining shop; **FERTILIZER** — the largest channel at 53 steps — is in no `SHOPS` entry and excluded
+> from `TOWN_CENTER_PRODUCTS`, **analytically eliminated at the desk (C-A pattern)**. The vote reproduces
+> every product's modal volume. One bounded residual: a faint whole-episode WOOL drift (yarn-rich +~4%,
+> 7,8 u/ep) ⇒ **~$1.202/ep ceiling**, over-estimated, largely the yarn store's own absorption, 7,6/7,8 u
+> landing day 15+ — **shelved, not a lever.** ⇒ **The majority vote is a faithful reproduction of the
+> donor's whole market layer, and the ~1.100-point gap does not live in it.** Report:
+> `baselines/2026-08-18/s6_step2c_report.md`; script `analysis/s6_step2c.py`; guards
+> `tests/test_s6_step2c.py` (7). No `agent/` change, no episodes, no upload (R27).
+
+#### S6 step 2d (Track 2) — ▶ NEXT, selected by 2c's branch (i): the verbatim trace vs the vote
+
+Branch (i) selects the **verbatim single-ReCurSiON trace** as the next challenger (branch (ii) would have
+selected a recovered conditioning rule instead). The subject is §1's **transfer-ratio** row: Valmorlee's
+verbatim tape reached **87%** of its donor (1.599,1 / 1.842,4); our majority vote reaches **63%**
+(1.886,8 / 2.989,4). Same instrument, two donors, opposite outcomes — never explained.
+
+⚠️ **Run as a Phase 0, not as a ship.** 2c *lowers* the expected effect size: if the market layer is
+reproduced byte-for-byte and production transferred whole (volume 286 = 286), a verbatim trace differs
+from the vote **only** at the disagreement steps (127 market + 88 production of 719), most of the market
+residual being the fixed 4-trace variant. A full §2.1.3-5 ladder plus a ship on an unbounded lever is the
+T2 error. Four legs, cheapest first: **A** the **88 production disagreement steps — never examined by any
+pass** (2a/2b/2b-0.5/2c all looked at the market channel), free, desk; **B** a drain-matched **total-bank**
+dollar decomposition from replays already held (`replay["rewards"]`), free — ⚠️ `configuration.seed` is
+`None` in every replay, so the donor's town **cannot** be re-run; **C** the head-to-head at **SMOKE only**,
+tape-vs-vote in the same episode, both seats (the only exact same-town control), one modal trace and one
+{43,45,46,49} variant as contrast; **D** the ladder and the ship, gated on C.
+
+🔴 **The standing rival hypothesis leg A tests:** §4.5(b) records that the method we copied adds
+**worker-count adaptation and an obstruction-recovery step** on top of the vote, and our own `55586926`
+description says *"adaptive layer = step 2, **not shipped**"*. We fielded the vote core without them. Brief:
+[prompt.md](prompt.md).
+
+
 #### S6 step 2b — ⛔ Phase 0.5 REFUTED the mechanism (2026-08-18): the sell-timing was never town-conditioned; the vote already reproduces it
 
 > ⛔ **Phase 0.5 recovered the donor's actual strawberry rule from the 50 traces and it is not what
