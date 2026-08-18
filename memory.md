@@ -9,6 +9,75 @@
 
 ---
 
+## 2026-08-18 κ — Session: **S6 step 2b Phase 0.5 — ανάκτησα τον κανόνα του donor· ⛔ ο ΜΟΝΟΣ μηχανισμός του pass ΔΙΑΨΕΥΔΕΤΑΙ στο χαρτί, χωρίς episodes· το sell-timing του ReCurSiON είναι fixed calendar, ΟΧΙ town-conditioned, και ο vote το αναπαράγει ήδη**
+
+**Εντολή (user):** τρέξε το brief στο `prompt.md` — restore το sell-timing που έσβησε ο vote. Ξεκίνα
+με Phase 0.5: **ανάκτησε** τον πραγματικό κανόνα του donor στα 127 state-dependent market steps από τα
+traces + τις observations τους, και πες αν εξαρτάται από **shop identity** (capped ~43-60%) ή **own
+observable state** (uncapped). Μόνο μετά χτίσε arms A/B/C.
+
+### Το κρίσιμο εύρημα: ο κανόνας δεν εξαρτάται από κανένα από τα δύο — είναι fixed global calendar
+Ανέκτησα τον κανόνα από τα 50 traces (`s6_step1_reconstruction_ReCurSiON.json` + τα replays στο
+`data/archive/raw/2026-08-16/`). Alignment: stream index i ↔ action στο `steps[i+1]`, obs στο `steps[i]`
+(επιβεβαιώθηκε: shed FERT=5 στο step 48 → SELL FERT 5 στο step 49). Πέντε instruments, όλα συμφωνούν:
+1. **Determinism:** από 28 strawberry sell-steps, **15 byte-identical** σε **50 ΔΙΑΦΟΡΕΤΙΚΕΣ πόλεις**·
+   τα υπόλοιπα 13 διαφέρουν **μόνο** λόγω του **ίδιου σταθερού subset 4 traces** (43,45,46,49 — variant
+   της ίδιας submission, πουλάει 313 vs το **46-trace modal των ΑΚΡΙΒΩΣ 290**).
+2. **Invariance (το αποφασιστικό):** στο step 336 (day 14) **και τα 50 traces πουλάνε ακριβώς 6 units**
+   ενώ η strawberry τιμή spans **$151–$230** και τα strawberry-shops spans **0–4**. Στο step 600 όλα τα
+   46 πουλάνε 10 ενώ η τιμή spans **$1–$203**. Ο κανόνας **αγνοεί** shop identity ΚΑΙ price.
+3. **Regression:** corr(units, shed_str)=**+0,92**, corr(units, str_shops)=**+0,02**. Πουλάει το δικό
+   του shed, τίποτε άλλο.
+4. **Calendar:** **~80% των strawberry units στο HOUR 0** — το μοναδικό tick/μέρα που απορροφά το town
+   center (`townCenterSellInterval=24`). Ο donor **κρατάει** strawberry (35% των shed-positive steps
+   πουλάει < shed) και το **απελευθερώνει στο daily pulse**. Global constant, observable από step 0,
+   **χωρίς readability cap**.
+5. **Ο vote το αναπαράγει ήδη:** το reconstruction stream πουλάει **290** strawberry units (= το
+   46-trace schedule). Δεν μας λείπει ο κανόνας του donor — **είμαστε** ο κανόνας του donor.
+
+### Reachability (live): εκτελείται σωστά, το gap είναι zero-sum — όχι erased rule
+Στα **85 live episodes** μας (`55586926`) το reconstruction **εκτελεί το calendar σωστά, χωρίς desync**:
+**81,8%** των strawberry στο hour 0 ($105/u). Το $117→$90 collapse ΔΕΝ είναι erased conditioning — είναι
+το **zero-sum contest** (second read point 3): **οι live αντίπαλοί μας κάνουν κι αυτοί concentrate**
+(**60,8%** στο hour 0, $98/u) ενώ οι 08-14 αντίπαλοι του donor άφηναν **~47%** off-pulse σε thin ticks.
+Ο donor έβγαλε $117 γιατί οι *δικοί του* αντίπαλοι πουλούσαν αφελώς· απέναντι στο τωρινό meta που τρέχει
+το ίδιο calendar, το pulse μοιράζεται και το skim πέφτει στο parity. **Το $7.833/ep είναι ceiling
+απέναντι σε pool που δεν υπάρχει πια.**
+
+### Arms — όλα κλείνουν στο Phase 0.5, χωρίς episodes
+- **A (restore verbatim) → ⛔ REFUTED στο χαρτί.** Ο κανόνας είναι fixed hour-0 calendar που ο vote ήδη
+  εκπέμπει· "restore" = no-op.
+- **C (gate σε readable state) → moot.** Δεν υπάρχει conditioning state να gate-άρω.
+- **B (invent metering) → μην το χτίσεις.** Το brief είπε ρητά "Do not invent a metering heuristic" και
+  έκανε το A primary γιατί είναι measured. Με το A νεκρό, το B είναι ακριβώς αυτή η εφεύρεση, με surface
+  area τώρα **μετρημένο ≈ $0** (zero-sum, already contested) και πίσω από το **T2 shed wall** (§3.3:
+  strawberry metering → overflow 0→31-89, −$3-4k/ep). Θα ήταν το λάθος του T2 με το surface area γνωστό
+  ότι είναι μηδέν.
+
+### Kill (i) πυροδοτεί ένα επίπεδο πάνω· ο GO reproduces αλλά η ΕΡΜΗΝΕΙΑ ανατρέπεται
+Όλα τα measured νούμερα του GO reproduce (donor $117,4 / opp $89,5 / ratio 1,32→1,323· δικό μας 1,010·
+volume 286=286). Αυτό που ανατρέπεται είναι το causal claim ("ο vote έσβησε town-conditioned
+sell-timing"): **δεν υπήρχε town-conditioning να σβήσει**. Το gap είναι πραγματικό strength gap
+(1.912 vs 2.985) αλλά το strawberry component του **δεν είναι restorable market-layer lever** — ζει στο
+τι έκανε τους αντιπάλους ΤΟΥ donor πιο αδύναμους από τους δικούς μας, κάτι που το overlay δεν φτάνει.
+Το gate του brief ("αν ο κανόνας χρειάζεται state που δεν βλέπουμε, πες το") landάρει πιο δυνατά:
+χρειάζεται **κανένα** state και είναι **ήδη reproduced** ⇒ reachable ≈ **$0**, όχι 43-60%.
+
+### Παραδοτέα / standing conditions
+Report: [`baselines/2026-08-18/s6_step2b_phase05_report.md`](baselines/2026-08-18/s6_step2b_phase05_report.md).
+Script `analysis/s6_step2b_phase05.py` (`recover`/`live`/`report`). Derived `s6_step2b_phase05.json`
+(**προστέθηκε στο `.gitignore`**, §2.4b/R11). Guards `tests/test_s6_step2b_phase05.py` (**5 passed**);
+`pytest tests/` **331 passed, 3 pre-existing `test_v1h2d_*` failed**. **No `agent/` change, no upload
+(R27)** — τίποτα δεν ships, άρα το Ueddy/Valmorlee eviction δεν τίθεται εδώ. Competitor notebook source
+άθικτο (§2 item 8). Commit no co-author.
+
+### Επόμενο (πρόταση, όχι απόφαση)
+Ο strawberry "restore erased conditioning" **κλείνει** — μπαίνει στο §3.3 STOP ledger δίπλα στο T2 και
+το step 2a. Το ανοιχτό ερώτημα που δείχνουν τα νούμερα είναι το **§4.4#1 clock & το endgame** (43 μέρες
+ως 2026-09-30, BT σε post-deadline episodes), όχι άλλο strawberry overlay. **Να το ξανανοίξω με τον user.**
+
+---
+
 ## 2026-08-18 ι — Session: **Evaluation του 2b Phase 0 — το GO επιβεβαιώνεται (καλύτερα ελεγχόμενη μέτρηση του repo)· δύο claims ξεφουσκώνουν· το επόμενο pass ΑΝΑΚΤΑ τον κανόνα του donor αντί να τον εφεύρει**
 
 **Εντολή (user):** διάβασε το `baselines/2026-08-18/s6_step2b_phase0_report.md` + το τελευταίο session,
