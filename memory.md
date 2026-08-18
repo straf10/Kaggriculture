@@ -55,9 +55,19 @@ Convergence curve (episodes, score): **(7, 1.125,9) → (15, 1.736,0) → (16, 1
 tape.** Ύποπτος #1: ό,τι έσβησε το vote, τα **127/719 (17,7%) state-dependent market steps**. Το
 «degrades gracefully» του §4.5(b) μετρήθηκε ως *bank margin απέναντι σε 3 σταθερά tapes*· απέναντι σε
 5.123 προσαρμοστικές ομάδες, route μέσο-όρου 50 πόλεων μπορεί να είναι optimal σε καμία.
-⚠️ Και **τα frozen routes χάνουν γρήγορα**: ο Peter Parker (pure frozen tape) έπεσε **#29/2.844,2 →
-#383/2.364,7 σε ~23 ώρες**· ο donor μας 3.004,6 → 2.985,6. Το `55586926` είναι frozen με ~6 βδομάδες
-μέχρι το deadline (§4.4#1).
+⚠️ **Decay — και η πρώτη μου ανάγνωση ήταν ΛΑΘΟΣ.** Είπα ότι ο Peter Parker έπεσε #29/2.844,2 →
+#383/2.364,7 «από decay»· **έκανε resubmit στις 08-18 07:03**, άρα ήταν νέο submission που συγκλίνει από
+~600. Σωστή μέτρηση (16h μεταξύ δύο leaderboard pulls, **μόνο** σε ομάδες με αμετάβλητο
+`LastSubmissionDate`): **boatlee −73,1** (frozen 08-15, ~−110/μέρα) · **ReCurSiON −19,0** (frozen 08-14,
+~−28/μέρα) · **カワシギ −1,9** · Ueddy **+16,5** (ακόμα συγκλίνει). Άρα frozen route στα 2,9-3,0k χάνει
+**−20 έως −110 πόντους/μέρα**, όχι −500. Το §4.4#1 ισχύει για το `55586926` (frozen, ~6 βδομάδες μέχρι
+το deadline, final BT σε post-deadline episodes) αλλά είναι διαχειρίσιμο ρολόι, όχι φωτιά.
+**Standing rule: ένα leaderboard delta είναι decay ΜΟΝΟ αν το `LastSubmissionDate` δεν άλλαξε.**
+
+### ✅ R34 confirmed (user, 2026-08-18)
+Τα `gates/*/results.json` μπαίνουν στο git (5 artefacts, 660 KB). Επαληθεύτηκε πριν το commit: **κανένα
+per-step action stream** (μεγαλύτερη γραμμή 327 chars), και το μόνο competition identifier είναι το
+episode id `91456307` μέσα σε *path* του `agent_a_spec` — ήδη δημόσιο στο ROADMAP ⇒ καμία έκθεση §2.4b.
 
 ### Επόμενο
 Το **step 2b (premium-lead overlay) πάει μπροστά — αλλά το Phase 0 του είναι το donor gap, όχι το

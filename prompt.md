@@ -72,12 +72,17 @@ reconstructibility, R29/R30) rather than another layer on this one.
 
 ## ⚠️ And a clock is running on the asset itself
 
-**A frozen route decays, measured on someone else this week:** Peter Parker — the *pure* frozen tape
-cited as evidence that open-loop holds up — fell **#29 / 2.844,2 → #383 / 2.364,7 in ~23 hours**. Our own
-donor slipped 3.004,6 → 2.985,6 while frozen since 08-14. `55586926` is a frozen route with **~6 weeks to
-2026-09-30**, and the final Bradley-Terry runs on *post-deadline* episodes. **Report `55586926`'s own
-(episode, score) curve in this pass** and say whether it has started to decay. If it has, that is a
-finding that outranks both the overlay and the gap, because it prices the whole open-loop strategy.
+**A frozen route decays — measured, and only on teams whose submission did not change.** Over the 16h
+between two leaderboard pulls (08-17 17:16 → 08-18 09:22): **boatlee −73,1** (frozen since 08-15, ~−110/day)
+· **ReCurSiON −19,0** (frozen since 08-14, ~−28/day) · **カワシギ −1,9** · Ueddy **+16,5** (still
+converging). ⚠️ **Do not repeat the error this corrects:** Peter Parker's apparent −479 was a *new
+submission* converging from ~600 (`LastSubmissionDate` moved to 08-18 07:03), not decay. **A leaderboard
+delta is only decay if `LastSubmissionDate` is unchanged** — check it every time.
+
+`55586926` is a frozen route with **~6 weeks to 2026-09-30** and the final Bradley-Terry runs on
+*post-deadline* episodes, so at −20 to −110/day this is a real but manageable clock. **Report
+`55586926`'s own (episode, score) curve** and separate convergence from decay — it is still rising, so
+the two are currently confounded and the honest read may be "not yet separable".
 
 ## If Phase 0 clears — build, but only then
 
