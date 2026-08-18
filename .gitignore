@@ -87,3 +87,7 @@ docs/reviews/
 # S6 step 2c — the non-strawberry town-conditioning sweep (WOOL/MILK/WHEAT/MELON per-product
 # determinism, within-step drain split, drift ceiling); derived from the donor action streams (§2.4b / R11).
 /data/derived/s6_step2c.json
+
+# S6 step 2d (Track 2) — production-channel town-reactivity (leg A) + bank decomposition / loss
+# ledger (leg B); derived from the donor + live 55586926 action streams (§2.4b / R11).
+/data/derived/s6_step2d.json

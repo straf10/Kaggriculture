@@ -9,6 +9,46 @@
 
 ---
 
+## 2026-08-18 μ — Session: **S6 step 2d (Track 2) Phase 0 — έτρεξα το 2c instrument στο PRODUCTION κανάλι· ⛔ BRANCH (iv): τα 88 production-disagreement steps ΕΙΝΑΙ town-reactive (closed-loop tile control των hands), ΟΧΙ το fixed-4 variant — αλλά ο μηχανισμός είναι φραγμένος ΜΙΚΡΟΣ ($597/ep, +2,4 pts, 0,09% του gap), STOP & re-brief, μηδέν episodes**
+
+**Εντολή (user):** τρέξε το brief (S6 step 2d). Phase 0, τέσσερα legs φθηνότερο-πρώτα, καθένα με δικό του
+exit. Leg A (δωρεάν): το 2c instrument στα 88 production steps — είναι το residual το fixed {43,45,46,49}
+variant ή κινείται με κάτι της πόλης (weeds/obstruction/harvest/worker count); Leg B (δωρεάν): decompose
+το bank gap drain-matched. Legs C/D gated. Καμία `agent/` αλλαγή, μηδέν episodes για A/B, κανένα upload (R27).
+
+### Το εύρημα: BRANCH (iv) — town-reactive ΝΑΙ, αλλά φραγμένο μικρό (recover & bound, μετά STOP)
+- **Leg A**: το production residual είναι **town-reactive, ΟΧΙ το fixed-4 variant**. Carriers = **25 traces**·
+  ο **main-farmer op διαφέρει 0/88** (το farmer script είναι town-invariant)· worker count μόνο 22/88· το
+  disagreement είναι στα **hands' tile actions** (87/88). Το **αποφασιστικό tile split**: από **122**
+  hand-slot disagreements, **65 σε ΙΔΙΑ θέση** σε όλες τις 50 πόλεις και **75 (62%)** ο deviator πατά σε
+  tile με **disjoint περιεχόμενο** (WEED / dry-vs-watered PLANT / empty). Ακολουθία: per-town
+  `weedSpawnChance` → tile γίνεται WEED → το hand **DIG, re-PLANT, WATER κατά το πραγματικό dry state**,
+  ξανα-συγχρονίζεται ένα op μετά. Αυτό είναι **closed-loop control που ο fixed-index vote ΔΕΝ χωράει** —
+  ακριβώς "the closed-loop redirect that desyncs the tape" που ονόμασε το step 2a. Ο vote αναπαράγει το
+  modal production στα **88/88** (πιστό OPEN-LOOP αντίγραφο).
+- **Ο φραγμός (leg B + step 2a, στα δικά μας δεδομένα)**: η ανακτήσιμη αξία = own-farm weed/decay loss,
+  ξανα-μετρημένο στα 85 live episodes: **14,89 decay + 4,99 weeds/ep = $597/ep** (units-only, 100% WHEAT,
+  = τα $599 του 2a). FREE half **$0–$241 < $500 gate**, πλήρης ανάκτηση **+2,4 pts / 0,09% του gap**.
+- **Leg B (πρώτη φορά total-bank decomposition, richness-matched, median 8 shops και τα δύο)**: absolute
+  bank gap ~**$4.718/ep** είναι κυρίως το **opponent pool** (donor opp $88,0k vs δικοί μας $79,3k)· στο
+  head-to-head **margin over own opponents** ο donor προηγείται μόλις **~$822/ep ≈ 3,2 pts**, εκ των οποίων
+  ~$597 ΕΙΝΑΙ το own-farm loss. Caveats: διαφορετικοί opponents, `configuration.seed = None` (δεν
+  ξανα-τρέχεται η πόλη του donor).
+
+### Τι σημαίνει
+Ο vote είναι **πιστό OPEN-LOOP αντίγραφο**· τα δύο μη-μεταφερμένα κομμάτια — market layer (2c) και αυτός ο
+closed-loop tile κανόνας (2d) — είναι **και τα δύο πλέον φραγμένα κάτω από το gate.** Το ~1.100-πόντο
+anomaly (R36 submission-level, ReCurSiON 2.989,4 frozen 08-14 vs 55586926 1.886,8) **δεν είναι φαινόμενο
+per-episode bank** σ' αυτή την κλίμακα· δείχνει strength/opponent gap + §4.4#1 clock. Branch (iv) όριζε ότι
+το leg A υπερτερεί των C/D → **legs C/D ΔΕΝ έτρεξαν**. **Report & re-brief, ΔΕΝ χτίζω το adaptive layer**
+(§4.5b obstruction/worker-count = ίδια κλάση, ίδιος φραγμός).
+
+**Παραδοτέα:** report `baselines/2026-08-18/s6_step2d_report.md`· script `analysis/s6_step2d.py`
+(`legA`/`legB`/`report`)· guards `tests/test_s6_step2d.py` (7)· §3.3 row· derived JSON gitignored
+(§2.4b/R11) με verdict string (R35). Καμία `agent/` αλλαγή, μηδέν episodes, κανένα upload.
+
+---
+
 ## 2026-08-18 λ — Session: **S6 step 2c — έλεγξα την «erased town-conditioning» οικογένεια στα ΥΠΟΛΟΙΠΑ κανάλια (WOOL/MILK)· ⛔ BRANCH (i): ΟΛΟ το market layer είναι town-invariant, όχι μόνο η strawberry· η οικογένεια κλείνει channel-wide, χωρίς episodes**
 
 **Εντολή (user):** τρέξε το brief στο `prompt.md` (S6 step 2c). Η Phase 0.5 διέψευσε τον μηχανισμό της
