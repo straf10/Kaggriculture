@@ -1,125 +1,152 @@
-# Pass brief — S6 step 2b: restore the sell-timing the vote erased
+# Pass brief — S6 step 2c: is the vote erasing town-conditioning in the *other* 58 steps?
 
-> **Read first:** [ROADMAP.md](ROADMAP.md) §4.3 **S6 step 2b's Phase-0 GO and the second read below it**
-> (the spec for this pass); §1 (the converged curve, the transfer ratio); **S6 step 0 leg 3** — the town
-> *readability* measurement, which bounds this build and is not in the Phase-0 report; §4.1b **and** the
-> Phase-0 report's reconciliation of it; §3.3's **T2 STOP** (the last time we tried to meter a premium
-> product); §3.4; **R21 / R27 / R32 / R17 / R36**; §2.1.1-5; the top of [memory.md](memory.md); and
-> `baselines/2026-08-18/s6_step2b_phase0_report.md`.
+> **Read first:** `baselines/2026-08-18/s6_step2b_phase05_report.md` (the pass this one continues, and
+> whose refutation stands); [ROADMAP.md](ROADMAP.md) §4.3 **S6 step 2b's Phase 0.5 block**; §1 (the
+> transfer-ratio row, the converged curve); **§4.1b** (the town is 99-100% of realised-price variance —
+> the reason WOOL/MILK are the target); **S6 step 0 leg 3** (town readability: drain rank stable median
+> day 15, 8 shops only by day 24); §3.3's **T2 STOP** and the **step 2b row**; §3.4; **R21 / R27 / R32 /
+> R36**; §2.1.1-5; the top of [memory.md](memory.md).
 
 ## Where we are
 
-**Phase 0 cleared its gate and located the whole gap in one number.** On 85 of our own live episodes,
-both seats, real towns: our same-town STRAWBERRY realised-price ratio is **1,010** against the donor's
-recorded **1,339**. With town-drain matched (4,0 = 4,0), opponent quality matched ($89,5 ≈ $89,9) and
-**volume identical (286 = 286)**, ReCurSiON extracted **$117,4/u where we get $90,1/u** — the modal field
-price. We copied the production whole and lost the sell-timing. **Lever: ~+$7.833/ep on strawberry
-alone**, against a median winning margin of **+$1.076** in the band we contest.
+**Phase 0.5 refuted the strawberry mechanism on paper and it stays refuted.** ReCurSiON's strawberry
+sell-rule is a fixed hour-0 calendar (`townCenterSellInterval=24`), invariant across 50 towns, already
+reproduced by the majority vote. Arms A/B/C are dead; nothing in this brief revives them.
 
-The route itself is healthy: 57-28, and unlike the v1h agent §3.2 profiled it **does not shut down** —
-the bank gap grows all season to +$4.515 by d28. Production desync is ~$0. Tier-0 loss is ≤$599/ep, ~13×
-smaller. Decay is now measurable but small: the curve reads (85, 1.915,8) → (88, **1.906,5**),
-`LastSubmissionDate` unchanged — **converged and drifting down slightly.**
+**But the refutation is product-scoped and its conclusion was drawn channel-wide.** STRAWBERRY appears in
+**23 of the 127** state-dependent market steps — and is the *only* product traded in just **5** of them.
+Most disagreement steps carry several products at once, so the per-channel counts below overlap and do not
+sum to 127. **58 steps carry a WOOL or MILK sell, and none of them was tested:**
 
-**Two Phase-0 claims were deflated on second read and you should not build on them:** the
-"many hundreds of rating points" figure is a guess (the dollars are measured, the conversion is not), and
-the opponent-rating band table mislabels its axis (R36), so *"the lever opens the 2500-3000 band"* rests
-on n=3. Quote dollars; let the ladder price the points.
+| channel | disagreeing steps | town-conditionable? |
+|---|---:|---|
+| SELL FERTILIZER | 53 | **No — analytically eliminated** (below) |
+| SELL MILK | 45 | **Yes — 3 shops (PIZZA_SHOP, ICE_CREAM_SHOP, SMOOTHIE_SHOP), 14× drain range §4.1b** |
+| SELL WHEAT | 40 | Weakly — 5 of 8 shops, near-always drained |
+| SELL WOOL | 26 | **Yes, and it is the sharpest case — single shop (YARN_STORE), 34% of towns draw zero** |
+| BUY_PRODUCT WHEAT | 23 | Feed logistics, not market conditioning |
+| SELL STRAWBERRY | 23 | ⛔ tested and refuted (Phase 0.5) |
+| SELL MELON 9 · BUY_SEED WHEAT 22 / STRAWBERRY 4 / MELON 1 · BUY_ANIMAL 2+2 | tail | tail |
 
-## The one mechanism
+**FERTILIZER — 53 steps, the largest channel — is eliminated from the desk, no measurement needed.** It
+is in **no** `SHOPS` entry and is excluded from `TOWN_CENTER_PRODUCTS`
+([kaggriculture.py:103-114](engine_reference/kaggriculture.py#L103)), so its realised price moves only
+with the shared depletion pool, never with the town's shop draw. There is no town-conditioning channel
+for it to have erased. Record this as the C-A pattern again: **the engine answered before the
+experiment.**
 
-> **The majority vote replaced ReCurSiON's town-conditioned strawberry sell-timing with the modal
-> action at the 127/719 (17,7%) state-dependent market steps, reverting our realised price to the field
-> median.** Restoring conditioning at those steps is the increment.
+**And the report's closing framing needs one correction, which is the reason this pass exists.** Phase 0.5
+explains our strawberry parity as zero-sum — the donor's 08-14 opponents were naive, "the $7.833/ep is a
+ceiling against a pool that no longer exists." That is sound for the **$/u** measurement. It **cannot**
+explain the rating gap, because both sides of that gap are being earned against the **same live pool right
+now**: leaderboard 2026-08-18 14:36 UTC reads **ReCurSiON 2.989,4** with `LastSubmissionDate` frozen at
+**08-14 14:14** — the exact submission we reconstructed — against our **55586926 at 1.886,8**
+(1.915,8 → 1.906,5 → 1.886,8, `LastSubmissionDate` unchanged). ~1.100 points, live, between the donor's
+route and our 50-town average of it. **The strawberry channel is closed; the gap is not.**
 
-## ⚠️ Phase 0.5 — recover the donor's actual rule before designing one (paper, no episodes)
+## The one question
 
-**Do not invent a metering heuristic.** We hold the 50 traces *and* their observations, and the
-disagreement set is already computed — so the rule can be **recovered** rather than guessed. This is the
-single highest-value step in the pass and it is free.
+> **At the 58 of 127 state-dependent market steps that carry a WOOL (26) or MILK (45) sell — steps
+> counted once each, since most disagreement steps trade several products at once — does the donor's
+> action move with the town's shop draw? If it does, the majority vote erased a
+> rule a 50-town mode structurally cannot represent, and we have located the erased conditioning that
+> strawberry did not contain.**
 
-1. **At each of the 127 state-dependent market steps, what predicts the donor's deviation from modal?**
-   Regress / tabulate the donor's action against observables available *at that step*: own inventory and
-   its age, the product's current realised price and the price it just cleared at, cumulative units sold,
-   the opponent's recent sells, day/turn index, bank, and `obs.town.unlocked_shops`. Report which features
-   carry it and how much of the 127 steps each explains.
-2. **🔴 The crux, and it decides whether the lever is reachable at all:** does the rule condition on
-   **shop identity** (the town's drain) or on **own observable state** (inventory/price/day)? Step 0's
-   **leg 3** measured that a town's premium drain rank is stable only from **median day 15**, that all 8
-   shops are known only by **day 24**, and that STRAWBERRY's rank is readable by its first-sell day (14)
-   in **only 43% of episodes**. So:
-   - shop-identity conditioning ⇒ the achievable fraction of $7.833 is **capped near ~43-60%**, and the
-     brief must say so before any arm is built;
-   - own-state conditioning ⇒ observable from step 0, no readability cap, and the lever is fully
-     reachable. **Report which it is, with the measurement.**
-3. **State the surface area you will actually claim** (§3.4): $7.833/ep × the reachable fraction, and note
-   it is a ceiling *against the pool we currently meet* — the skim is **zero-sum**, so opponents who also
-   condition will not concede it (see the second read's point 3).
+WOOL is the sharpest instrument in the repo for this. `YARN_STORE` is the **only** shop that drains WOOL,
+**34% of towns draw none** (§4.1b, matching the engine's predicted 34,4%), and a majority vote over 50
+towns must emit *one* action into a population where roughly a third of towns have zero demand. If the
+donor sells WOOL differently in a yarn-dead town than in a yarn-rich one, the vote cannot carry it.
 
-**Gate:** if the recovered rule turns out to need state we cannot observe in time, say so and report the
-capped figure — that is a result, and it reshapes the arms rather than stopping the pass.
+## Method — the Phase 0.5 instrument, generalised (paper, zero episodes)
 
-## Build — one mechanism per arm, and expect to reject most
+Extend `analysis/s6_step2b_phase05.py` (`recover`) from `STRAWBERRY`/`STR_SHOPS` to a **per-product**
+sweep, driving the shop set from the engine's own `SHOPS` table rather than a hand-written constant. Same
+alignment (stream index *i* ↔ action in `steps[i+1]`, obs in `steps[i]`), same 50 traces, same five
+instruments, run per product:
 
-Candidate arms, each a single mechanism, ordered by what Phase 0.5 finds:
+1. **Determinism** — of the product's sell-steps, how many are byte-identical across all 50 traces, and is
+   the residual the *same fixed trace subset* (43/45/46/49) as strawberry's, or a **town-varying** one?
+   A town-varying residual is the positive result; a fixed-subset residual is another variant artefact.
+2. **Invariance — the decisive frame.** At each contested step, tabulate the action against that town's
+   realised draw: for WOOL, `yarn_stores ∈ {0,1,2,…}` and the WOOL list price; for MILK, the milk-shop
+   count and price. **State the ranges the way Phase 0.5 did** ("all 50 sell exactly N while price spans
+   $X–$Y and shops span A–B"). Report the **zero-drain sub-population separately** — the 0-YARN_STORE
+   towns are the whole test, and if the sample holds too few of them, say so and stop rather than
+   concluding invariance from a thin cell.
+3. **Feature regression** — corr(units sold, feature) over the contested steps for: own shed inventory of
+   that product, shop count for that product, current list price, day/turn, bank. Phase 0.5's strawberry
+   row was shed **+0,92** / shops **+0,02**; a materially non-zero **shop** correlation on WOOL or MILK is
+   the finding.
+4. **Calendar** — what fraction of the product's units land at hour 0. Strawberry was 79,5%. A product
+   that is *not* calendar-locked has room for a conditioned rule that strawberry did not.
+5. **Vote reproduction** — does the reconstruction stream emit the modal per-product volume, as it did for
+   strawberry's 290? Where it does not, that step is a candidate loss and belongs in the report by number.
 
-- **A — restore the recovered rule at the 127 steps**, verbatim from the donor's own decision function.
-  The primary arm: it is the measured policy, not a designed one.
-- **B — strawberry-only metering into the observable demand window** (the §4.5b premium-lead shape),
-  as the fallback if A's rule needs unobservable state.
-- **C — the same rule gated to fire only when its conditioning state is actually readable** (leg 3's 43%).
-  The control that separates "the rule works" from "firing it blind is harmful".
+Then, for whichever channel survives, **price the surface area on paper before anything is built**
+(§3.4): units × the realised $/u spread between the drain-rich and drain-poor sub-populations, and state
+plainly that it is a ceiling against the pool we meet.
 
-⚠️ **§3.3's T2 STOP is the named prior risk and it is not hypothetical.** The last attempt to meter
-strawberry on a route overflowed the shed (`shed_overflow_burnt` 0→31-89), burnt WOOL, and starved FEED
-(`animals_escaped` 0→11) for a **−$3-4k/ep** net. This route has the headroom T2's tape lacked (peak
-72/100, never ≥90) — **but that was measured on the *unmetered* route.** Metering re-adds inventory.
-**Re-measure shed occupancy on every arm and treat a rise toward 90 as a kill, not a cost.**
+## Kills / branches, pre-registered
 
-**Test discipline (§2.1.1-5):** both seats on everything · `--town-pin basket` for anything touching
-occupancy (metering changes harvest/hold timing — treat as occupancy) · **SMOKE 0-11 → DEV acceptance vs
-the non-mirror bench → unpinned holdout 100-147** · **R21** realised shop draw printed per seed set (this
-is a market-layer change and §4.1b makes the town the dominant confounder; the draw must span the ~34-41%
-WOOL zero-drain population) · **R32** per-episode loss ledger with unpriced structural counters listed ·
-**R17** absolute `worker_turns_working` with `crop_tile_days` within ±3%.
-
-**And measure the lever against strong opponents specifically**, not only the tapes: the reference-ladder
-top rungs plus the reconstruction itself as a mirror opponent. If the gain evaporates against an opponent
-that also skims, that is the most important number in the pass.
-
-## Kill, pre-registered per arm
-
-- **(i)** Realised strawberry $/u does not move **against the same-town control** ⇒ the arm has missed the
-  only thing it was built for. **Stop, do not tune.**
-- **(ii)** `shed_overflow_burnt` rises off zero, or shed occupancy approaches 90/100 ⇒ T2's wall; reject.
-- **(iii)** The arm moves realised $/u but not `median_bank` ⇒ confirmed mechanism, **not** a viable
-  increment (§2 item 9). Record it as v1o.3's variant E was, and reject.
-- **(iv)** Any structural hard-zero counter breaks (`clipped_production_ticks`, market-sim aborts,
-  unexplained no-ops), or `crop_tile_days` falls >3% ⇒ STOP.
-
-## Freeze, then the endgame
-
-At most **one** arm survives to an immutable checkpoint. Then, in order: **S6 step 4** — re-validate on
-the strictly later 08-18+ daily datasets (never run, and non-optional for anything we freeze until 09-30);
-then the upload decision.
-
-⏸️ **The upload is the user's call and it is a prerequisite, not a consequence (R27).** The next upload
-evicts the **Ueddy tape** and leaves {reconstruction, reconstruction + overlay} — two near-identical
-actives, the pattern §6bis warns kills both on a meta shift. **Raise it at the start of the shipping pass
-with the numbers, and stop for the answer.** Note the calendar: **43 days to 2026-09-30**, ~1 day per
-upload to converge, and the prize is decided by a Bradley-Terry tournament over **post-deadline** episodes.
+- **(i) Every non-strawberry channel is town-invariant too** ⇒ the "erased conditioning" family closes
+  **channel-wide**, not just for strawberry. That is a real, final result: it says the vote is a faithful
+  reproduction of the donor's whole market layer, and the ~1.100-point gap must live somewhere the market
+  layer is not. **Record it, close the family in §3.3, and the queued Track 2 becomes the pass that
+  ships.**
+- **(ii) WOOL or MILK conditions on shop identity** ⇒ we have located the rule Phase 0 assumed and
+  strawberry did not contain. **Do not build it this pass.** Report the rule, its size, and — via step 0
+  leg 3 — the fraction of episodes in which its conditioning state is **readable in time** (the drain rank
+  is stable only from median day 15). That cap is part of the finding, not a detail.
+- **(iii) The residual is the fixed 4-trace variant again** ⇒ variant artefact, not conditioning; fold it
+  into (i).
+- **(iv) The zero-drain cell is too thin to decide** ⇒ say so, report the cell counts, and stop. Do not
+  read invariance off a cell with n<5 towns.
 
 ## Standing conditions
 
-No `agent/` production change beyond the market layer this pass targets. Routes, packages, the 2,5 GB of
-live replays and all derived data stay **gitignored** (§2.4b / R11). Competitor notebook source is never
-opened (§2 item 8). Write the report to `baselines/<date>/`, add a `memory.md` entry, commit with no
-co-author.
+**No `agent/` change. No episodes. No upload (R27).** Nothing ships from this pass, so the active-pair
+eviction is not raised here. Derived artefacts stay **gitignored** (§2.4b / R11) and must carry the
+**verdict string** itself (R35). Guards in `tests/`. Competitor notebook source untouched (§2 item 8).
+Report to `baselines/<date>/`, `memory.md` entry, commit with no co-author.
+
+Carry the live-pool anomaly into the report as a standing, unexplained fact with its numbers
+(ReCurSiON 2.989,4 frozen 08-14 vs our 1.886,8, same pool, 2026-08-18 14:36 UTC), whichever branch fires.
+Under R36, quote it as a **submission-level** comparison — it is one, both sides being the rating of a
+specific submission — and draw no band-crossing conclusions from it.
 
 ## Out of scope
 
-- **A donor swap.** カワシギ (#1) and Tschinkel (#2) stay rejected on reconstructibility — and the transfer
-  evidence now says the better the donor the *less* copyable it is.
-- **C-C (MELON)** — still last · **C-A** ⛔ refuted · **step 2a's wheat repair** ⛔ on the shelf ($0 free).
-- **RL and planner refinement** — both refuted for this competition on the calendar and on BT 1.952 vs
-  3.317 respectively; see the §5 trigger's ≥3-weeks clause.
+- **Arms A/B/C** ⛔ refuted by Phase 0.5. Not revived, not re-run, not tuned.
+- **Any strawberry overlay** ⛔ closed (§3.3). **Step 2a's wheat repair** ⛔ on the shelf. **C-A** ⛔
+  refuted. **C-C (MELON)** still last.
+- **Building whatever this pass finds.** This is a bounding pass; it ends with a measurement and a branch,
+  the way C-A and Phase 0.5 did.
+- **A donor swap**, **RL**, **planner refinement** — all unchanged from the previous brief.
+
+---
+
+## ⏸️ Queued — Track 2: verbatim ReCurSiON trace vs our majority vote
+
+**Not in this pass, by size and by dependency.** It needs the full §2.1.3-5 ladder (SMOKE 0-11 → DEV vs
+the non-mirror bench → unpinned holdout 100-147, both seats) *and* a shipping decision with the §6bis
+checklist — and its **design depends on this pass's branch**: under (i) the verbatim trace is the right
+challenger, under (ii) the right challenger is the recovered conditioning rule, and a verbatim trace
+carries one town's answer into all towns.
+
+The measurement it exists for: **we have never played the vote against a verbatim single ReCurSiON
+trace**, same donor, same town, both seats. Materials are already in hand —
+[analysis/tape_agent.py](analysis/tape_agent.py) plus the 50 traces under `data/archive/raw/2026-08-16/`.
+The transfer-ratio prior favours verbatim: Valmorlee's verbatim tape reached **87%** of its donor
+(1.599,1 / 1.842,4); our vote reaches **63%** (1.886,8 / 2.989,4). Same instrument, two donors, opposite
+outcomes — that is the §1 transfer-ratio row, still unexplained.
+
+**Upload economics, for the pass that ships:** a new submission evicts by date, and the oldest active is
+`55575305` (Ueddy, **1.372,6**) — our weakest, so the eviction is near-free. **The upload remains the
+user's call and a prerequisite, not a consequence (R27).**
+
+**And the clock, stated correctly:** the final ranking is one Bradley-Terry tournament over
+**post-deadline** episodes, so today's drifting 1.886,8 is a **predictor, not the score**. What is scored
+is the strength of the active pair on **2026-09-30** (43 days out). The drift is diagnostic — our route is
+losing ground to an improving pool — and re-uploading the same route does not fix it, since a fresh
+submission simply re-converges to its current fair value. Budget the remaining passes on that basis:
+roughly 2-3 days per converge-and-read, two active slots, eviction by date.

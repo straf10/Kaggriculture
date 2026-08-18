@@ -9,6 +9,52 @@
 
 ---
 
+## 2026-08-18 λ — Session: **S6 step 2c — έλεγξα την «erased town-conditioning» οικογένεια στα ΥΠΟΛΟΙΠΑ κανάλια (WOOL/MILK)· ⛔ BRANCH (i): ΟΛΟ το market layer είναι town-invariant, όχι μόνο η strawberry· η οικογένεια κλείνει channel-wide, χωρίς episodes**
+
+**Εντολή (user):** τρέξε το brief στο `prompt.md` (S6 step 2c). Η Phase 0.5 διέψευσε τον μηχανισμό της
+strawberry αλλά το συμπέρασμα βγήκε channel-wide από ΕΝΑ προϊόν. Η STRAWBERRY είναι μόνο 23/127 state-
+dependent market steps· **58 steps με WOOL(26)/MILK(45) sell δεν είχαν ελεγχθεί ποτέ.** Ερώτημα: στα 58,
+κινείται η action του donor με το shop draw της πόλης; Αν ναι, ο vote έσβησε κανόνα που ένα 50-town mode
+δεν χωράει. Paper-only, μηδέν episodes, καμία `agent/` αλλαγή, κανένα upload (R27).
+
+### Το εύρημα: BRANCH (i) — όλα τα κανάλια είναι town-invariant, όχι μόνο η strawberry
+Γενίκευσα το instrument της Phase 0.5 σε **per-product sweep** ([analysis/s6_step2c.py](analysis/s6_step2c.py)),
+οδηγώντας το shop set από τον ΙΔΙΟ πίνακα `SHOPS` της engine (μέσω AST, χωρίς import — η engine τραβάει
+`kaggle_environments`). Πέντε instruments + το **αποφασιστικό within-step drain split**.
+
+- **WOOL (το κοφτερότερο):** **40% των πόλεων (20/50) ΔΕΝ τραβούν ποτέ `YARN_STORE`** (πάνω από το 34,4%
+  του §4.1b) — μηδενική ζήτηση wool όλο το episode. Κι όμως στα **20** contested wool steps όπου
+  συνυπάρχουν zero-yarn ΚΑΙ yarn-present υπο-πληθυσμοί στο ΙΔΙΟ step, η **modal action είναι ίδια στο drain
+  split και στα 20** — τα μεγάλα pulses (steps 597/600/669/672, 12-16 u) πυροβολούν ίδια με ή χωρίς yarn
+  store. corr(units, wool-shops)=**+0,09**· το own shed το κουβαλάει (+0,28). Vote αναπαράγει **200=200**.
+- **MILK:** **0/50 πόλεις χωρίς milk shop** → δεν παρουσιάζει ΠΟΤΕ zero-drain πληθυσμό να εξαρτηθείς·
+  corr(units, milk-shops)=**−0,02**, modal ίδια στα 2 usable splits. Vote **296=296**.
+- **WHEAT:** το residual είναι το ΙΔΙΟ fixed 4-trace variant {43,45,46,49} (shops +0,006) — variant
+  artefact, όχι conditioning. **MELON:** κανένα shop (corr 0). Vote 457/114 αναπαράγονται.
+- **FERTILIZER (το ΜΕΓΑΛΥΤΕΡΟ κανάλι, 53 steps):** σε κανένα `SHOPS` entry, εκτός `TOWN_CENTER_PRODUCTS`
+  → **αναλυτική εξάλειψη, C-A pattern** (η engine απαντά πριν το πείραμα), μηδέν measurement.
+
+### Το ένα residual, φραγμένο (§3.4)
+Το WOOL disagreement ΔΕΝ είναι το fixed-4 (8 traces)· υπάρχει αχνό **whole-episode drift**: yarn-rich
+πόλεις πουλάνε ~4% περισσότερο wool (206,7 vs 198,9 u· οι 6 deviators-up όλοι με yarn, οι 2 deviators-down
+χωρίς). ΑΛΛΑ δεν είναι step-level κανόνας (το within-step modal δεν κουνιέται ποτέ). Ceiling: 7,8 u/ep ×
+$155 = **~$1.202/ep** — over-estimate, **6× κάτω** από το strawberry ceiling ($7,8k) που ήδη κρίθηκε
+αμελητέο, και κυρίως μηχανικό (το $45→$155 price spread είναι το yarn store που ΑΠΟΡΡΟΦΑ wool, όχι skill
+του donor)· 7,6/7,8 u πέφτουν day 15+, εκεί που μόλις γίνεται readable το drain rank (leg 3).
+
+### Τι σημαίνει
+Ο majority vote είναι **πιστή αναπαραγωγή ΟΛΟΥ του market layer του donor**, όχι lossy. Το ~1.100-πόντο
+gap (ReCurSiON 2.989,4 frozen 08-14 vs 55586926 1.886,8, ίδιο pool, 2026-08-18 14:36 UTC — standing
+unexplained fact, R36 submission-level) **δεν ζει στο market layer.** → Κλείνω την οικογένεια
+«restore erased town-conditioning» channel-wide στο §3.3. Επόμενος challenger: **Track 2** (verbatim
+ReCurSiON trace vs vote), που το branch (i) επιλέγει. Upload = απόφαση του user, prerequisite (R27).
+
+**Παραδοτέα:** report `baselines/2026-08-18/s6_step2c_report.md`· script `analysis/s6_step2c.py`· guards
+`tests/test_s6_step2c.py` (7 νέα + τα 5 της Phase 0.5 πράσινα, 12/12)· §3.3 row· derived JSON gitignored
+(§2.4b/R11) με verdict string (R35). Καμία `agent/` αλλαγή, κανένα episode, κανένα upload.
+
+---
+
 ## 2026-08-18 κ — Session: **S6 step 2b Phase 0.5 — ανάκτησα τον κανόνα του donor· ⛔ ο ΜΟΝΟΣ μηχανισμός του pass ΔΙΑΨΕΥΔΕΤΑΙ στο χαρτί, χωρίς episodes· το sell-timing του ReCurSiON είναι fixed calendar, ΟΧΙ town-conditioned, και ο vote το αναπαράγει ήδη**
 
 **Εντολή (user):** τρέξε το brief στο `prompt.md` — restore το sell-timing που έσβησε ο vote. Ξεκίνα

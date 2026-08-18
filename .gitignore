@@ -83,3 +83,7 @@ docs/reviews/
 # S6 step 2b Phase 0.5 — the recovered donor strawberry sell-rule (determinism across towns,
 # hour-of-day calendar, live reachability); derived from the donor + live action streams, local (§2.4b / R11).
 /data/derived/s6_step2b_phase05.json
+
+# S6 step 2c — the non-strawberry town-conditioning sweep (WOOL/MILK/WHEAT/MELON per-product
+# determinism, within-step drain split, drift ceiling); derived from the donor action streams (§2.4b / R11).
+/data/derived/s6_step2c.json
