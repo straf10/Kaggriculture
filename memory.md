@@ -9,6 +9,66 @@
 
 ---
 
+## 2026-08-18 η — Session: **S6 step 2a ⛔ STOPPED στο Phase 0 (η υπόθεσή μου ήταν λάθος: WHEAT ≤$599/ep, free half $0) · kill (iii) ✅ CLOSED · το νέο πρόβλημα είναι το donor gap (64% transfer)**
+
+**Εντολή (user):** διάβασε το `baselines/2026-08-18/s6_step2a_phase0_report.md`, ανάλυσε, **update
+episodes**, τσέκαρε το latest submission που μάλλον έχει συγκλίνει, και δώσε prompt για το επόμενο task.
+
+### Το step 2a σκοτώθηκε στο Phase 0 — και σκότωσε τη δική μου υπόθεση
+Το brief ζητούσε ρητά *«decompose by product· μην κληρονομήσεις την υπόθεση strawberry»* — και αυτό
+έπιασε το λάθος. Μετρημένο σε 48 episode-seats (recon vs incumbent Valmorlee tape, both seats, unpinned):
+- Το loss είναι **100% WHEAT**, και τα δύο counters είναι **ΕΝΑ event μετρημένο δύο φορές**: ~5 wheat
+  tiles περνούν το `max_lifespan_step` ([:224]), χάνουν 3 units το καθένα (`_decay_plants` [:752]) και
+  μετά γίνονται WEED ([:766]). Ένα έγκαιρο HARVEST κλείνει και τα δύο. Τα 5 STRAWBERRY tiles που επίσης
+  weed-άρουν είναι **επιτυχημένες harvest retirements**, όχι loss — αυτή η ουρά ήταν το strawberry lead.
+- **Τίμημα: $599/ep** (14,94 units × $40,09/u wheat — το επαλήθευσα, median στα 48 episode-seats· final
+  bank median $92.574, συνεπές με το holdout $88.463, άρα το pairing του replay είναι σωστό). Το
+  $300/tile proxy **διπλομετρά** (η αξία του tile *είναι* τα 3 units) ⇒ **όχι** τα $2,8-3,1k που είχα πει.
+- **FREE half = $0 on-tile** (σε **καμία** από τις 48 περιπτώσεις δεν στέκεται idle unit στο loss tile —
+  το §3.3 wall, πρώτη φορά επιβεβαιωμένο σε **tape**) έως $241 reachable. Και τα δύο < $500 gate.
+- Δεύτερο ανεξάρτητο kill: όλα τα $599/ep = **+2,4 rating points / 0,09% του gap**.
+🔴 **Η δική μου εκτίμηση ήταν λάθος και στους δύο άξονες** (λάθος crop + διπλομέτρηση). Το Phase 0 έκανε
+ακριβώς τη δουλειά του: το σκότωσε *στο χαρτί*, χωρίς επεισόδια.
+
+### Ένα defect (R35): το artefact λέει το αντίθετο από το report
+Το `data/derived/s6_step2a_phase0.json` κρατά ακόμα **`gate_clears: true` / `gate_value: 840,5`** (το
+pre-correction summary με το διπλομετρημένο proxy), ενώ το διορθωμένο script τυπώνει
+`$241 (on_tile $0) ⇒ STOP` και γράφει άλλα keys. Το `--report-only` ξανα-υπολογίζει το print αλλά **δεν**
+ξαναγράφει το summary. Τρέξε το script ολόκληρο. Ίδια κλάση με R12/R19.
+
+### Update episodes + το submission ΕΧΕΙ συγκλίνει
+Convergence curve (episodes, score): **(7, 1.125,9) → (15, 1.736,0) → (16, 1.753,7) → (85, 1.915,8)**.
+Τα πρώτα 15 episodes έδωσαν +1.136 (~+76/ep)· τα επόμενα 70 έδωσαν **+180 (~+2,6/ep)** ⇒ plateau ~1,9-2,0k.
+- ✅ **Kill (iii) CLOSED — ΔΕΝ άναψε.** recon **1.915,8 / 85 eps** vs Ueddy **1.392,9 / 78 eps**, ίδιο read,
+  συγκρίσιμο play ⇒ **+523**. Η μέθοδος **επιβεβαιώνεται στη ladder** — πρώτη φορά που τοπικό εύρημα του
+  repo το επιβεβαιώνει η ladder αντί να το αντιστρέφει.
+- **Νέο repo best 1.915,8· rank 940 / 5.123** (από 1.263/4.947 χθες, **+325 θέσεις**).
+- R33/R28 κλειστά: **BT 3.317, #1 από 13, 48-0-0, 24-0/24-0 per seat**, πάνω από όλα τα tapes.
+
+### 🔴 Το νέο πρόβλημα: transfer ratio 64%
+| route | ladder | donor same-day | transfer |
+|---|---:|---:|---:|
+| Valmorlee **verbatim tape** | 1.599,1 | 1.842,4 | **87%** |
+| ReCurSiON **majority-vote recon** | 1.915,8 | 2.985,6 | **64%** |
+
+**Το vote άφησε ~1.070 rating points ενός #5 donor στο τραπέζι — και μεταφέρει ΧΕΙΡΟΤΕΡΑ από verbatim
+tape.** Ύποπτος #1: ό,τι έσβησε το vote, τα **127/719 (17,7%) state-dependent market steps**. Το
+«degrades gracefully» του §4.5(b) μετρήθηκε ως *bank margin απέναντι σε 3 σταθερά tapes*· απέναντι σε
+5.123 προσαρμοστικές ομάδες, route μέσο-όρου 50 πόλεων μπορεί να είναι optimal σε καμία.
+⚠️ Και **τα frozen routes χάνουν γρήγορα**: ο Peter Parker (pure frozen tape) έπεσε **#29/2.844,2 →
+#383/2.364,7 σε ~23 ώρες**· ο donor μας 3.004,6 → 2.985,6. Το `55586926` είναι frozen με ~6 βδομάδες
+μέχρι το deadline (§4.4#1).
+
+### Επόμενο
+Το **step 2b (premium-lead overlay) πάει μπροστά — αλλά το Phase 0 του είναι το donor gap, όχι το
+overlay.** Αριθμητική §3.4: overlay ≈ **+7,6 points** (+$1.911,9/ep ÷ $253) vs **~1.070 points** το gap.
+Το decomposition είναι και το σωστό sizing του overlay για *το δικό μας* route, άρα δεν είναι αναβολή —
+είναι το Phase 0 του. Refutation φθηνή: 85 δικά μας public episodes + 50 donor traces + το disagreement
+set· αν το live realised premium $/u μας ήδη πιάνει τα recorded same-town ratios του donor (STRAWBERRY
+1,339 / 1,243), το calendar μεταφέρθηκε, ο μοχλός του overlay είναι μικρός και το gap είναι αλλού.
+
+---
+
 ## 2026-08-17 ζ — Session: **S6 step 1b ✅ SHIPPED (`55586926`) + evaluation: το route είναι τυφλό στο δικό του χωράφι — το step 2 αναδιατάσσεται σε 2a (repair) πριν το 2b (overlay)**
 
 **Εντολή (user):** διάβασε το `baselines/2026-08-17/s6_step1b_report.md` + το τελευταίο session,

@@ -7,7 +7,13 @@ submission.tar.gz
 
 # Experiment/run output — regenerated locally, not source code
 baselines/
-gates/
+# gates/: ignore everything EXCEPT results.json (R34, user-approved 2026-08-18) — the aggregate
+# gate evidence (bank stats, priced-loss, counters, agent-spec paths; no per-step action streams,
+# no §2.4b competition-data exposure) is versioned so it is not single-laptop like R14. Replays,
+# draws and confirm logs under gates/ stay local.
+/gates/**
+!/gates/**/
+!/gates/**/results.json
 
 # checkpoints/: immutable local baselines (ROADMAP R14, decided 2026-08-11). The agent packages
 # themselves stay out of git — ~20 near-identical copies of agent/ — but every manifest.json IS
@@ -64,3 +70,7 @@ docs/reviews/
 /data/derived/s6_step1b_cluster_*.json
 /data/derived/s6_step1b_gate_draw_*.json
 /data/derived/s6_step1b_gate_*/
+
+# S6 step 2a Phase 0 — per-episode own-farm loss decomposition, computed by replaying the
+# gitignored reconstruction package; derived from competition action streams, kept local (§2.4b).
+/data/derived/s6_step2a_phase0.json
