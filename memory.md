@@ -9,6 +9,41 @@
 
 ---
 
+## 2026-08-18 θ — Session: **S6 step 2b Phase 0 — decompose the donor gap σε 85 LIVE δικά μας episodes· 🟢 GATE CLEARS → GO (overlay)· ο vote έσβησε το town-conditioning του ReCurSiON: strawberry ratio 1,339 → 1,010, μοχλός ~+$7.833/ep**
+
+**Εντολή (user):** τρέξε το S6 step 2b Phase 0 brief — decompose το ~1.070-point donor gap **πριν** χτιστεί ο overlay, με primary evidence τα δικά μας live episodes του `55586926`.
+
+### Setup: Kaggle auth (δεν ήταν στημένο)
+- Το CLI (2.2.4) ζητούσε OAuth· το Safari δεν άνοιγε τη σελίδα. Το `.env` είχε `KAGGLE_API_TOKEN` = **37 χαρακτήρες**, όχι legacy key (32) ⇒ **OAuth access token**. Το `kagglesdk.kaggle_env.get_access_token_from_env()` το διαβάζει κατευθείαν και το **introspect**-άρει για username — άρα δεν χρειάζεται username/kaggle.json. Auth OK (rank 939/5127, επιβεβαιώνει το ROADMAP). Το username είναι `nikosstraf` (για την ιστορία· δεν χρειάζεται).
+- Κατέβασα **85/87 public episodes** (`competitions episodes` → `replay`, ~30MB/ep, 2,5GB, **gitignored** στο `data/archive/raw/live_55586926/`) + fresh leaderboard.
+
+### Το αποτέλεσμα — καθαρό και αποφασιστικό: **ο vote έσβησε τον calendar**
+Το pre-registered refutation πυροδότησε το «collapsed toward 1,0» branch. Το same-town realised premium ratio (seat μας ÷ opponent seat, μέσα στο ίδιο episode, §4.1b control), median στα 85 episodes:
+- **STRAWBERRY 1,010** (donor recorded 1,339 / frozen 1,243) · WOOL 1,139 · MILK 1,014.
+- **Field calibration:** το 1,339 του ReCurSiON είναι καθαρό outlier (2ος boatlee 1,117, μετά ~1,0) ⇒ πραγματικό skill, όχι town/opponent artefact (median πάνω σε 50 towns, η πόλη είναι common-mode).
+
+**Ο decisive έλεγχος (absolute τιμές, ίδιο town-drain/opponent/volume):**
+- **ReCurSiON strawberry $117,4/u** (πάνω από το §4.1b population median $113,7) vs opponent του $89,5.
+- **Εμείς $90,1/u** — **ίδιο με το modal field και με τους opponents του donor**, $27/u ΚΑΤΩ από το $117,4.
+- **Ίδιο volume 286 = 286, ίδιο drain 4,0 = 4,0, ίδιο opponent $89,5 ≈ $89,9.** Το μόνο που αλλάζει είναι το realised price ⇒ **αντιγράψαμε την production αλλά χάσαμε το sell-timing**.
+- **Μοχλός = ($117,4 − $90,1) × 286 ≈ +$7.833/ep** στο strawberry μόνο. Το $117,4 είναι 50-trace median του donor ⇒ **αποδεδειγμένα reproducible ceiling**, ΟΧΙ το §4.1b modal 1,04-1,06× (που είναι το mirror-match baseline, τυφλό σε πραγματικό conditioning edge).
+
+### The gate, σε rating points → **> 200, GATE CLEARS → GO**
+Το §253/ep είναι λάθος εργαλείο εδώ (§3.4 amendment: premium-price edge αλλάζει ΠΟΙΑ episodes κερδίζεις). Το median margin μας στη band που όντως παλεύουμε (opp 1500-2000, 50 eps) είναι **μόλις +$1.076** ⇒ +$7.833/ep αναποδογυρίζει σχεδόν κάθε κοντινό loss στη 1500-2500 και ανοίγει το 2500-3000. **Πολλές εκατοντάδες rating points.** Ο overlay ΔΕΝ ακυρώνεται — **sized στο δικό μας route** (~4× το +$1.912/ep του V16-RC5, γιατί το core μας έχασε ΟΛΟ το edge).
+
+### Instruments 1 & 3 (ranked)
+- **[1] L1/L2 (both seats):** 57-28 (67,1%). Το route **ΔΕΝ κλείνει** — median bank gap μεγαλώνει όλη τη σεζόν (d5 +356 → d28 +4.515). Άρα το gap ΔΕΝ είναι late-season own-farm collapse (αντίθετα από v1h). R21: strawberry drain 4,0 (0% zero), wool 41% zero (το προβλεπόμενο 34%· γι' αυτό ο WOOL μοχλός είναι town-confounded, όχι πραγματικός).
+- **[3] components:** (a) erased sell-timing **~+$7.833/ep** = το gap · (c) tier-0 ≤$599/ep (step 2a) — ~13× μικρότερο, scale check ✅ · (b) production desync ~$0 (volume 286=286) · (d) **strength gap, όχι pool artefact** — win% 100→62→65→33 καθώς ανεβαίνει το opp rating, converge στο 50% ~2500· gap 1912,8/2985,6 = 64,1%, 1072,8 pts (≈ το ~1.070 του brief) · (e) decay αμελητέο (1915,8→1912,8, LastSub αμετάβλητο· η καμπύλη plateau-άρισε).
+
+### Chores
+- **R35 ✅** — ξανά-έτρεξα το `s6_step2a_phase0.py --seeds 100-123` σε πλήρη μορφή· το artefact πλέον φέρει `verdict: "STOP → step 2b (kill (i) FIRES)"`, `gate_clears:false`, χωρίς το stale `gate_value:840,5`. Πρόσθεσα το `verdict` string στο emitted summary.
+- **R34 ✅** — `.gitignore` έχει το `# R34, user-approved 2026-08-18` block· 5 `results.json` tracked στο git. Συνεπές με το ROADMAP R34.
+
+**Standing:** No upload (R27) — τίποτα δεν ανέβηκε. Routes/replays/derived **gitignored**. Report: `baselines/2026-08-18/s6_step2b_phase0_report.md`· script `analysis/s6_step2b_phase0.py`· derived `data/derived/s6_step2b_live.json`.
+**Next:** step 2b build proper — restore τα 17,7% state-dependent market steps (adaptive strawberry sell-timing conditioned στο town drain), one mechanism/arm, both seats, SMOKE→DEV(non-mirror)→holdout 100-147· kill (iv): αν δεν κουνήσει το realised strawberry $/u vs same-town control, stop. Στόχος-ceiling: το αποδεδειγμένο $117,4/u του ReCurSiON.
+
+---
+
 ## 2026-08-18 η — Session: **S6 step 2a ⛔ STOPPED στο Phase 0 (η υπόθεσή μου ήταν λάθος: WHEAT ≤$599/ep, free half $0) · kill (iii) ✅ CLOSED · το νέο πρόβλημα είναι το donor gap (64% transfer)**
 
 **Εντολή (user):** διάβασε το `baselines/2026-08-18/s6_step2a_phase0_report.md`, ανάλυσε, **update

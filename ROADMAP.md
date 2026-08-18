@@ -1739,7 +1739,32 @@ and it inherits every §3.3 STOP about adding tier-0/1 work. Sequenced last, del
 
 </details>
 
-#### S6 step 2b — 🟢 THE NEXT PASS, and its Phase 0 is the donor gap, not the overlay
+#### S6 step 2b — 🟢 Phase 0 DONE (2026-08-18): the gap is the erased sell-timing; GATE CLEARS → build the overlay
+
+> 🟢 **Phase 0 ran on 85 of our own LIVE episodes and CLEARED the gate — GO.** The pre-registered
+> refutation fired the "collapsed toward 1,0" branch: our live same-town STRAWBERRY realised-price
+> ratio is **1.010** vs the donor's recorded **1.339**. The decisive control — same town-drain (4,0),
+> same-quality opponent ($89,5≈$89,9), same volume (286) — reads **ReCurSiON $117,4/u vs our $90,1/u**:
+> we copied the donor's production but sell strawberry at the **modal field price**, $27/u below what
+> the donor demonstrably extracted from the identical setup. **The majority vote erased ReCurSiON's
+> town-conditioned sell-timing** (the 17,7% state-dependent steps), and the recoverable lever is
+> **~+$7.833/ep on strawberry alone** — a *demonstrated* ceiling (the donor's own 50-trace median), not
+> the §4.1b modal 1,04-1,06×. Against our ~$1.076 median win-band margin that is **well over 200 rating
+> points** (§3.4-amended: it changes *which* episodes we win). Instruments confirm: the route does not
+> shut down (57-28, gap grows to d28), the gap is a real **strength** gap not a pool artefact (win%
+> 100→62→65→33 by opp band, converging at 50% ~2500; 1912,8/2985,6 = 64,1%, 1072,8 pts), production
+> transferred whole (vol 286=286), tier-0 loss ≤$599/ep is ~13× smaller, decay negligible. **The
+> overlay is the build, now sized on our route (~4× V16-RC5's +$1.912/ep).** Report:
+> `baselines/2026-08-18/s6_step2b_phase0_report.md`; script `analysis/s6_step2b_phase0.py`; derived
+> `data/derived/s6_step2b_live.json` (all replays/derived gitignored). No upload (R27).
+>
+> **The build (next pass):** restore the 17,7% state-dependent market steps so strawberry sell-timing
+> conditions on *this* town's drain; one mechanism/arm, both seats, `--town-pin basket`;
+> SMOKE 0-11 → DEV vs the non-mirror bench → unpinned holdout 100-147; R21 draw + R32 ledger + R17.
+> **Kill (iv):** an arm that does not move realised strawberry $/u against the same-town control has
+> missed the only thing it was built for — stop, do not tune. Ceiling to aim at: the donor's $117,4/u.
+
+<details><summary>Original step-2b Phase-0 brief (pre-run, superseded by the GO above)</summary>
 
 **The overlay finally leads the queue — and its surface area has never been measured on *our* route,
 while the ladder has just handed us a number two orders of magnitude larger.** §4.5(b)'s
@@ -1762,6 +1787,8 @@ frozen-replay), then the calendar transferred, the overlay's lever is small on o
 ~1.070 points are somewhere else — production desync, tier-0 loss, or the opponent population. **That
 kills the overlay before it is built, which is the entire point of running this first:** C-A died in an
 afternoon this way; T2 spent a full pass because it did not.
+
+</details>
 
 #### S6 step 2 — the bench (this is the part §2 says we have been getting wrong)
 
@@ -2024,7 +2051,7 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R25** ✅ | **Done 2026-08-17.** Fetched the six tier-0-5 `.py` (MIT) into the **gitignored** `harness/bench_agents/reference/` (with `LICENSE`/`NOTICE`/`PROVENANCE.md`); resolver `harness/bench_agents/reference_ladder.py` (committed, carries no competition data) maps tier/slug/name → local path. Tiers 6-9 not fetched (R23); CC BY-SA CSVs read transiently, never vendored (§4.5). Verified loadable + graded (Finn $3.000 floor → Rita ~$40k). Wired into the S6-step-0 R22 ladder | A1 is decided but not executed — nothing beyond `LICENSE`/`NOTICE`/`*.csv` has been downloaded |
 | **R26** ✅ | **Done 2026-08-17.** `analysis/donor_streams.py` wraps the three donor tapes via `analysis/tape_agent.py::make_tape_agent`, sha256-verified against provenance on load; used programmatically by S6-step-0 leg 1 and by the R22 ladder (tape `main.py` paths). Route files stay gitignored (§2.4b / R11) | The fixed-production opponent is what makes an S6 market-layer A/B clean — production held constant by construction |
 | **R28** 🟢 | **The BT bench had a ceiling problem — S6 step 1 produced the new rung (2026-08-17).** The round-robin read Valmorlee **3008 (56-0-0)** › Ueddy 2349 › Kaito 2182 › `v1u_base` 1701 › … — the tapes swept every rung, so nothing could score a challenger *better than a tape*. **The ReCurSiON reconstruction now sits above them: 24-0-0 vs the Valmorlee tape (+$14.267/ep), 24-0-0 vs Ueddy/Kaito** (SMOKE 0-11, both seats). It is a local tape agent (parameterised by its majority-vote stream), not a file path, so wiring it into `harness.cli ladder` for a full BT number needs a packaged local `main.py` (gitignored) — **now item 2-3 of step 1b, this coming pass** | A graded bench whose top rung is the thing under test measures nothing above it. Step 1's reconstruction is that next rung |
-| **R35** | **A derived artefact must be regenerated when the verdict changes, not just re-printed (2026-08-18, S6 step 2a Phase 0).** `data/derived/s6_step2a_phase0.json` still holds `gate_value: 840,5` / **`gate_clears: true`** — the pre-correction summary computed on the double-counting $300 proxy — while the corrected script prints `$241 (on_tile $0) ⇒ STOP` and emits different keys. `--report-only` recomputes the console output and leaves the stale summary in place. **Rule: when a pass corrects its own pricing basis, re-run the writer, and make the artefact carry the verdict string itself** so a future grep cannot read GO off a superseded flag | Third time in this repo (R12: comment edited after the screen ⇒ artefact keys to the wrong package; R19: duplicate config key ⇒ a dead flag that looked like a finding). The reasoning here is right and the file says the opposite |
+| **R35** ✅ | **DISCHARGED 2026-08-18 (S6 step 2b Phase 0):** re-ran `analysis/s6_step2a_phase0.py --seeds 100-123` in full and added the `verdict` **string** to the emitted summary, so the artefact now carries `verdict: "STOP → step 2b (kill (i) FIRES)"`, `gate_clears: false`, `gate_value_ontile: 0`, `gate_value_reachable_unitonly: 240,5` — the stale `gate_value: 840,5` / **`gate_clears: true`** is gone. Original lesson: **A derived artefact must be regenerated when the verdict changes, not just re-printed (2026-08-18, S6 step 2a Phase 0).** `data/derived/s6_step2a_phase0.json` still held `gate_value: 840,5` / **`gate_clears: true`** — the pre-correction summary computed on the double-counting $300 proxy — while the corrected script prints `$241 (on_tile $0) ⇒ STOP` and emits different keys. `--report-only` recomputes the console output and leaves the stale summary in place. **Rule: when a pass corrects its own pricing basis, re-run the writer, and make the artefact carry the verdict string itself** so a future grep cannot read GO off a superseded flag | Third time in this repo (R12: comment edited after the screen ⇒ artefact keys to the wrong package; R19: duplicate config key ⇒ a dead flag that looked like a finding). The reasoning here is right and the file says the opposite |
 | **R34** ✅ | **`gates/` is gitignored wholesale, so no gate result is in git — R14 repeating one directory over.** R14 found `checkpoints/` ignored, contradicting the invariant that directory exists to enforce, and the user's fix was **track the manifests only** (`/checkpoints/**` + `!/checkpoints/**/` + `!/checkpoints/*/manifest.json`, in that order — git cannot re-include a file under an excluded parent). The same argument applies verbatim to `gates/`: step 1b's DEV and unpinned-holdout `results.json` are the evidence for shipping `55586926`, they hold **aggregates only** (banks, counters, verdicts — no action streams, so no §2.4b exposure), and they exist on one laptop. **Confirmed by the user 2026-08-18 and implemented:** `.gitignore` is now `/gates/**` + `!/gates/**/` + `!/gates/**/results.json` (that order is required — git cannot re-include a file under an excluded parent). 5 artefacts, 660 KB, verified before committing: **no per-step action streams** (longest line 327 chars), and the only competition identifier is the episode id `91456307` inside an `agent_a_spec` *path* — already stated openly in this file, so no §2.4b exposure. Replays, shop draws and confirm logs under `gates/` stay local | An accepted-gate record that lives only on the machine that produced it is not a record. Every "measured, not narrative" claim in this file rests on artefacts like these |
 | **R32** | **Price *every* loss counter in the artefact, including the ones that pass, and state the total (2026-08-17, evaluating S6 step 1b).** The shipped reconstruction's `priced_loss_a` reads a comfortable $1.500/ep against budget — and is **100% `unexpected_weeds_lost`** (5,0 tiles × $300). Beside it sits `plant_decay_units_lost` **15,0 units/ep**, structural, unpriced, and ~equal on the incumbent tape (14,9). Summed: **~$2,8-3,1k/ep of own-farm loss on both arms of every tape gate since 08-16**, never once totalled, and **bigger than the +$1.912/ep lever the next pass was queued to build**. Add a per-episode **loss ledger** (counter → count → unit price → $) to the gate summary, with unpriced structural counters listed at "unpriced" rather than omitted | A counter inside its budget is still a bill. R13 fixed *floored-instead-of-priced*; this fixes *passed-therefore-invisible*. It is also the answer to "where does this agent lose": it was in the artefact all along |
 | **R33** | **`--round-robin` BT is still unmeasured for the reconstruction (R28's rung).** Step 1b's item 3 reports a genuine challenger-only **24-0-0 sweep with margins** but its BT table is an unfilled `<!-- BT_LADDER_RESULT -->` placeholder and no artefact exists on disk. A challenger-only sweep cannot produce a rating — the round-robin is what connects the comparison graph (R22's own caveat). One command, carried into step 2a | R28 exists because the tapes swept every rung, so nothing could score *above* a tape. The reconstruction is that rung and its rating is still a blank |

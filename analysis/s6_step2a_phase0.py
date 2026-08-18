@@ -275,7 +275,11 @@ def _report(rows):
     return {"n": n, "price": price,
             "recoverable_units_only": decay_val, "recoverable_tile_proxy": weed_val,
             "free": free_summary, "gate_value_reachable_unitonly": gate_val,
-            "gate_value_ontile": free_summary["on_tile"]["unit_only"], "gate_clears": clears}
+            "gate_value_ontile": free_summary["on_tile"]["unit_only"], "gate_clears": clears,
+            # R35: the artefact carries the verdict STRING itself, so no future grep can read a GO
+            # off a superseded numeric flag (the pre-correction summary held gate_value:840,5 /
+            # gate_clears:true from the double-counting $300 proxy).
+            "verdict": verdict}
 
 
 def main() -> int:

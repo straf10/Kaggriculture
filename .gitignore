@@ -74,3 +74,8 @@ docs/reviews/
 # S6 step 2a Phase 0 — per-episode own-farm loss decomposition, computed by replaying the
 # gitignored reconstruction package; derived from competition action streams, kept local (§2.4b).
 /data/derived/s6_step2a_phase0.json
+
+# S6 step 2b Phase 0 — per-episode extract of our own live public episodes (opponent names, banks,
+# realised premium $/u); derived from competition action streams (the downloaded replays under
+# data/archive/, itself gitignored), kept local (§2.4b / R11).
+/data/derived/s6_step2b_live.json
