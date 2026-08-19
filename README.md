@@ -26,6 +26,8 @@ Each in-game day the agent runs a **plan → schedule → execute** loop:
 `agent/policy.py` wires this together into the single `agent(obs, configuration)` callable the
 Kaggle loader expects; `main.py` is the packaged submission entrypoint.
 
+Currently Top 18%
+
 ## Repository layout
 
 | Path | Contents |
