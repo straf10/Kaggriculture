@@ -1,132 +1,143 @@
-# Pass brief — S6 step 2d (Track 2): the verbatim trace vs our majority vote
+# Pass brief — S6 step 2e: the loss tail — why we lose a quarter of our episodes badly
 
-> **Read first:** `baselines/2026-08-18/s6_step2c_report.md` (branch (i), the pass that unblocked this
-> one) and `baselines/2026-08-18/s6_step2b_phase05_report.md`; [ROADMAP.md](ROADMAP.md) §3.3's **step 2c
-> row** (family closed channel-wide) and its **T2 STOP**; §1 (the **transfer-ratio** row — this pass's
-> whole subject — and the converged/decaying curve); **§4.5(b)** (the V16-RC5 method we copied, *including
-> the two components we did not ship*); §4.1b; §3.4; **R21 / R27 / R32 / R36**; §2.1.1-5; §6bis; the top
-> of [memory.md](memory.md).
+> **Read first:** `baselines/2026-08-18/s6_step2d_report.md` (leg A's mechanism — this pass re-prices it)
+> and `s6_step2c_report.md`; [ROADMAP.md](ROADMAP.md) **§1** (the five-week puzzle: *"measured local wins
+> that convert into ~nothing on the ladder"* — this pass is that puzzle, measured on our own ladder
+> episodes); **§4.1b** (99-100% of realised-price variance is between-town — **the rival hypothesis, and
+> it is strong**); §3.3's **step 2a / 2c / 2d** rows; **§3.4** (the rating-conversion note: a small
+> *perfectly consistent* edge converts well — this pass is about its inverse); **R21 / R27 / R32 / R36**;
+> §2.1.1-5; the top of [memory.md](memory.md).
 
-## Where we are — and why this pass is a Phase 0, not a ship
+## Where we are — and the pivot this pass makes
 
-**Track 2 is unblocked and correctly selected.** Step 2c fired **branch (i)**: WOOL (0/20 within-step
-splits, across a 40%-of-towns zero-yarn population), MILK (0/2, no zero-drain population exists), WHEAT
-(fixed-4 variant), MELON (no shop), FERTILIZER (analytically eliminated). The donor's **entire market
-layer is a town-invariant schedule the vote already reproduces** — every product's modal volume matches
-byte-for-byte (WOOL 200, MILK 296, WHEAT 457, STRAWBERRY 290, MELON 114). The "erased town-conditioning"
-family is closed. Under the queued branch, that selects the **verbatim trace** as the challenger.
+Five passes (2a, 2b, 2b-0.5, 2c, 2d) have each asked **"what did the majority vote erase?"**, priced the
+answer as a **mean dollars-per-episode**, and closed it below the gate:
 
-**But branch (i) also lowers this pass's expected effect size, and the brief has to say so up front.**
-If the market layer is faithfully reproduced *and* production transferred whole (Phase 0: volume
-286 = 286), then a verbatim trace and the vote differ **only** at the disagreement steps — 127 market +
-88 production of 719 — and 2c showed most of the market residual is a **fixed 4-trace submission variant**
-{43,45,46,49}, not town conditioning. **A full §2.1.3-5 ladder plus a ship, on a lever whose surface area
-has never been bounded, is precisely the T2 error the last four passes have avoided.** So: bound it
-first, on the cheapest instrument that can, and ship only if the bound clears.
+| pass | erased component | bound | verdict |
+|---|---|---:|---|
+| 2b-0.5 | strawberry sell-timing | ≈$0 (zero-sum) | ⛔ never town-conditioned |
+| 2c | the whole market layer | ~$1.202/ep (WOOL drift, shelved) | ⛔ town-invariant channel-wide |
+| 2a / 2d | closed-loop tile control | **$597/ep → +2,4 pts** | ⛔ real mechanism, bounded small |
 
-**And there is a named, documented, never-tested alternative that this pass must not step over.** §4.5(b)
-records that the method we copied takes the per-decision majority vote **and then adds worker-count
-adaptation and an obstruction-recovery step**. Our own submission description for `55586926` says it
-plainly: *"adaptive layer = step 2, **not shipped**"*. We shipped the vote core without the two adaptive
-components its source method treats as part of it. Meanwhile **`n_disagree_prod = 88` production steps
-have never been examined by any pass** — 2a, 2b, 2b-0.5 and 2c all looked at the market channel. That is
-the standing rival hypothesis for the ~1.100 points, and leg A tests it for free.
+**2d found a genuine town-reactive rule** — the hands DIG a per-town spawned weed, re-PLANT, and WATER by
+the actual dry state, re-syncing one op later; carried by 25 traces, farmer-op invariant 0/88, 62% of
+hand-slot disagreements standing on a disjoint tile. That is the first real closed-loop rule any pass has
+located, and the finding is not in question.
+
+🔴 **What is in question is the currency of its bound.** $597/ep is a **mean**. The ladder pays in
+**episodes won**. A mechanism that costs little on average but occasionally cascades flips episodes, and
+flipping episodes is what moves rating. Measured on the 84 real ladder episodes of `55586926` already on
+disk (**the 85th file is a STRAF-vs-STRAF validation episode — exclude it from every per-episode
+average**; 2d's $597/ep and leg B's $85.468 median both include it):
+
+| | n | our bank (med) | opp bank (med) | margin (med) | margin p10 |
+|---|---:|---:|---:|---:|---:|
+| **wins** | 56 | **$94.028** | $77.458 | +$6.046 | +$244 |
+| **losses** | 28 | **$77.428** | $87.568 | −$3.600 | −$21.496 |
+
+**Our own bank is $16.6k lower in the episodes we lose**, and across all 84 it spans p05 **$53.9k** ·
+p10 **$58.5k** · median **$85.8k** · p90 **$125.3k** · max $140.9k — a **p90/p10 ratio of 2,14**, with
+**22 of 84 episodes (26%) under $70k** and a tail to **$36.2k**, 42% of our own median. Leg B's own
+richness match reports every one of these towns at **8 unlocked shops (range 8-8)**, so a shop-*count*
+story cannot carry it.
+
+**And the fact that most wants explaining:** our converged win rate is **65% and stable** (last 56
+episodes 64,3% / 64,3%; last 20 **65,0%**; last 10 60,0%) against a rating that is flat-to-**declining**
+(1.915,8 → 1.906,5 → 1.886,8, `LastSubmissionDate` unchanged). Winning two thirds of episodes while
+*losing* rating is §1's puzzle, now measured rather than inferred. Note this rehabilitates the win-rate
+half of the band table R36 invalidated: **R36 killed the opponent-rating axis, not the win rate**, and the
+65% survives at n=56, not n=20.
 
 ## The one question
 
-> **Does the majority vote's averaging cost anything measurable against the donor's own actions — and if
-> so, is the cost in the stream at all, or in the adaptive layer we never shipped?**
+> **What separates our $36-58k episodes from our $95-125k ones — and is 2d's open-loop desync the cause?
+> If it is, the mechanism's value is not +2,4 rating points, because +2,4 prices a mean where the ladder
+> pays per episode.**
 
-## Phase 0 — four legs, cheapest first, each with its own exit
+## ⚠️ The rival hypothesis, pre-registered as a control, not an afterthought
 
-**Leg A — the 88 production disagreement steps (free, desk, zero episodes).** Run the step 2c instrument
-(`analysis/s6_step2c.py`) on the **production** channel: `farmer`/`hands` actions at the 88 steps where
-the 50 traces disagree. Same five instruments. The question is the same one WOOL answered for the market
-side: is the residual the **fixed 4-trace variant**, or does it move with something the town does —
-**weed spawns, obstruction, harvest timing, worker count**? Note the engine gives `weedSpawnChance` a real
-per-town realisation, and our live route carries `unexpected_weeds` 5/ep and `plant_decay` 15/ep (R32,
-~$2,8-3,1k/ep summed) — so a town-reactive production rule is *mechanically plausible here in a way it
-was not for a hour-0 market calendar.* **If the 88 steps are town-reactive, the vote erased an adaptive
-production rule and this pass has found the thing four passes have been looking for.**
+**§4.1b measured that 99-100% of realised-price variance is *between-town*, with the shop draw moving
+STRAWBERRY 18×, MILK 14×, WOOL 5,3×.** Eight shops are unlocked in every one of our towns, but *which
+eight* varies, and that alone could produce a 2,14× bank spread with no defect whatsoever. **This is the
+strongest prior against the desync reading and it must be able to win.** Leg C runs it as a control; if
+composition explains the tail, the honest result is that the tail is the town and 2d's shelving stands.
 
-**Leg B — price the gap in dollars, drain-matched, from replays already on disk (free, desk).** Nobody
-has ever decomposed the **total bank** gap; Phase 0 did it only for strawberry $/u. The donor's recorded
-final bank is in every replay (`replay["rewards"]`, both seats). Compare the donor's 50 traces against our
-85 live `55586926` episodes, **matched on observed drain** the way Phase 0 matched it (4,0 = 4,0), and
-decompose the difference into: per-product units × realised $/u, and the R32 loss ledger (weeds, decay,
-overflow, escapes) priced per counter. **State where the donor is ahead of us in dollars, in a comparable
-town.** ⚠️ Two caveats to carry, not bury: the opponents differ (match opponent quality as Phase 0 did,
-and say so), and **`configuration.seed` is `None` in every replay** — verified this session — so *the
-donor's town cannot be re-run*. Drain-matching is the only same-town-*like* control available at the desk;
-a true same-town control needs leg C's both-seats design.
+## Legs — all desk-only, zero episodes, cheapest first
 
-**Leg C — the head-to-head, SMOKE only (cheap, ~24 episodes).** Play **tape(verbatim trace) at one seat
-against the vote at the other, in the same episode, both seats, SMOKE 0-11** —
-[analysis/tape_agent.py](analysis/tape_agent.py) plus the 50 traces under `data/archive/raw/2026-08-16/`.
-This is the only exact same-town control that exists here, and it is the direct measurement the §1
-transfer-ratio row has been asking for since 08-18. Run **two** tapes: one drawn from the **46-trace modal
-set**, and one from the **{43,45,46,49} variant** — the variant is the single known behavioural difference
-in the donor population, so it is the free contrast. **Stop at SMOKE.** Do not proceed to DEV or holdout
-inside this leg.
+**Leg A — un-average the 2d instrument (free).** `analysis/s6_step2d.py` already computes
+`plant_decay_units_lost` / `unexpected_weeds_lost` / `water_weeds_lost` across the live set and reports
+the **mean** ($597/ep). Emit them **per episode** instead, and regress our own final bank on them across
+the 84. Report the counters' distribution, not just their mean — specifically their value in the 22
+sub-$70k episodes versus the top quartile. **A mean of 4,99 weeds/ep is consistent with both "5 weeds
+every episode" and "0 in most, 25 in a few", and those two have completely different rating prices.**
 
-**Leg D — the ladder and the ship.** The original Track 2: full §2.1.3-5 (DEV vs the non-mirror bench →
-unpinned holdout 100-147, both seats) and the §6bis checklist. **Gated on leg C, and not started
-otherwise.**
+**Leg B — desync depth, the direct test (free).** The vote is open-loop, so this is computable exactly:
+for each of the 84 live episodes, walk the emitted stream against the **actual** board and record (1) the
+step of the **first** action that is illegal or a no-op given the real tile state, (2) the running count
+of such actions, and (3) whether the count is front-loaded (a cascade) or scattered (isolated slips).
+2d's own trace shows the failure shape to look for — the vote emitting `WATER` onto a tile that holds a
+`WEED` in that town. **Correlate desync depth against final bank.** This is the instrument the whole pass
+turns on; legs A and C are its controls.
+
+**Leg C — the §4.1b control (free).** For each episode, extract the town's **shop composition** (not just
+the count of 8) and the realised per-product $/u, and ask how much of the bank spread it explains on its
+own. Then ask whether leg B's desync depth explains anything **after** composition is partialled out.
+**Report both the raw and the residual association.** If composition carries the tail and desync adds
+nothing, say so plainly — that is the result, and it closes the family for good.
+
+**Leg D — convert to the right currency (free, arithmetic).** Whatever leg B/C locate, price it in
+**episodes flipped**, not dollars per episode: how many of the 28 losses had a margin smaller than the
+episode's own measured loss from the mechanism? That count, over 84, is the rating-relevant number, and it
+is the one 2d's +2,4 pts did not compute. State it beside the $597 mean rather than replacing it, and be
+explicit that a flipped-episode count is an **upper** bound (it assumes recovery converts to a win).
 
 ## Kills / branches, pre-registered before any leg runs
 
-- **(i) Leg C's SMOKE margin is within noise** (no consistent sign across both seats, |mean_diff| below
-  the bench's own seat-to-seat spread) ⇒ **the stream is excluded as the location of the gap.** That is a
-  real result, not a null: combined with 2c it says neither the market layer nor the vote's averaging
-  costs us the 1.100 points. **Do not ship the tape. Stop, and the next brief is the adaptive layer**
-  (§4.5b's worker-count adaptation + obstruction recovery, informed by leg A).
-- **(ii) The verbatim tape beats the vote consistently at SMOKE, both seats** ⇒ the averaging *is* the
-  loss. Proceed to leg D, and report leg A's finding alongside — if the win concentrates at production
-  steps, the shippable thing may be the adaptive rule rather than a frozen trace.
-- **(iii) The vote beats the verbatim tape** ⇒ the vote is doing its job and the 50-town mode is an
-  asset, not a lossy average. Close Track 2, keep `55586926`, and go to the adaptive layer.
-- **(iv) Leg A finds the 88 production steps town-reactive** ⇒ that outranks legs C/D regardless of their
-  outcome. **Report it and re-brief; do not build it this pass** (the Phase 0.5 discipline: recover and
-  bound, then stop).
-- **(v) Leg B's drain-matched decomposition puts the dollar gap in a channel legs C/D cannot reach**
-  (e.g. entirely in loss counters, or entirely in opponent quality) ⇒ say so plainly and let it redirect
-  the pass; a measured redirection is the point of running the cheap legs first.
+- **(i) The tail is town composition (leg C wins, leg B's residual ≈ 0)** ⇒ the bank spread is §4.1b
+  operating as measured, there is no defect, and **2d's shelving stands unchanged**. Close the
+  re-pricing question, record it, and the open question returns to R36 / §4.4#1's clock. **A clean
+  negative here is a real result and ends the "what did the vote erase" programme properly.**
+- **(ii) Desync depth carries the tail after composition is controlled** ⇒ **2d's bound was priced in the
+  wrong currency.** Report the flipped-episode count and **re-open the closed-loop rule in §3.3 at its
+  corrected price**. Still **do not build it this pass** — recover, re-price, stop.
+- **(iii) Neither explains it** ⇒ the tail has a third owner (opponent identity, seat, an unmeasured
+  structural counter). Say so, name what you ruled out, and do not fill the gap with a guess.
+- **(iv) Leg A finds the counters are uniform across episodes** (no tail in weeds/decay at all) ⇒ leg B's
+  hypothesis is dead before leg B runs; go straight to leg C and report.
+
+## Corrections to record in this pass's report
+
+1. **Leg B's opponent-pool reading is circular.** 2d attributes most of the $4.718/ep absolute bank gap to
+   the donor's opponents banking $88,0k vs our $79,3k — "a richer/stronger pool the donor did not create."
+   **Kaggle pairs by rating**, so opponent strength is a *consequence* of the 2.989 vs 1.887 rating
+   difference, not a cause of it. It cannot be netted out as an explanation. The head-to-head margin
+   comparison (+$2.922 vs +$2.100) stands; the causal gloss on it does not.
+2. 🔴 **R36 prescribes something this data cannot support.** R36 directs future passes to read the
+   opponent rating "recorded in the episode metadata at play time." **Verified this session across all 85
+   live replays: `info` carries `Agents`, `EpisodeId`, `LiveVideoPath`, `TeamNames`, `seed` and *no rating
+   field of any kind*.** The rule is not executable here; the team-name proxy it warns against is the only
+   axis that exists. **Amend R36** to say so, rather than leaving a standing instruction that silently
+   cannot be followed.
+3. **The 85th live file is a STRAF-vs-STRAF validation episode**, not a ladder episode. Every per-episode
+   average computed over "85 live episodes" (2d's $597/ep, leg B's $85.468 median) includes it. The
+   effect is small but the set is **84**.
 
 ## Standing conditions
 
-**No `agent/` change.** Legs A and B run **zero episodes**; leg C runs SMOKE only. **No upload unless leg
-D is reached and the user says so — the upload is the user's call and a prerequisite, not a consequence
-(R27).** Routes, packages, replays and derived data stay **gitignored** (§2.4b / R11); derived artefacts
-carry the **verdict string** (R35). Guards in `tests/`. Competitor notebook source untouched (§2 item 8).
-R21 (realised shop draw per seed set) and R32 (per-episode loss ledger, unpriced counters listed) apply to
-every episode-running leg. Report to `baselines/<date>/`, `memory.md` entry, commit with no co-author.
-
-**If leg D is reached, the upload economics:** eviction is by date and the oldest active is `55575305`
-(Ueddy, **1.372,6**) — our weakest, so the eviction is near-free; the pair would become
-{vote `55586926`, verbatim tape}. §6bis warns against two near-identical actives, and after 2c we know
-these two differ only at the disagreement steps — **raise that with the numbers before uploading.**
-
-**The clock, stated correctly.** The final ranking is one Bradley-Terry tournament over **post-deadline**
-episodes, so today's drifting **1.886,8** (1.915,8 → 1.906,5 → 1.886,8, `LastSubmissionDate` unchanged) is
-a **predictor, not the score**. What is scored is the strength of the active pair on **2026-09-30** — 43
-days out. Re-uploading the same route does not undo the drift; a fresh submission simply re-converges to
-its current fair value. Budget roughly 2-3 days per converge-and-read, two active slots, eviction by date.
-
-## The standing unexplained fact (R36, submission-level)
-
-Leaderboard **2026-08-18 14:36 UTC**: **ReCurSiON 2.989,4**, `LastSubmissionDate` frozen **08-14 14:14**
-— the exact submission we reconstructed — against our **55586926 at 1.886,8**. ~1.100 points, live, same
-pool, between the donor's route and our 50-town average of it. Both sides are the rating of one specific
-submission, so this is quoted at submission level and **no band-crossing conclusion is drawn from it**
-(R36). Two passes have now excluded the market layer as its location. Carry it into the report whichever
-branch fires.
+**No `agent/` change. Zero episodes — every leg is desk work on replays already held. No upload (R27)**,
+so the active-pair eviction is not raised. Derived artefacts stay **gitignored** (§2.4b / R11) and carry
+the **verdict string** (R35). Guards in `tests/`. R32 applies: price every counter you report, and list
+unpriced structural counters as "unpriced" rather than omitting them. Competitor notebook source
+untouched (§2 item 8). Report to `baselines/<date>/`, `memory.md` entry, commit with no co-author.
 
 ## Out of scope
 
-- **Any market-layer overlay.** ⛔ Closed channel-wide by 2c (§3.3). Strawberry, WOOL and MILK included —
-  WOOL's ~$1.202/ep whole-episode drift is **bounded and shelved**, not a lever to revisit this pass.
-- **Arms A/B/C of step 2b** ⛔ refuted · **step 2a's wheat repair** ⛔ on the shelf · **C-A** ⛔ refuted ·
-  **C-C (MELON)** still last.
-- **Building the adaptive layer.** If leg A points there, this pass **reports and re-briefs**. Recovering
-  and bounding a mechanism, then stopping, is what the last four passes got right.
-- **A donor swap**, **RL**, **planner refinement** — unchanged.
+- **Building anything.** This is a re-pricing pass. It ends with a measurement, a corrected bound and a
+  branch — the discipline the last five passes got right.
+- **Leg C of step 2d (the tape-vs-vote SMOKE head-to-head)** — deliberately **not** revived. Both sides
+  are open-loop and differ only at the disagreement steps 2c and 2d have bounded; it would read near-tie
+  and cost ~24 episodes to learn nothing.
+- **The adaptive layer** (§4.5b obstruction recovery / worker-count) — same class, same bound, and leg B
+  of this pass is the cheaper test of whether that class matters at all.
+- **Any market-layer overlay** ⛔ closed channel-wide (2c) · **step 2a's wheat repair** ⛔ on the shelf ·
+  **C-A** ⛔ refuted · **C-C (MELON)** last · **a donor swap**, **RL**, **planner refinement** — unchanged.

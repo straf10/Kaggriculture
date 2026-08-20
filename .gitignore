@@ -91,3 +91,7 @@ docs/reviews/
 # S6 step 2d (Track 2) — production-channel town-reactivity (leg A) + bank decomposition / loss
 # ledger (leg B); derived from the donor + live 55586926 action streams (§2.4b / R11).
 /data/derived/s6_step2d.json
+
+# S6 step 2e — the loss tail: per-episode decay/desync/composition analysis on 84 live ladder
+# episodes; derived from live 55586926 action streams (§2.4b / R11).
+/data/derived/s6_step2e.json
