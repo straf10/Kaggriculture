@@ -9,6 +9,82 @@
 
 ---
 
+## 2026-08-20 ν — Session: **episodes update (85→179 replays) + δύο εξωτερικές πηγές· 🔴 τρία standing readings του ROADMAP ήταν λάθος — το win rate 65% ήταν το placement burst (43,4% converged), το score deflate-άρει pool-wide (διάβασε RANK), και το `median_bank` είναι κατά ένα τρίτο η πόλη που ο βαθμός ΔΕΝ βλέπει· §2.1.4 αλλάζει σε wins → BT → bank· ανοίγει το S7**
+
+**Εντολή (user):** ενημέρωσε τα episodes αν συμφέρει· διάβασε την ανάλυση του τρέχοντος #1 για τη μηχανική
+του rating + το notebook του Kaito· ενημέρωσε το ROADMAP και **υιοθέτησε τη στρατηγική αξιολόγησής τους**.
+
+### Τι κατέβηκε (μηδέν episodes παίχτηκαν — μόνο downloads ήδη παιγμένων)
+- **94 νέα live replays** του `55586926` → **179** συνολικά (178 ladder + 1 STRAF-vs-STRAF), 5,2 GB, gitignored.
+- **2ο leaderboard snapshot** (2026-08-20 10:57 UTC, 5.501 ομάδες) δίπλα στο 08-18 → πρώτη φορά **διαφορά**.
+- Episodes listing + το `episodes-index` manifest (928 bytes). **ΔΕΝ** κατέβηκε το daily dataset 08-19
+  (~20 GB): τα live replays είναι καλύτερο bench (αντίπαλοι στη ΔΙΚΗ μας ζώνη, και οι δύο θέσεις).
+
+### Το εύρημα (analysis/s7_ladder_census.py, legs A/B/C)
+1. **Το 65% win rate ήταν το placement burst.** Στα 178 episodes: **54,5%** συνολικά, ανά τρίτο
+   **66,1% / 50,8% / 46,7%**, ενώ το median board score του αντιπάλου ανεβαίνει **1.212 → ~1.950**
+   (το matchmaking μας προλαβαίνει). **Controlled + converged: 43,4%** (n=53) — και φθίνει μονότονα:
+   **54% / 41% / 38%** σε <1.800 / 1.800-2.100 / 2.100+. **Το R36 ΚΛΕΙΝΕΙ**: ο μόνος εκτελέσιμος έλεγχος
+   είναι «το board submission του αντιπάλου προϋπάρχει του episode μας» (176→86 δείγμα, 26% ξανα-υπέβαλαν
+   σε 2 μέρες) και αντιστρέφει το σχήμα. Elo-συμβατό.
+2. **Το absolute score deflate-άρει σε όλη τη μπάλα· το αναλλοίωτο είναι το RANK.** Σε σταθερό rank slot:
+   **−39/μέρα στο #25, −36 στο #100, −49 στο #400, −26 στο #900**· από #1.200 και κάτω ΑΝΕΒΑΙΝΕΙ (νέοι από
+   600). Manifest: `top_avg_score` 3.218→3.134, `median_avg` 3.068→2.893 (08-09→08-19). **Εμείς: −32,9
+   πόντοι, +15 θέσεις.** カワシギ: **−200 πόντοι, −4 θέσεις.**
+3. **Το frozen decay είναι μονότονο στη μπάντα**: 2800+ −69,6/μέρα … 0-800 −2,8/μέρα. Άρα σύγκριση decay
+   δικού μας vs donor συγκρίνει δύο διαφορετικές κλίμακες (η γραμμή του transfer ratio στο §1).
+4. 🔴 **Το `median_bank` είναι κατά ~1/3 η πόλη, και ο βαθμός δεν τη βλέπει.** Το 2e μετράει
+   `r(drain, bank)=+0,605` (R²=0,366)· το ΙΔΙΟ drain έναντι win rate είναι **επίπεδο/αντεστραμμένο**
+   (5→71%, 8→48%, 13→43%). Common-mode: σηκώνει **και τις δύο** θέσεις. Elo και τελικό Bradley-Terry
+   κάνουν fit **μόνο W/L**.
+5. **165 διακριτοί αντίπαλοι σε 178 episodes** (14,6% επαναλήψεις) — η επιφάνεια που κανένα 6-tier bench
+   δεν αναπαριστά.
+
+### Το 2e ξανα-τρέχει στα 178 (δωρεάν replication — §4.3 S6 step 4 στην πράξη)
+Όλα αναπαράγονται και **οξύνονται**: r(drain,bank) 0,579→**0,605**, partial r(desync|drain)
++0,007→**−0,029**, flippable 2/84→**11/178 (+6,2 pts)**. Δύο διορθώσεις: το leg A λέει «δεν παρακολουθεί το
+bank» (r=−0,029), **όχι** «uniform» (το raw range άνοιξε 12-15→12-21 με σταθερό sd 0,6 — το range ήταν λάθος
+όργανο)· και το «65% stable» του brief αποσύρεται. Guards ξανα-καρφώθηκαν.
+
+### Οι δύο πηγές
+- **#1 team (forum, rating mechanics):** το μοντέλο υιοθετείται και **επιβεβαιώνεται στα δικά μας δεδομένα**
+  (burst **14,60 eps/h** τις πρώτες 5 ώρες = 73 episodes, μετά 0,67-2,04/h — δικό τους: ~15/h μετά 1-2/h).
+  **Τρεις διορθώσεις** δικές μας: (1) το burst είναι και το σημείο όπου το win rate ψεύδεται· (2) το score
+  deflate-άρει, διάβασε rank· (3) το decay είναι band-local. Και ένα που **δεν** μας σώζει: ισχυρίζονται ότι
+  byte-identical αντίγραφα καταλήγουν 300-1.400 πόντους μακριά από early-draw luck — **διαψεύδεται εδώ**,
+  ένα απλώς άτυχο αντίγραφο θα ΚΕΡΔΙΖΕ· εμείς κερδίζουμε 38% στα 2.100+.
+- **Kaito v36 notebook** (extract prose-only, `.ipynb` στο gitignored `/notebooks/`, μηδέν blob άνοιγμα):
+  μετρημένο τίμημα του tuning μόνο στο τρέχον top-30· τρεις disjoint επιφάνειες αξιολόγησης (μία είναι το
+  **deployment neighbourhood**)· **selection key** *worst panel → worst seat → overall wins → tail log-ratio
+  → margin* (υιοθετείται)· **state aliasing** — learned continuation router 70/78 στο grouped OOF, **31/38**
+  post-freeze, τον έσβησαν από το artifact (το ίδιο σχήμα με την οικογένεια που ήθελαν τα 2b/2c)· open
+  backbone + 4 φραγμένα closed-loop components, εκ των οποίων το **WHEAT market maker** δεν το έχουμε
+  εξετάσει ΠΟΤΕ. ⚠️ Το live score τους (1.542,7 / #1.489) είναι restart από 600 — μη το διαβάσεις.
+
+### Τι άλλαξε στο ROADMAP
+**§1** νέες γραμμές 08-20 + προειδοποίηση deflation· **§1.1 ΝΕΟ** («How to read a ladder number» — το
+μοντέλο + οι 3 διορθώσεις + το τίμημα του re-roll: Ueddy −970/−779, Peter Parker −365/−345, Kaito
+−1.217/−1.426)· **§2.1.4 ΑΛΛΑΖΕΙ ΣΕΙΡΑ**: per-opponent W/L → Bradley-Terry → `median_bank` → `mean_diff`·
+**§3.3** +2 γραμμές (2e, S7 leg 0)· **§3.4** +2 standing lessons· **§4.3** ενότητες 2e + **S7 (NEXT)**·
+**§4.4#1** ξεχωρίζει deflation από skill-decay· **§4.5(c)/(d)** οι δύο πηγές· **§4.3 S6 step 2 bench** +A4
+(deployment neighbourhood)· **§6bis** endgame policy (5 κανόνες)· **§7** νέο state· **R36 ✅ DISCHARGED**·
+Appendix A +1 γραμμή.
+
+### Τι σημαίνει
+Και οι τρεις «διέξοδοι» για το ~1.036-πόντο κενό προς τον donor (#9 / 2.915,8 vs εμείς #924 / 1.879,9)
+**κλείνουν με μέτρηση**: δεν είναι deflation, δεν είναι placement luck, δεν είναι lossy αντίγραφο (2c/2d/2e).
+**Είναι πραγματική δύναμη** — και δεν το έχουμε ποτέ επιτεθεί, γιατί δεν έχουμε ποτέ βαθμολογήσει arm
+απέναντι σε αληθινό ladder αντίπαλο. Αυτό είναι το **S7**: leg 1 φτιάχνει το bench από τα 178 replays,
+leg 2 ξανα-βαθμολογεί ΟΛΑ τα assets στο νέο νόμισμα, leg 3 είναι το ένα φραγμένο build. Slot arithmetic
+προαποφασισμένο: το επόμενο upload διώχνει το **Ueddy tape** και κρατά το reconstruction. **41 μέρες.**
+
+**Παραδοτέα:** report `baselines/2026-08-20/s7_leg0_report.md`· addendum στο `s6_step2e_report.md`· script
+`analysis/s7_ladder_census.py`· guards `tests/test_s7_ladder_census.py` (8)· re-pin `tests/test_s6_step2e.py`·
+extract `docs/source/notebooks/106-130-multi-generation-v36-robust-hybrid.md`· νέο `prompt.md` (S7 leg 1-2).
+Καμία `agent/` αλλαγή, **μηδέν episodes παιγμένα**, κανένα upload (R27).
+
+---
+
 ## 2026-08-18 μ — Session: **S6 step 2d (Track 2) Phase 0 — έτρεξα το 2c instrument στο PRODUCTION κανάλι· ⛔ BRANCH (iv): τα 88 production-disagreement steps ΕΙΝΑΙ town-reactive (closed-loop tile control των hands), ΟΧΙ το fixed-4 variant — αλλά ο μηχανισμός είναι φραγμένος ΜΙΚΡΟΣ ($597/ep, +2,4 pts, 0,09% του gap), STOP & re-brief, μηδέν episodes**
 
 **Εντολή (user):** τρέξε το brief (S6 step 2d). Phase 0, τέσσερα legs φθηνότερο-πρώτα, καθένα με δικό του

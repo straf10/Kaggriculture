@@ -27,8 +27,19 @@
 
 ## 1. Where we actually are
 
+> 🔴 **Read this table with §1.1 below.** Every score in it is a number on a **deflating** ladder:
+> measured 2026-08-18 → 08-20, the score standing at a **fixed rank slot** fell 20-49 points/day
+> across the whole upper half. **A score without a rank beside it, or two scores from different
+> days, is not a measurement.** The rows below dated before 2026-08-20 are kept for their
+> reasoning, not their numbers.
+
 | | Value | Source |
 |---|---|---|
+| 🟢 **Current standing, 2026-08-20 10:57 UTC** | **`55586926`** (ReCurSiON reconstruction) — **1.879,9 on 181 episodes**, **rank 924 / 5.501**. Two days earlier: 1.912,8 / rank 939. **The score fell 32,9 and the rank rose 15** — see §1.1. Pair-mate **`55575305`** (Ueddy tape) — **1.323,9 on 120 episodes** | `submissions -v` · `episodes -v` · `leaderboard -d` |
+| 🔴 **Our converged win rate is 43,4%, not 65%** | Over all **178** held ladder replays the win rate is **54,5%**, and by thirds **66,1% / 50,8% / 46,7%**: the opponent's median board score rises **1.212 → ~1.950** as matchmaking catches up, and the win rate falls with it. Controlled for the opponent's board submission actually being the one that played us (n=53 converged), **43,4%**, degrading monotonically against stronger opponents (**54% / 41% / 38%** below 1.800 / 1.800-2.100 / 2.100+). **This is Elo-compatible with a rank-900 agent and it discharges R36.** The "65% stable while rating declines" puzzle the step-2e brief opened was the **placement burst**, measured on the first 84 episodes | `baselines/2026-08-20/s7_leg0_report.md` §1 |
+| 🔴 **So the ~1.036-point gap to the donor is real strength** | **ReCurSiON is #9 / 2.915,8** (frozen 08-14) against our **#924 / 1.879,9**. 2c/2d/2e established the vote is a faithful *open-loop* copy in both the market and production channels; §1.1 removes the deflation escape hatch; the win-rate cut removes the "we are underrated" escape hatch. **What remains is what a faithful open-loop copy structurally cannot carry, measured against 1.800-2.500 opponents rather than at our desk** | same |
+| 🔵 **The town moves bank and does not move wins** | Step 2e measured `r(premium drain, bank) = +0,605` (R²=0,366; **$54k at drain 5 → $141k at drain 13**). Against the **win rate** the same variable is flat-to-inverted (drain 5 → 71%, drain 8 → 48%, drain 13 → 43%). A rich town lifts **both** seats. **A third of our bank variance is information the rating never sees** — this is why §2.1.4's acceptance order is amended (§1.1) | same, §1.3 |
+| 🟢 Ladder top, and the turnover | **#1 Ryo Hasegawa 3.147,0**. カワシギ, #1 at 3.190,1 on 08-17, is **#5 at 2.988,3** — it lost **200 points and 4 places**, which is the clearest single statement of §1.1. **5.501 teams** (+376 in two days; 26% of teams re-submitted in the same window) | `leaderboard -d`, 2026-08-20 |
 | 🟢 Our best public score | **1.617,6** — `55548339`, the **T1 open-loop donor tape**, read 2026-08-17 (up from 1.091,1 on 08-16 as it kept converging). Beats our best-ever hand-built agent (**652,5**, v1h) by ~**+965**, and v1o.2 (647,5) by ~**+970** | `kaggle competitions submissions` |
 | 🟢 Our rank | **1263 / 4947** (2026-08-17 late read) — from **1719 / 4690** yesterday and **2736 / 4555** the day before | `kaggle competitions list -s kaggriculture -v` |
 | 🟢 Second tape converging | `55575305` (Ueddy) **1.027,8 → 1.398,7** across this session, still climbing from a 600,1 start. Valmorlee sits at **1.614,0** (from 1.617,6 — converged, drifting slightly down) | same |
@@ -40,7 +51,7 @@
 | Our active submissions | **`55586926` ReCurSiON reconstruction — 1.915,8 on 85 episodes** · **`55575305` Ueddy T2 tape — 1.392,9 on 78 episodes** · `55548339` Valmorlee T1 tape — 1.599,1 on 111 episodes, **INACTIVE** (evicted by date per the user's decision — only the latest two count) | `kaggle competitions submissions` · `episodes <id> -v` |
 | 📈 The convergence curve, in episodes not hours — **converged, and now drifting down** | **(7, 1.125,9) → (15, 1.736,0) → (16, 1.753,7) → (85, 1.915,8) → (87, 1.912,8) → (88, 1.906,5)**, `LastSubmissionDate` unchanged throughout. The first 15 episodes bought +1.136 at ~+76/ep; the next 70 bought +180 at ~+2,6/ep; the last 3 bought **−9,3**. **Converged at ~1,91k and now inside the frozen-decay band** (−20 to −110/day). The "~20 episodes/hour" extrapolation of 08-17 was wrong — the rate fell off with the placement burst. §3.4's episodes-not-hours rule, working as intended | same |
 | ✅ **Kill (iii) — CLOSED, and it did not fire** | **The reconstruction method is confirmed on the ladder**, at comparable episode counts and in the same read: recon **1.915,8 on 85 episodes** vs the surviving Ueddy tape's **1.392,9 on 78** — **+523 with a similar amount of play behind each number**, which is exactly the comparison §3.4's episodes-not-hours rule demanded. The first local finding in this repo that the ladder has confirmed rather than reversed (§1's five-week puzzle) | `submissions -v` + `episodes -v`, 2026-08-18 09:19 UTC |
-| 🔴 **But the transfer ratio is the new problem, and it points the opposite way to §4.5(b)** | **A majority-vote reconstruction transfers *worse* than a verbatim tape did.** Recon **1.915,8** against its donor ReCurSiON's same-day **2.985,6** = **64%**. The Valmorlee tape was **1.599,1** against its donor's 1.842,4 = **87%**. So the vote left **~1.070 rating points** of its #5 donor on the table — and the prime suspect is the thing the vote *erased*: the **127/719 (17,7%) state-dependent market steps**, i.e. the town-conditioning that made the donor #5. §4.5(b)'s "degrades gracefully" was measured as a local bank margin; on the ladder, a route that is averaged over 50 towns may be optimal in none. **Unproven — this is the next pass's whole question** (§4.3 step 2b Phase 0) | same |
+| 🔴 **But the transfer ratio is the new problem, and it points the opposite way to §4.5(b)** | **A majority-vote reconstruction transfers *worse* than a verbatim tape did.** Recon **1.915,8** against its donor ReCurSiON's same-day **2.985,6** = **64%**. The Valmorlee tape was **1.599,1** against its donor's 1.842,4 = **87%**. So the vote left **~1.070 rating points** of its #5 donor on the table — and the prime suspect is the thing the vote *erased*: the **127/719 (17,7%) state-dependent market steps**, i.e. the town-conditioning that made the donor #5. §4.5(b)'s "degrades gracefully" was measured as a local bank margin; on the ladder, a route that is averaged over 50 towns may be optimal in none. 🔴 **ANSWERED AND WRONG, 2026-08-18→20.** The suspect was cleared: 2c found the market layer town-invariant channel-wide, 2d found the production residual town-reactive but worth $597/ep, 2e priced the whole thing at **+6,2 rating points** on 178 episodes. And the *framing* was wrong too — a transfer **ratio** divides two scores that deflate at different band-local rates (§1.1 correction 3). The gap is real strength, measured as a **43,4%** converged win rate falling to **38%** against 2.100+ opponents (§1.1). **The un-erased thing is what an open-loop copy structurally cannot do, and S7 is where that is attacked** | same |
 | ⚠️ **Decay is real but an order of magnitude slower than first reported — measure it only on teams that did not resubmit** | 🔴 **Correction, 2026-08-18: Peter Parker's #29 / 2.844,2 → #383 / 2.364,7 was NOT decay — `LastSubmissionDate` moved to 08-18 07:03, i.e. a *new* submission converging from ~600.** Read properly, over the 16h between the two leaderboard pulls, on teams whose submission did **not** change: **boatlee −73,1** (frozen 08-15, ~−110/day) · **ReCurSiON −19,0** (frozen 08-14, ~−28/day) · **カワシギ −1,9** (frozen 08-17) · Ueddy **+16,5** (still converging, 20h old). So a frozen route at the 2,9-3,0k level bleeds roughly **−20 to −110 points/day**, not −500. §4.4#1 still binds on `55586926` — a frozen route with **~6 weeks to 2026-09-30** and a final BT run on post-deadline episodes — but it is a manageable clock, not a fire. **Standing rule: a leaderboard delta is only decay if `LastSubmissionDate` is unchanged** | `leaderboard -d`, 08-17 17:16 vs 08-18 09:22 |
 | 🟢 The early signal, and it is steep | **+1.136 points in 15 episodes** (600,0 → 1.736,0), ~+76/episode and still rising. Rating moves only by *winning*, so a climb this steep against a rating-sorted pool is the strongest read this repo has produced — but 15 episodes is a **signal, not a convergence**: Ueddy needed **72** episodes to reach 1.375,9 and Valmorlee **111** to reach 1.599,1, so the honest comparison point is ~72 (kill (iii), §4.3). **It has already passed both tapes**, so kill (iii) is trending decisively against firing. Also already ~2,7× every hand-built agent this repo ever fielded (best 652,5, v1h) | same |
 | ⚠️ v1o.2's verdict | +$5.069/ep of holdout production (crop tile-days 413→562) landed at **620,4** — **+20 over its own pairmate**, read the same day, and **−32 under frozen v1h**. The §3.2.1 "local→ladder transfers whole" finding does **not** generalise past v1h.2d | same |
@@ -61,6 +72,65 @@ same chain is worth **+$25,3k/ep** (v1e→v1g) and **+$2,8k/ep** (v1g→v1h) on 
 local gain transferred to the ladder *whole* (§3.2.1). That combination — measured local wins that
 convert into ~nothing on the ladder — is the single fact this document exists to answer. **It is
 not a tuning problem.**
+
+### 1.1 How to read a ladder number — adopted and corrected 2026-08-20
+
+Two external sources landed this session: the **currently-#1 team's public write-up on rating
+mechanics** (forum prose) and **Kaito Fukami's `v36` notebook** (§4.5(c)). The first is a model of
+how the score moves; this repo has been reading its own scores without one for five weeks, and §1's
+central puzzle is partly the price of that. **The model is adopted, and three parts of it are
+corrected by measurements taken here** (`baselines/2026-08-20/s7_leg0_report.md`;
+`analysis/s7_ladder_census.py`; guards `tests/test_s7_ladder_census.py`).
+
+**Adopted, and independently confirmed on our own two submissions:**
+
+| Claim | Their figure | Ours, measured |
+|---|---|---|
+| A new submission starts at 600,1 and plays a burst | ~15 games/h for 4-5 h | **14,60/h** (`55586926`, 73 eps in 5 h) · **11,60/h** (`55575305`) |
+| then slows | ~1-2/h | **0,67-2,04/h** across the next 67 h |
+| ~90% of the level is set in the first ~60 games | — | our first 5 h is **73 episodes**; blocks past ~59 are a different regime (below) |
+| judge at 100+ games, treat <50-point moves as noise | — | adopted verbatim |
+| only the latest 2 submissions play, and those two enter the final Bradley-Terry | — | independently measured here 2026-08-17 (§6bis, Trap 1) |
+| the final ranking is a fresh BT over post-deadline episodes ⇒ **the live number is a diagnostic, not the product** | — | adopted; it is why §4.3 S6 step 3 exists |
+| never re-submit an unchanged bot | ≈ +40 live points, worth nothing in the final | **priced on the live board this session**, below |
+
+**🔴 Correction 1 — the burst is also where the win rate lies, so "judge at 100+ games" is not
+enough: judge past the placement window.** Our win rate reads **66,1%** over the first third of
+episodes, **50,8%** over the second and **46,7%** over the third, while the opponent's median board
+score climbs **1.212 → ~1.950**. Nothing about the agent changed. **Any win rate read inside the
+first ~70 episodes is measuring the placement mismatch.** This is §3.4's episodes-not-hours rule
+with a second clause, and it invalidated a headline in our own step-2e brief.
+
+**🔴 Correction 2 — absolute score deflates pool-wide; the invariant is *rank*.** Over 2,04 days
+(5.129 → 5.501 teams, +376 new, 26% of teams re-submitting) the score standing at a **fixed rank
+slot** fell: **−39/day at rank 25, −36/day at rank 100, −49/day at rank 400, −26/day at rank 900**,
+while rank 1.200 and below *gained* as new entrants climbed out of 600. The same signal is in the
+official episodes-index manifest: `top_avg_score` **3.218 → 3.134** and `median_avg_score`
+**3.068 → 2.893** between 08-09 and 08-19. **Consequence, measured on our own row: we lost 32,9
+points and gained 15 places.** カワシギ lost **200 points** and **4 places**. §1's standing rule
+("a delta is only decay if `LastSubmissionDate` is unchanged") is necessary and **not sufficient** —
+**every ladder claim from here carries a rank, and two scores are comparable only on the same day,
+at comparable episode counts, and against the same rank slot.**
+
+**🔴 Correction 3 — frozen decay is monotone in the rating band, so a decay rate is band-local.**
+Frozen teams only (n=3.792), median score change per day: **2800+ −69,6 · 2400-2800 −66,9 ·
+2000-2400 −73,5 · 1600-2000 −56,4 · 1200-1600 −35,9 · 800-1200 −11,0 · 0-800 −2,8.** §1's
+"−20 to −110/day" is right in magnitude and wrong in shape: two agents at different heights bleed
+at different rates **by construction**, so *comparing our decay to our donor's* — as the transfer-
+ratio row did — compares two quantities that are not on the same scale.
+
+**The measured price of a re-roll, from three teams that took it this week:** Ueddy **−970 points /
+−779 places**, Peter Parker **−365 / −345**, Kaito Fukami **−1.217 / −1.426**, all within two days,
+all because a new submission restarts at 600,1 and has to re-place. Whatever they uploaded may well
+be stronger; the live number cannot say so for days. **§6bis's slot rules are unchanged and now have
+three external price tags.**
+
+**And the one thing the model does *not* rescue.** The forum post reports that byte-identical
+copies have finished **300-1.400 points apart** through early-draw luck alone, which would be a
+tempting explanation for our reconstruction sitting 1.036 points under its donor. **It is refuted
+here:** controlled for opponent identity, our converged win rate is **43,4%** and falls to **38%**
+against 2.100+ opponents. A copy that was merely unlucky in its draw would still *win*. It does not.
+**The gap is strength, and §4.3 S7 is where it gets attacked.**
 
 ### Acceptance gates for this plan
 
@@ -126,9 +196,27 @@ These are not restated theory — each one was paid for with a measured failure.
    confirmation only (no tuning decision ever touches them), smoke 0-11 for controls (never GO),
    `CONFIRM2_SEEDS` 200-247 **burned**. Real game-to-game spread is ~19% of a submission's median
    bank (extremes to 950%), so 24-48 seeds is the floor, not a luxury.
-4. **Acceptance is three numbers, in this order:** absolute `median_bank` → W/L against a
-   **non-mirror** bench → `mean_diff` in mirror (demoted to tie-breaker and regression detector).
-   A positive `mean_diff` with a flat `median_bank` is not progress toward the ladder.
+4. 🔴 **Acceptance is four numbers, and the order was wrong until 2026-08-20.** It read
+   *"absolute `median_bank` → W/L against a non-mirror bench → `mean_diff` in mirror."* **The
+   new order is:**
+
+   1. **Per-opponent W/L against the bench**, reported as a row per opponent and per seat —
+      **never** a pooled figure (§4.5(c)'s selection key operates on this).
+   2. **Bradley-Terry over the bench** ([harness/ladder.py](harness/ladder.py), `--round-robin`),
+      the only number in this repo that is in the same currency as the thing we are judged on.
+   3. **`median_bank`** — demoted to a diagnostic.
+   4. **`mean_diff`** in mirror — regression detector only, as before.
+
+   **Why, measured:** the live Elo fits W/L only, the final ranking is a Bradley-Terry tournament
+   that also fits W/L only, and step 2e measured `r(premium drain, bank) = +0,605` — **a third of
+   our bank variance is the town's random shop draw**, which lifts *both* seats and therefore
+   cancels in W/L. On the same 178 episodes the win rate against that variable is **flat to
+   inverted** (drain 5 → 71%, drain 8 → 48%, drain 13 → 43%). Optimising `median_bank` spends
+   passes on the largest signal the rating cannot see. §3.4's own amendment already said as much
+   ("*rating is won episodes, not bank*"); this makes the gate obey it.
+
+   A positive `mean_diff` with a flat W/L is not progress toward the ladder. **An arm that raises
+   mean bank while turning two wins into losses against the strongest bench opponent is a loss.**
 5. **Priced loss, judged on the difference.** Structural counters stay hard-zero
    (`clipped_production_ticks`, `plant_decay_units_lost`, unexplained no-ops, market-sim aborts,
    ≤2% low-price sales). Loss counters are priced (`animals_escaped` $1.000, `shed_overflow_burnt`
@@ -322,6 +410,8 @@ and [#l1-v1h](docs/meta/ladder_snapshots.md#l1-v1h).
 | **S6 step 2b strawberry sell-timing overlay ("restore the erased town-conditioning")** — Phase 0.5, 2026-08-18 | ⛔ **REFUTED on paper, no episodes — the mechanism does not exist** | The pass's one named mechanism (*"the vote erased ReCurSiON's town-conditioned strawberry sell-timing"*) recovered from the 50 traces + observations and found **not to exist**. ReCurSiON's strawberry sell-rule is a **fixed global calendar** — hold strawberry, sell the shed into the **hour-0 town-center pulse** (`townCenterSellInterval=24`) — **invariant across 50 towns**: 46/50 traces sell an identical **290 units** (4-trace variant sells 313), and at step 336 all 50 sell exactly 6 units while price spans **$151–$230** and the strawberry-shop draw spans **0–4**. corr(units, own shed)=**+0,92**, corr(units, shop identity)=**+0,02**. **The majority vote already reproduces it** (reconstruction sells 290). So arm A (restore verbatim) is a **no-op**, arm C (gate to readable) is **moot**, arm B (invent metering) is the invention the brief forbade — surface area now **measured ≈ $0** (zero-sum) behind the T2 shed wall. **Live reachability:** our reconstruction executes the calendar (**81,8%** hour-0) yet gets parity because our live opponents also concentrate (**60,8%** hour-0, vs the donor's 08-14 opponents' ~53%) — the $117→$90 collapse is the **zero-sum contest** (2b second-read point 3), not erased conditioning. The measured GO numbers reproduce (1,32 ratio, 286=286); its *interpretation* is overturned. Kill (i) fires one level up: the mechanism is confirmed **and already ours**, not a viable increment. Report: `baselines/2026-08-18/s6_step2b_phase05_report.md`; script `analysis/s6_step2b_phase05.py`; guards `tests/test_s6_step2b_phase05.py` (5) |
 | **S6 step 2c — the "erased town-conditioning" family, tested channel-wide** — 2026-08-18 | ⛔ **BRANCH (i): every non-strawberry market channel is town-INVARIANT too — family CLOSED channel-wide, no episodes** | Phase 0.5 refuted strawberry but drew its conclusion channel-wide from one product; STRAWBERRY is only 23/127 state-dependent steps and the **58 WOOL(26)/MILK(45) steps were untested.** Now tested with the Phase 0.5 instrument generalised per-product (shop set driven from the engine's `SHOPS` table). **WOOL is the decisive case:** **40% of towns (20/50) never draw a `YARN_STORE`** (exceeds §4.1b's 34,4%) yet at the **20** contested wool steps with both a zero-yarn and a yarn-present sub-population, the **modal action is identical across the drain split at all 20** — the big pulses (steps 597/600/669/672, 12-16 u) fire the same with or without a yarn store. corr(units, wool-shops)=**+0,09**; own shed carries it (+0,28). **MILK:** 0/50 towns lack a milk shop, so it *never presents a zero-drain population*; corr(units, milk-shops)=**−0,02**, modal identical at both usable splits. **WHEAT** residual = the same fixed 4-trace variant {43,45,46,49} (shops +0,006); **MELON** has no draining shop (corr 0); **FERTILIZER** (the largest channel, 53 steps) is in no `SHOPS` entry and excluded from `TOWN_CENTER_PRODUCTS` → **analytically eliminated, C-A pattern.** The vote reproduces every product's modal volume (WOOL 200, MILK 296, WHEAT 457, MELON 114). One bounded residual: a faint whole-episode WOOL volume drift (yarn-rich towns +~4%, 7,8 u/ep) → **~$1.202/ep ceiling** (over-estimate; 6× below the strawberry ceiling, largely the yarn store's own absorption not a donor skill, 7,6/7,8 u land day 15+). **The majority vote is a faithful reproduction of the donor's whole market layer; the ~1.100-pt gap does not live in it.** → Track 2 (verbatim trace vs vote) is the next challenger, selected by branch (i). Report: `baselines/2026-08-18/s6_step2c_report.md`; script `analysis/s6_step2c.py`; guards `tests/test_s6_step2c.py` (7) |
 | **S6 step 2d (Track 2) — the verbatim trace vs the vote, PRODUCTION channel** — 2026-08-18 | ⛔ **BRANCH (iv): the 88 production steps ARE town-reactive — mechanism found, but bounded SMALL and STOP; no episodes** | Legs A/B desk-only; **legs C/D not run (branch (iv) outranks them, pre-registered).** **Leg A** ran the 2c instrument on the 88 `n_disagree_prod` steps no prior pass touched. Unlike the market channel, the residual is **town-reactive, not the fixed-4 variant**: carried by **25 traces**, the **main-farmer op differs at 0/88** (the farmer script is town-invariant), worker count at only **22/88**, and the disagreement is the **hands' tile-level control** — of **122** hand-slot disagreements, **65** occur at an *identical board position* across all 50 towns and **75 (62%)** have the deviator on a **disjoint tile content** (WEED / dry-vs-watered PLANT / empty). The concrete sequence: a per-town `weedSpawnChance` realisation turns a tile to WEED → the hand **DIGs it, re-PLANTs, and WATERs by actual dry state**, re-syncing one op later. This is the **closed-loop control the vote cannot carry — exactly "the closed-loop redirect that desyncs the tape" step 2a named**, and mechanically plausible here in a way it was not for a hour-0 market calendar. **BUT** its recoverable dollar surface is the own-farm weed/decay loss, re-measured this pass on all 85 live episodes at **14,89 decay + 4,99 weeds/ep = $597/ep** (units-only, 100% WHEAT, = step 2a's $599): **FREE half $0–$241 < the $500 gate, full recovery +2,4 pts / 0,09% of the gap.** **Leg B** (never-done, richness-matched bank decomposition, both pools at median 8 shops): absolute bank gap ~**$4.718/ep** is mostly the **opponent pool** (donor opp $88,0k vs our $79,3k); on head-to-head **margin over own opponents** the donor leads by only **~$822/ep ≈ 3,2 pts**, of which ~$597 IS the own-farm loss. So the vote is a **faithful OPEN-LOOP reproduction** whose two un-carried components — the market layer (2c) and this closed-loop tile rule — are **both now bounded below the gate.** The ~1.100-pt anomaly is submission-level (R36), not a per-episode bank phenomenon; it points to the strength/opponent gap + §4.4#1 clock. **Report and re-brief; do NOT build the adaptive layer this pass** (§4.5b's obstruction/worker-count layer is the same class, same bound). No upload (R27). Report: `baselines/2026-08-18/s6_step2d_report.md`; script `analysis/s6_step2d.py`; guards `tests/test_s6_step2d.py` (7) |
+| **S6 step 2e — the loss tail, re-priced in episodes not dollars** — 2026-08-18, **re-validated on 178 episodes 2026-08-20** | ⛔ **BRANCH (i)+(iv): the tail is the town's shop composition, not desync — the "what did the vote erase" programme is CLOSED** | Five passes had priced the vote's erasure as a **mean $/ep**; the ladder pays in **episodes won**, so 2e un-averaged 2d's instrument across our own live ladder episodes. **(iv)** the own-farm decay counters do **not** track bank (`r = −0,029`; mean 15,0 decay + 5,0 weeds in *every* episode, stdev 0,6) — the ~$597/ep is a **fixed cost of the open-loop stream**, so leg B's "cascades concentrate in the tail" was dead before it ran. **(i)** premium drain explains **R² = 0,366** of bank variance (`r = +0,605`, ~$6.857/tick, monotone **$40k at drain 3 → $118k at drain 13**) while desync depth explains **nothing** (`r = −0,085`) and adds nothing after composition is partialled out (**partial `r` = −0,029**; the two are orthogonal, `r = −0,102`). Desyncs are real but shallow and universal (mean 22,4/ep, max streak 2,5, 72% front-loaded, **0** zero-desync episodes; dominant chain `WATER→empty` / `WATER→WEED` = 2d's own pattern). **Leg D, the currency the brief demanded:** losses whose margin is inside the $602 recovery ceiling = **11 of 178 (6,2%) ⇒ +6,2 rating points upper bound**, confirming 2d's mean-priced +2,4 in the per-episode currency. 🔴 **The 2,14× p90/p10 bank spread is §4.1b operating as measured — common-mode, lifts both seats, and §1.1/§2.1.4 now act on the fact that it therefore moves no wins.** Report: `baselines/2026-08-20/s6_step2e_report.md` (written on the 84-episode read; the 178-episode replication is appended to it and in `s7_leg0_report.md` §0); script `analysis/s6_step2e.py`; guards `tests/test_s6_step2e.py` (7, re-pinned on the 178-episode replication) |
+| **S7 leg 0 — the deployment-neighbourhood census** — 2026-08-20 | 🔵 **Not a STOP — a re-reading. Three standing ladder claims in this document were wrong, and the correction is the same in all three: read wins and rank, never a score.** | Recorded here because it *retires* claims rather than a lever. (1) **The win rate is not 65%**: over 178 held ladder replays it is **54,5%**, by thirds **66,1% / 50,8% / 46,7%**, and controlled+converged **43,4%**, degrading monotonically against stronger opponents (54% / 41% / 38%) — Elo-compatible, and it **discharges R36**. (2) **Absolute score deflates pool-wide**: at a fixed rank slot the ladder fell 20-49 pts/day over 2,04 days; **we lost 32,9 points and gained 15 places**, カワシギ lost 200 points and 4 places. (3) **Frozen decay is monotone in the band** (2800+ −70/day → 0-800 −3/day), so comparing our decay to a higher-rated donor's compares two different scales. Also: **165 distinct opponents over 178 episodes (14,6% repeats)** — the surface a six-tier reference bench cannot represent, and the input to S7's bench. **Consequence: §2.1.4's acceptance order is amended (wins → BT → bank), §1.1 is added, and the ~1.036-pt donor gap is confirmed as real strength.** No `agent/` change, zero episodes played, no upload (R27). Report: `baselines/2026-08-20/s7_leg0_report.md`; script `analysis/s7_ladder_census.py`; guards `tests/test_s7_ladder_census.py` (8) |
 | **C-A, in-place SELL reordering ("the Cleo rule")** — S6 step 0, 2026-08-17 | ⛔ **REFUTED before being built, analytically and empirically** | The one mechanism S6 step 0 pre-registered, killed by its own bounding pass. **Leg 1 (same-town self-pair):** a tape against an *identical* route in the same town realises **ratio 1,000** on all three premium products (96 episodes, both seats) — the frozen queue ordering costs exactly nothing, where the mechanism predicted "below 1,0×". **Leg 2 (surface area, priced on the engine's own market path):** despite 29-39 nominally reorderable turns per tape, the best legal permutation against the emitted one is worth **$0/ep (Valmorlee), $3-18/ep (Ueddy/Kaito)** — **0-0,6%** of the $2.826 median gap. **Engine-level reason, verified at [kaggriculture.py:544-597](engine_reference/kaggriculture.py#L544-L597):** market orders run in **per-slot lockstep across both players**, and a SELL depletes **only its own product's pool**, so permuting a fixed multiset of your own sells inside one turn cannot move your realised revenue. The residual $3-18 is entirely the opponent-slot-alignment channel, which we do not control. The 10-order cap never binds on these routes. ⇒ **the 1,04-1,06× winner's edge is not a queue-ordering effect.** Report: `baselines/2026-08-17/s6_step0_report.md` |
 
 🔴 **Correction to item ④ step 2's leg 1, made 2026-08-16 by the author of the criterion.** The
@@ -500,6 +590,23 @@ its checkpoint is `checkpoints/v1s_B0`, re-tested only when ③/④ make herd 13
   environment the entities shared. If they shared none, the comparison is measuring the environment.
   This is the fourth entry in the §3.4 list of meta numbers that measured something other than what
   they appeared to, and the most expensive — it defined S5.
+- 🔴 **Optimise the currency you are scored in — and measure whether your headline metric is even
+  visible to it (2026-08-20, S7 leg 0).** For five weeks every gate in this repo led with
+  `median_bank`. Step 2e then measured `r(premium drain, bank) = +0,605` — **a third of that
+  metric's variance is the town's random shop draw** — and S7 leg 0 measured the *same* variable
+  against the win rate and found it **flat to inverted** (drain 5 → 71%, drain 8 → 48%, drain
+  13 → 43%). A rich town lifts **both** seats. The live Elo fits W/L; the final Bradley-Terry fits
+  W/L. **So the largest single component of the number we were optimising is invisible to the
+  number we are judged by**, and §1's five-week puzzle has that as a component. **Rule: before a
+  metric leads a gate, show what fraction of its variance survives the comparison the ladder
+  actually makes.** §2.1.4 is amended accordingly; §4.5(c) is a top player arriving at the same
+  rule from a measured loss rather than from an audit.
+- 🔴 **A ladder score is not a measurement — a (score, rank, episode-count, date) tuple is
+  (2026-08-20, S7 leg 0).** Three of this document's readings were artefacts of quoting one of the
+  four: a win rate read inside the placement burst (66% vs 43% converged), a score delta read
+  without its rank (**we lost 32,9 points and gained 15 places**), and a decay rate compared across
+  bands that bleed at different speeds by construction. The full statement of the rule, with the
+  measurements, is **§1.1** — this entry exists so the §3.4 register points at it.
 - **A ratio is a diagnostic, never a target.** Any criterion of the form "share X of unit-turns
   falls below N%" is satisfiable by shrinking the denominator — v1p1b arm A1 hit `worker_turns_moving`
   46,0%, the largest commute reduction ever measured here, by doing *fewer* working turns than
@@ -1762,7 +1869,12 @@ and it inherits every §3.3 STOP about adding tier-0/1 work. Sequenced last, del
 > `baselines/2026-08-18/s6_step2c_report.md`; script `analysis/s6_step2c.py`; guards
 > `tests/test_s6_step2c.py` (7). No `agent/` change, no episodes, no upload (R27).
 
-#### S6 step 2d (Track 2) — ▶ NEXT, selected by 2c's branch (i): the verbatim trace vs the vote
+#### S6 step 2d (Track 2) — ⛔ RUN and STOPPED, 2026-08-18: BRANCH (iv), the production channel *is* town-reactive but bounded small
+
+> The brief below is kept verbatim as the pre-registration. **Outcome: §3.3's step-2d row** — legs A/B
+> ran desk-only, legs C/D were outranked by branch (iv) and never ran, and the closed-loop tile rule it
+> located went on the shelf at **$597/ep ⇒ +2,4 rating points**. Step 2e then re-priced that bound in
+> episodes-won and confirmed it; §4.5(c) records that a top player ships the same layer anyway.
 
 Branch (i) selects the **verbatim single-ReCurSiON trace** as the next challenger (branch (ii) would have
 selected a recovered conditioning rule instead). The subject is §1's **transfer-ratio** row: Valmorlee's
@@ -1785,6 +1897,67 @@ tape-vs-vote in the same episode, both seats (the only exact same-town control),
 description says *"adaptive layer = step 2, **not shipped**"*. We fielded the vote core without them. Brief:
 [prompt.md](prompt.md).
 
+#### S6 step 2e — ⛔ BRANCH (i)+(iv), 2026-08-18 · replicated on 178 episodes 2026-08-20: the loss tail is the town, and the programme CLOSES
+
+> ⛔ **Six passes (2a, 2b, 2b-0.5, 2c, 2d, 2e) have now examined every channel through which the
+> majority vote could have lost something, and every one is closed below the gate.** 2e's contribution
+> was the **currency**: the first five priced the erasure as a mean $/ep, and the ladder pays in
+> episodes won. Un-averaged across our live ladder episodes, the own-farm decay counters are **flat**
+> (`r(decay, bank) = −0,029`; 15,0 decay + 5,0 weeds in *every* episode) and desync depth explains
+> **nothing** (`r = −0,085`, partial `r` given drain **−0,029**), while the town's premium drain
+> explains **R² = 0,366** of bank variance on its own. Losses recoverable by full repair: **11/178
+> (6,2%) ⇒ +6,2 rating points**, an upper bound. **The 2,14× bank spread is §4.1b, not a defect.**
+> §3.3 row; report `baselines/2026-08-20/s6_step2e_report.md` (+ its 178-episode addendum); script
+> `analysis/s6_step2e.py`; guards `tests/test_s6_step2e.py`.
+>
+> 🔴 **And it left one number behind that turned out to be wrong.** Its brief opened on *"our
+> converged win rate is 65% and stable against a declining rating"* — §1's puzzle, apparently
+> measured. **S7 leg 0 measured it properly on 178 episodes: 54,5% overall, 43,4% converged.** The
+> 65% was the placement burst. The puzzle it framed does not exist, and §1.1 is the replacement.
+
+#### S7 — ▶ **NEXT.** Fight in the ladder's currency, on the ladder's opponents
+
+*Opened 2026-08-20, replacing "the open question returns to R36 / §4.4#1's clock". R36 is discharged
+(§1.1) and the clock is a constraint, not a lever. What is left is the thing every pass so far has
+routed around: **our reconstruction is a faithful open-loop copy that plays at rank 924 while its
+donor plays at rank 9, and we have never once scored an arm against a real ladder opponent.***
+
+**S7 leg 0 ✅ done (2026-08-20)** — the census. §3.3 row; `baselines/2026-08-20/s7_leg0_report.md`.
+
+**S7 leg 1 — build the deployment-neighbourhood bench.** The 178 held live replays carry **both
+seats' full action streams** for **165 distinct opponent teams** at our own rating band. Extract them
+as fixed-production bench opponents exactly as `analysis/donor_streams.py` does for the three donor
+tapes (§4.3 S6 step 2, A2), and stratify by the opponent's *controlled* board score so an arm reports
+its record against the **1.800-2.100** and **2.100+** strata separately — the two strata where we
+currently win **41%** and **38%**. This is the surface §2's third bullet has demanded since
+2026-08-17 and §4.5(c) shows a top player paying for the lack of.
+
+**S7 leg 2 — re-score everything we already have, in the amended currency (§2.1.4).** Round-robin
+Bradley-Terry ([harness/ladder.py](harness/ladder.py), R33's still-blank rung) over: the shipped
+reconstruction · the two donor tapes · `v1h` / `v1i` / `v1o_2` / `v1u_base` · reference tiers 0-5 ·
+`meta_route` · leg 1's live opponents. Report **per-opponent W/L per seat**, then the §4.5(c)
+selection key — *worst panel → worst seat → overall wins → tail log-ratio → margin*. **This is a
+measurement of the assets on disk, not a new build, and it is the first honest read of where our
+route actually stands.**
+
+**S7 leg 3 — the one bounded build, gated on leg 2.** §4.5(c)'s shipped architecture is our own
+conclusion plus four bounded closed-loop components. Three of them this repo has already measured
+and bounded (transaction/weed recovery = 2d/2e at $597/ep; SELL reordering = T2's shed wall; premium
+preemption = 2b-0.5's zero-sum calendar). **The fourth — a WHEAT market maker on residual capital
+above an explicit cash floor + feed reserve + shed headroom — has never been examined here at all**,
+and it is the only one whose surface area is not already priced. Bound it on paper first (§3.4's
+standing rule) against the recorded route's own idle capital, and only then decide.
+
+⚠️ **Pre-registered kill for the whole stage:** if leg 2 shows the reconstruction already sweeping
+the 2.100+ stratum locally while losing to it live, the bench is still not the ladder and S7's
+premise is wrong — say so and stop, rather than tuning against a bench that does not transfer. That
+is exactly the failure §4.3 S6 step 3(ii) caught on our own lineage.
+
+**Slot arithmetic for S7 (decide before, not after — §6bis).** The active pair is
+**`55575305` (Ueddy tape, 08-17 09:24)** + **`55586926` (reconstruction, 08-17 22:29)**. Eviction is
+by **date**, so the next upload drops the **Ueddy tape** and keeps the reconstruction — the right
+eviction, and it needs no protective re-upload. The upload *after* that is the hard one, and §6bis's
+"two near-identical actives" warning applies to it.
 
 #### S6 step 2b — ⛔ Phase 0.5 REFUTED the mechanism (2026-08-18): the sell-timing was never town-conditioned; the vote already reproduces it
 
@@ -1924,6 +2097,13 @@ top-30. **Decided by the user 2026-08-17: adopt A1 + A2, skip A3.** Concretely, 
   deleting this signal by always gating `v_n` against `v_{n-1}`.
 - **`meta_route`** and the two earlier-meta notebook references already retained on purpose
   (`v13-r3`, `177-180 v21.1` — Appendix A).
+- 🔴 **A4 — the deployment neighbourhood, added 2026-08-20 and now the primary surface.** The 178
+  held live replays of `55586926` carry **both seats' full action streams for 165 distinct opponent
+  teams** at our own rating band — real ladder opponents, no licence, already on disk, and the
+  exact surface §4.5(c) shows a top player using ("*the actual deployment neighbourhood*"). A1's
+  tiers top out at $46k and A2 is three donors; **neither can represent 165 routes.** Arms report
+  their record against the **1.800-2.100** and **2.100+** strata separately (§4.3 S7 leg 1), because
+  those are where we currently win 41% and 38%.
 - **both seats, always** (§2.1.1), and **`--town-pin basket`** for anything touching occupancy.
 
 *Open action:* ✅ **done 2026-08-17 (R25).** The six tier-0-5 `.py` are fetched into the
@@ -2001,6 +2181,14 @@ what this step exists to catch.
    depreciating asset, and the final Bradley-Terry runs on a meta we cannot see. This is the
    strongest argument for S5 being the point of the exercise rather than a nice-to-have — and the
    main engineering reason §4.2 prefers a parameterised profile over a fixed tape.
+   🔴 **Refined 2026-08-20 (§1.1).** Two of this risk's three components were being conflated. The
+   *rating* decline of a frozen agent is mostly **pool-wide deflation** (the score at a fixed rank
+   slot fell 20-49 pts/day this week) and is **monotone in the rating band** (2800+ −70/day →
+   0-800 −3/day), so it is not evidence of skill decay at all — **our own frozen submission lost
+   32,9 points and gained 15 places.** The *skill* half (v27's 87/90 → 14/27) is real and separate,
+   and the only instrument that can see it is a **win rate against a bench that retains earlier
+   generations** — which §4.5(c) shows a top player paying for the lack of, and which S7 leg 1
+   finally builds. **Read rank for the clock; read wins for the decay.**
 2. **A ceiling around 3.130.** The v23-fork cluster plateaued at 3.117-3.131 while private agents
    sat above it. Replication should clear the **2800** gate comfortably and approach **3000**; it
    will not by itself reach #1. That is consistent with the goal — ten *equal* prizes make stable
@@ -2027,9 +2215,12 @@ what this step exists to catch.
    (differentiated from each other, but both inside the modal line) and *raises* the value of S6's
    C-B, which is differentiation the crowd structurally cannot copy from a replay.
 
-### 4.5 New sources read 2026-08-17, and what each is good for
+### 4.5 New sources read 2026-08-17 and 2026-08-20, and what each is good for
 
-Two competitor notebooks were read this session. **§2 item 8 applies unchanged: their markdown,
+*(a)-(b) were read 2026-08-17; **(c)-(d) were added 2026-08-20** and are the ones that changed how
+this repo evaluates anything — see §1.1 and §2.1.4.*
+
+Two competitor notebooks were read on 2026-08-17. **§2 item 8 applies unchanged: their markdown,
 tables and printed statistics are read freely as evidence; the `main.py` / `submission.tar.gz`
 blobs they embed are not opened, decompressed or executed.** Neither was. Both were extracted
 prose-only to [docs/source/notebooks/](docs/source/notebooks) and the `.ipynb` files were then
@@ -2097,6 +2288,63 @@ only. Two things worth carrying:
 against our §4.0's **9C + 4S** from 120 seats. Three independent reads inside ±1 animal: treat the
 herd row as **8-9 COW / 4-5 SHEEP**, not as a pinned constant.
 
+**(c) `106-130-multi-generation-v36-robust-hybrid.ipynb`** (Kaito Fukami), read **2026-08-20**.
+Same handling rule: extracted prose-only with `analysis/nb_extract.py --no-code` to
+[docs/source/notebooks/](docs/source/notebooks) (verified: **zero** blob markers, longest line is a
+URL), and the `.ipynb` moved to the gitignored `/notebooks/` rather than committed. **This is the
+most methodologically useful competitor document this repo has read**, because it is a *measured
+failure* of the exact shortcut §2 has always warned against, and because it hands us a selection
+rule we can adopt whole.
+
+1. 🔴 **A measured price on optimising against the current top-30 only.** Their v35 lost to two
+   different families: *"a near-v18 actor with a new market overlay"* — an **old public generation
+   returning with a small market overlay on top** — and *"a high-expansion animal route unrelated
+   to my public lineage."* Their own reading: *"Public agents do not disappear when a new Top-10
+   family arrives."* **§2's third bullet, which we gave teeth on 2026-08-17 and have still never
+   exercised, is now confirmed from outside the repo with a submission's rating attached.**
+2. **Three disjoint evaluation surfaces, with distinct roles** — 18 top-10 trajectories / 36
+   both-seat games as diagnostic, a small post-freeze strictly-later capture, and **19 trajectories
+   / 38 games from their own live opponents ("the actual deployment neighbourhood")**. That third
+   surface is the one we did not have and now do: **178 live replays, 165 distinct opponents, both
+   seats, free** (§4.3 S7).
+3. **The selection key, adopted verbatim into §4.3 S7:** *worst panel → worst seat → overall wins →
+   tail log-ratio → margin*, *"so a large easy panel cannot hide a generation-specific collapse."*
+   This is the operational form of §2.1.4's amended order.
+4. 🔴 **State aliasing — the strongest external argument against the family 2b/2c wanted to
+   restore.** They trained a public-state kNN continuation router at steps 72/96/112 with grouped
+   OOF excluding every row of the target submission. It won the selection panel (**70/78** against
+   the fixed backbone's 67/78) and **lost after freezing** (**31/38** against **33/38**) on 19
+   newly downloaded trajectories. Their diagnosis: *"more classifier confidence cannot recover
+   future information that is not yet observable."* **They deleted the learned branch from the
+   shipped artifact.** Every "recover the donor's conditioning rule from replays" arm in this repo
+   is the same shape, and 2b-0.5 / 2c killed ours on mechanism; this kills the *method*.
+5. **The shipped architecture is our own conclusion, independently reached:** *one coherent 719-action
+   open-loop backbone + feedback only where observation has measured value* — four bounded
+   closed-loop components: **(i) transaction/weed-legality recovery**, (ii) SELL reordering on
+   price + projected shed + public opponent exposure, (iii) a near-clone preemption requiring **24**
+   near-identical public states, (iv) a WHEAT market maker capped at q10 on capital left above a
+   $500 floor, two feed days, two investment turns and shed headroom. ⚠️ **(i) is exactly the layer
+   2d found and 2e priced at $597/ep uniform, +2,4 → +6,2 rating points.** A top player ships it;
+   our bound says it is small **on our route against our opponents**. Both can be true — that
+   bound is the thing S7 re-tests against 1.800-2.500 opponents. **(iv) has no counterpart here at
+   all** and is the only one of the four this repo has never examined.
+6. **They report the unflattering panel.** Their final blind was **6/14, mean margin −$1.388**,
+   *tying* the version they replaced and losing on margin, published unchanged: *"the aggregate is
+   descriptive, not a single unbiased confidence interval."* Adopted as a standing reporting rule
+   for S7's blind panel.
+7. **Artifact contract** — route hash, byte size, latency mean/p99, parity call count, and the
+   archive SHA reproduced **under two output filenames** so a gzip filename header cannot fake
+   determinism. §6bis's checklist gains that last item.
+
+⚠️ **Do not read their live score as evidence about v36.** `Kaito Fukami` sits at **1.542,7 /
+#1.489** at the 08-20 read, having re-submitted at 09:31 that morning — that is a 600,1 restart with
+a few hours of play (they were **#63 / 2.759,7** two days earlier). §1.1's own rule applies to
+competitors too.
+
+**(d) The currently-#1 team's rating-mechanics write-up**, read 2026-08-20 — adopted, confirmed and
+corrected in **§1.1**, which is the durable record. It is forum prose, not a notebook: nothing was
+downloaded or executed.
+
 ## 5. Phase 2 — gated on 2800+, decide later, do not build now
 
 Not started until the ladder shows **2800+**. Recorded now only so the decision is made against
@@ -2161,7 +2409,7 @@ rejected. Open questions to answer *before* committing, none of which need answe
 | **R25** ✅ | **Done 2026-08-17.** Fetched the six tier-0-5 `.py` (MIT) into the **gitignored** `harness/bench_agents/reference/` (with `LICENSE`/`NOTICE`/`PROVENANCE.md`); resolver `harness/bench_agents/reference_ladder.py` (committed, carries no competition data) maps tier/slug/name → local path. Tiers 6-9 not fetched (R23); CC BY-SA CSVs read transiently, never vendored (§4.5). Verified loadable + graded (Finn $3.000 floor → Rita ~$40k). Wired into the S6-step-0 R22 ladder | A1 is decided but not executed — nothing beyond `LICENSE`/`NOTICE`/`*.csv` has been downloaded |
 | **R26** ✅ | **Done 2026-08-17.** `analysis/donor_streams.py` wraps the three donor tapes via `analysis/tape_agent.py::make_tape_agent`, sha256-verified against provenance on load; used programmatically by S6-step-0 leg 1 and by the R22 ladder (tape `main.py` paths). Route files stay gitignored (§2.4b / R11) | The fixed-production opponent is what makes an S6 market-layer A/B clean — production held constant by construction |
 | **R28** 🟢 | **The BT bench had a ceiling problem — S6 step 1 produced the new rung (2026-08-17).** The round-robin read Valmorlee **3008 (56-0-0)** › Ueddy 2349 › Kaito 2182 › `v1u_base` 1701 › … — the tapes swept every rung, so nothing could score a challenger *better than a tape*. **The ReCurSiON reconstruction now sits above them: 24-0-0 vs the Valmorlee tape (+$14.267/ep), 24-0-0 vs Ueddy/Kaito** (SMOKE 0-11, both seats). It is a local tape agent (parameterised by its majority-vote stream), not a file path, so wiring it into `harness.cli ladder` for a full BT number needs a packaged local `main.py` (gitignored) — **now item 2-3 of step 1b, this coming pass** | A graded bench whose top rung is the thing under test measures nothing above it. Step 1's reconstruction is that next rung |
-| **R36** | **Join an opponent's rating from the *episode*, never from today's leaderboard by team name (2026-08-18, evaluating S6 step 2b Phase 0).** The live L1/L2 band table reports 65% wins over 20 episodes against "2000-2500" opponents while our own converged rating is 1.906,5 — an Elo-incompatible pair (expected ~0,12). A team's leaderboard score is its *current best submission*, and Kaggle pairs by submission rating, so joining by name systematically mislabels the axis: we mostly meet ~1,9k **submissions** of teams whose *team* score is far higher. Any future opponent-strength cut reads the rating recorded **in the episode metadata at play time**, or states plainly that it is a team-level proxy and draws no crossing-point conclusion from it | Two load-bearing claims (the 50% crossing at ~2.500; "the lever opens the 2500-3000 band", n=3) rested on it. The pass's core finding does not, which is why it survives. Fourth relative of §3.4's family: a per-entity number compared across environments — here across *time* |
+| **R36** ✅ | 🔴 **DISCHARGED 2026-08-20 (S7 leg 0), in two steps.** (a) Step 2e verified across all live replays that `info` carries `Agents` / `EpisodeId` / `LiveVideoPath` / `TeamNames` / `seed` and **no rating field of any kind**, so R36's prescription — read the rating from the episode metadata — **is not executable in this competition**. (b) S7 leg 0 supplied the only control that is: join the team's *current* board score **only where that team's `LastSubmissionDate` predates our episode**, so the submission on the board is the one that played us. It cuts the sample 176 → 86 (26% of teams re-submit inside two days) and **reverses the shape**. Controlled and past the placement window (n=53): win rate **43,4%**, and **54% / 41% / 38%** against <1.800 / 1.800-2.100 / 2.100+. **Elo-compatible, monotone, and the band table's Elo-incompatible pair is gone** — it was the uncontrolled join over the burst. Standing rule that replaces R36: *an opponent-strength cut states which submission the score belongs to, or it is not a cut.* Original text: **Join an opponent's rating from the *episode*, never from today's leaderboard by team name (2026-08-18, evaluating S6 step 2b Phase 0).** The live L1/L2 band table reports 65% wins over 20 episodes against "2000-2500" opponents while our own converged rating is 1.906,5 — an Elo-incompatible pair (expected ~0,12). A team's leaderboard score is its *current best submission*, and Kaggle pairs by submission rating, so joining by name systematically mislabels the axis: we mostly meet ~1,9k **submissions** of teams whose *team* score is far higher. Any future opponent-strength cut reads the rating recorded **in the episode metadata at play time**, or states plainly that it is a team-level proxy and draws no crossing-point conclusion from it | Two load-bearing claims (the 50% crossing at ~2.500; "the lever opens the 2500-3000 band", n=3) rested on it. The pass's core finding does not, which is why it survives. Fourth relative of §3.4's family: a per-entity number compared across environments — here across *time* |
 | **R35** ✅ | **DISCHARGED 2026-08-18 (S6 step 2b Phase 0):** re-ran `analysis/s6_step2a_phase0.py --seeds 100-123` in full and added the `verdict` **string** to the emitted summary, so the artefact now carries `verdict: "STOP → step 2b (kill (i) FIRES)"`, `gate_clears: false`, `gate_value_ontile: 0`, `gate_value_reachable_unitonly: 240,5` — the stale `gate_value: 840,5` / **`gate_clears: true`** is gone. Original lesson: **A derived artefact must be regenerated when the verdict changes, not just re-printed (2026-08-18, S6 step 2a Phase 0).** `data/derived/s6_step2a_phase0.json` still held `gate_value: 840,5` / **`gate_clears: true`** — the pre-correction summary computed on the double-counting $300 proxy — while the corrected script prints `$241 (on_tile $0) ⇒ STOP` and emits different keys. `--report-only` recomputes the console output and leaves the stale summary in place. **Rule: when a pass corrects its own pricing basis, re-run the writer, and make the artefact carry the verdict string itself** so a future grep cannot read GO off a superseded flag | Third time in this repo (R12: comment edited after the screen ⇒ artefact keys to the wrong package; R19: duplicate config key ⇒ a dead flag that looked like a finding). The reasoning here is right and the file says the opposite |
 | **R34** ✅ | **`gates/` is gitignored wholesale, so no gate result is in git — R14 repeating one directory over.** R14 found `checkpoints/` ignored, contradicting the invariant that directory exists to enforce, and the user's fix was **track the manifests only** (`/checkpoints/**` + `!/checkpoints/**/` + `!/checkpoints/*/manifest.json`, in that order — git cannot re-include a file under an excluded parent). The same argument applies verbatim to `gates/`: step 1b's DEV and unpinned-holdout `results.json` are the evidence for shipping `55586926`, they hold **aggregates only** (banks, counters, verdicts — no action streams, so no §2.4b exposure), and they exist on one laptop. **Confirmed by the user 2026-08-18 and implemented:** `.gitignore` is now `/gates/**` + `!/gates/**/` + `!/gates/**/results.json` (that order is required — git cannot re-include a file under an excluded parent). 5 artefacts, 660 KB, verified before committing: **no per-step action streams** (longest line 327 chars), and the only competition identifier is the episode id `91456307` inside an `agent_a_spec` *path* — already stated openly in this file, so no §2.4b exposure. Replays, shop draws and confirm logs under `gates/` stay local | An accepted-gate record that lives only on the machine that produced it is not a record. Every "measured, not narrative" claim in this file rests on artefacts like these |
 | **R32** | **Price *every* loss counter in the artefact, including the ones that pass, and state the total (2026-08-17, evaluating S6 step 1b).** The shipped reconstruction's `priced_loss_a` reads a comfortable $1.500/ep against budget — and is **100% `unexpected_weeds_lost`** (5,0 tiles × $300). Beside it sits `plant_decay_units_lost` **15,0 units/ep**, structural, unpriced, and ~equal on the incumbent tape (14,9). Summed: **~$2,8-3,1k/ep of own-farm loss on both arms of every tape gate since 08-16**, never once totalled, and **bigger than the +$1.912/ep lever the next pass was queued to build**. Add a per-episode **loss ledger** (counter → count → unit price → $) to the gate summary, with unpriced structural counters listed at "unpriced" rather than omitted | A counter inside its budget is still a bill. R13 fixed *floored-instead-of-priced*; this fixes *passed-therefore-invisible*. It is also the answer to "where does this agent lose": it was in the artefact all along |
@@ -2250,6 +2498,31 @@ playing to hold its place, which is the opposite of the premise above.
 
 **Standing rule from this:** never let the top submission fall out of the active pair as a side
 effect of shipping something else. Decide the eviction deliberately, before the upload.
+
+#### 🔴 The endgame policy, fixed 2026-08-20 (§1.1, §4.5(c))
+
+**The live score is a diagnostic; the product is the two submissions sitting in the slots on
+2026-09-30, because the final ranking is a fresh Bradley-Terry tournament over the ~2 weeks of
+episodes played *after* the deadline.** Nothing about a submission's live history, its lucky
+placement or its age survives into it. Five consequences, all binding:
+
+1. **Never re-submit an unchanged agent.** Priced on the live board this week: **Ueddy −970 points
+   / −779 places · Peter Parker −365 / −345 · Kaito Fukami −1.217 / −1.426**, all inside two days,
+   all from a 600,1 restart. A re-roll buys a nicer live number for a while and changes **nothing**
+   in the final.
+2. **The two slots must stay differentiated in exposure** (herd composition, sell-side
+   aggressiveness, route family) — §6bis's original rule, and §4.5(c) is the measured case for it:
+   their v35 held *"two routes from the same recent basin, so its apparent portfolio had low
+   effective diversity"*, and it lost to an old public generation carrying a new market overlay.
+3. **Judge nothing before ~100 episodes, and never inside the first ~70** (§1.1 correction 1). At
+   the steady-state **~24-48 episodes/day** measured here, that is well under two days — so with
+   41 days to the deadline, **convergence time is not a constraint on shipping.** It is a constraint
+   on *judging*, and the temptation it creates is to react to placement noise.
+4. **Freeze both slots for the final week**, and leave a full day to confirm each runs cleanly on
+   the ladder. An erroring agent plays nothing, and plays nothing in the final tournament either.
+5. **Add to the pre-upload checklist (§4.5(c)7):** reproduce the archive SHA-256 **under two output
+   filenames**, so a gzip filename header cannot make a non-deterministic build look deterministic.
+   G13 currently varies `PYTHONHASHSEED` only.
 
 🔴 **The eviction decision S6 step 1b needs, with the donor ratings attached (2026-08-17).** The pair
 is **Valmorlee `55548339` (08-16, 1.614,0) + Ueddy `55575305` (08-17, 1.398,7 and climbing)**, so
@@ -2530,8 +2803,45 @@ S6 is that fight, run under §2's loop with a bench that finally retains earlier
   of one submission, agreeing at ~99,91% of market decisions) that is the natural upgrade from a
   verbatim tape to a route we can modify.
 
-**The next pass is S6 step 0** — the mandatory Phase 0 that bounds the lever before anything is
-built: re-measure the two shipped tapes' premium $/unit against the **same-town** control §4.1b
+---
+
+### 🔴 State as of 2026-08-20 — this supersedes the "next pass" paragraph below
+
+**Two external sources and one measurement pass changed how this document reads its own numbers.**
+The sources: the currently-#1 team's rating-mechanics write-up (adopted and corrected in **§1.1**)
+and Kaito Fukami's `v36` notebook (**§4.5(c)** — a *measured* failure of single-snapshot tuning, a
+selection key we adopt, and a post-freeze refutation of learning a continuation rule from replays).
+The pass: **S7 leg 0** (§3.3; `baselines/2026-08-20/s7_leg0_report.md`), run on **178** live ladder
+replays after updating the held set from 85 (**94 new replays, zero episodes played**).
+
+What is now settled:
+
+- **The "what did the vote erase" programme is CLOSED**, six passes deep, every channel bounded
+  below the gate (§3.3 steps 2a → 2e). **Step 2e replicated on the doubled sample** and got
+  sharper (`r(drain, bank)` 0,579 → **0,605**; partial `r(desync | drain)` +0,007 → **−0,029**).
+- **§1's five-week puzzle — "measured local wins that convert into ~nothing on the ladder" — has a
+  large, boring component we had never measured: the metric.** A third of our bank variance is the
+  town's shop draw, which lifts both seats and **cancels in W/L**, and both the live Elo and the
+  final Bradley-Terry fit W/L only. **§2.1.4's acceptance order is amended: wins → BT → bank.**
+- **The step-2e brief's "65% win rate while the rating declines" does not survive contact with the
+  full episode set.** 54,5% over 178; **43,4%** converged and controlled; **38%** against 2.100+
+  opponents. R36 is **discharged** and the reading is Elo-compatible.
+- **So the ~1.036-point gap to ReCurSiON (#9 / 2.915,8 against our #924 / 1.879,9) is real
+  strength, not deflation, not placement luck, and not a lossy copy.** All three escape hatches are
+  now closed by measurement.
+- **And every ladder claim from here carries a rank** — at a fixed rank slot the ladder deflated
+  20-49 points/day this week, so a bare score delta measures nothing (§1.1 correction 2).
+
+**The next pass is §4.3 S7** — leg 1 builds the deployment-neighbourhood bench from the 178 live
+replays (165 distinct opponents, both seats, already on disk), leg 2 re-scores every asset we hold
+in the amended currency with the §4.5(c) selection key, and leg 3 is the single bounded build that
+survives it. Slot arithmetic is settled in advance: the next upload evicts the **Ueddy tape** and
+keeps the reconstruction. **41 days to 2026-09-30.**
+
+---
+
+*(Superseded 2026-08-20 — kept for its reasoning.)* **The next pass is S6 step 0** — the mandatory
+Phase 0 that bounds the lever before anything is built: re-measure the two shipped tapes' premium $/unit against the **same-town** control §4.1b
 makes available, decomposed by that episode's drain. If they already sit at the winner's 1,05×,
 the stated mechanism is refuted and S6 stops there. That is the T2 lesson applied early — T2 spent
 a whole pass on a lever whose size it never bounded first.
@@ -2585,6 +2895,7 @@ a scratch directory outside the repo, and **no `.py` agent file was downloaded a
 engine number we now rely on (shop table, drain rates, floors) is derived from
 `engine_reference/` and pinned by `tests/test_v1v_shop_demand.py`, so nothing of theirs needs to
 live here.
+| `106-130-multi-generation-v36-robust-hybrid` (read 2026-08-20) | **extracted → `.ipynb` moved to the gitignored `/notebooks/`, never committed** | Kaito Fukami's multi-generation audit. The most methodologically useful competitor document read here: a **measured** price on tuning against the current top-30 only, three disjoint evaluation surfaces (including the *deployment neighbourhood* we now have 178 of), a selection key we adopt whole, a **post-freeze refutation of a learned continuation router** (70/78 on grouped OOF → 31/38 blind — state aliasing), and an open-backbone + four-bounded-feedback architecture that is our own conclusion reached independently. See §4.5(c) |
 | `v13-r3-top-meta-order-safe-premium-control` | **keep — regression reference** | The original sell-ahead evidence (31-1, +$2.304 mean margin). Deliberately retained as an **earlier-meta** opponent per §2 |
 | `177-180-fresh-top-30-v21-1-conditional-memory` | **keep — regression reference** | v21.1-era top-30. Deliberately retained as the second earlier-meta reference; superseded for *current* meta but still active on the ladder |
 | `your-seed-does-not-fix-the-town` | **keep** | Sole independent verification of the shop-unlock RNG coupling (§2.1.1); unique methodology content |

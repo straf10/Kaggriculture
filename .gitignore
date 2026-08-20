@@ -95,3 +95,7 @@ docs/reviews/
 # S6 step 2e — the loss tail: per-episode decay/desync/composition analysis on 84 live ladder
 # episodes; derived from live 55586926 action streams (§2.4b / R11).
 /data/derived/s6_step2e.json
+
+# S7 leg 0 — deployment-neighbourhood census: per-episode win/opponent/composition data derived
+# from the live 55586926 replays plus two public-leaderboard snapshots (§2.4b / R11).
+/data/derived/s7_ladder_census.json

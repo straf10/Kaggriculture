@@ -5,7 +5,9 @@ Five passes (2a, 2b/0.5, 2c, 2d) priced the vote's erasure as a MEAN dollars-per
 each below the gate. But the ladder pays in EPISODES WON. A mechanism that costs little on average
 but cascades in a few episodes flips those episodes and moves rating.
 
-Measured on 84 real ladder episodes of 55586926 (the 85th is STRAF-vs-STRAF validation, excluded):
+Measured on every held ladder episode of 55586926 (self-play validation episodes excluded).
+First run on 84 (2026-08-18); RE-VALIDATED on 178 (2026-08-20, S7 leg 0) — r(drain,bank) 0,579 ->
+0,605, partial r(desync|drain) +0,007 -> -0,029, flippable 2/84 -> 11/178. At the 84-episode read:
 our bank spans p05 $53.9k to p90 $125.3k (2.14x), with 22/84 (26%) under $70k and a tail to $36.2k.
 This pass asks what separates the tail from the top — and whether 2d's desync or §4.1b's town
 composition carries it.
@@ -112,7 +114,7 @@ def _premium_drain(shop_list):
 
 
 def _load_live():
-    """Load the 84 ladder episodes, excluding the STRAF-vs-STRAF validation episode."""
+    """Load every held ladder episode, excluding the STRAF-vs-STRAF validation episode."""
     files = sorted(glob.glob(str(LIVE / "*.json")) + glob.glob(str(LIVE / "*.json.gz")))
     if not files:
         raise SystemExit(f"no live replays at {LIVE} (§2.4b)")
@@ -471,7 +473,7 @@ def _verdict(a, b, c, d):
 
 
 def run():
-    print("loading 84 ladder episodes...")
+    print("loading ladder episodes...")
     eps = _load_live()
     print(f"  {len(eps)} ladder episodes loaded (1 STRAF-vs-STRAF excluded)")
 
