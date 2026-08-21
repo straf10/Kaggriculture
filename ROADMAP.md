@@ -135,6 +135,20 @@ document.
   ReCurSiON's 0,980 and カワシギ's town-adaptive 0,31). This is the check the desk instruments have
   been missing, and it retires the *"the ladder is the only instrument that can settle it"* clause —
   fidelity settles it before an upload burns a slot.
+- 🔴 **Any market-side arm is paper-bounded before it can be built, and the bound is the *impact
+  ceiling* (added 2026-08-21).** The engine runs a single unified market: `market_price(item, inv)`
+  (`kaggriculture.py:192`) is a pure function of inventory and quotes are symmetric (SELL at `I`,
+  `BUY_PRODUCT` at `I−1`), so a same-turn round-trip nets zero (`kaggriculture.py:600`). Profit
+  exists only for units *held across turns* — and **your own trading walks the price against you**
+  (WHEAT: inventory 10.000 → $25, 9.900 → $35, 9.500 → $47). **That impact, not the order cap, sets
+  the roof.** Compute `max over splits of [Σ_{j<K} price(lo+j) − Σ_{j≤K} price(hi−j)]` with `hi` the
+  highest market inventory before the split and `lo` the lowest after it, **with no cash, shed or
+  order limit** — it bounds *any* maker. Convert at $253/ep; **under ~1 rating point → do not
+  build.** WHEAT's ceiling is **7,9 pts** (§6 row 30). ⚠️ **Never bound a market arm by a flow
+  heuristic**: `maxMarketOrdersPerTurn = 10` caps **orders, not units** (`_parse_order` gives each
+  order a `remaining` quantity; our own backbone issues 14-unit orders), and a maker accumulates
+  holdings across turns — the first version of row 30 called such a heuristic "a strict upper
+  bound" and under-read the ceiling 5,7×.
 
 ### 3.1 Experimental protocol
 
@@ -377,6 +391,8 @@ One line each: the increment, the number, and the **mechanism** that makes it bi
 | 27 | **S6 step 2e — the loss tail, re-priced in wins** | BRANCH (i)+(iv), replicated on 178 episodes. Decay counters **do not track bank** (r=−0,029); desync depth explains **nothing** (r=−0,085; partial r given drain **−0,029**) while the town's drain explains **R²=0,366**. Flippable losses **11/178 ⇒ +6,2 pts** upper bound. **The 2,14× bank spread is the town, not a defect. Programme CLOSED** |
 | 28 | **S7 leg 0 — the census** | *Not a STOP — a re-reading.* Retired three of this document's own claims; see §1.1 and §2 |
 | 29 | **S7 Leg A — re-donor to a top-4 route** | KILL by measurement. All four candidates (Ryo Hasegawa, tetsuya, Arman Tuganbaev, Crop Dusta) are highly state-adaptive: cross-trace agreement **prod 0,25-0,37 / market 0,64-0,86** (vs ReCurSiON's 0,993/0,980). The tetsuya reconstruction — the highest-agreement candidate above 2.900 — replayed against its own recorded opponents in their own towns at **59% median bank error** (one episode $1.567 vs $105.369 = **98,5%**), for comparison ReCurSiON's reconstruction replayed at 0,12%. The pre-registered *"ship anyway"* would have shipped a chimera. **Both slots go to §7.2.** §5.3(c)'s state-aliasing warning applies verbatim |
+| 30 | **S7 Ship B — component (iv) WHEAT market maker paper-bound** | KILL by paper bound. Defensible ceiling across 178 live replays of `55586926`: **$2.009/ep = 7,9 rating pts** — best single round trip **with our own price impact** and **no cash/shed/order limit at all**, optimum at a median **231 units held** (2,3× the whole shed). **6,3× under §7.2's +50-pt build threshold.** Root cause is the impact, not the order cap: `market_price` is a pure function of inventory with symmetric quotes (`kaggriculture.py:192`/`:600` — a same-turn round-trip nets zero), and buying walks WHEAT $25 → $35 → $47 as inventory falls 10.000 → 9.900 → 9.500. Diagnostics: tight $270/ep (1,07 pts) against recorded prices, and a **discredited** flow heuristic at $351/ep — see §3, it is not a bound. ⚠️ **The ride-along did NOT re-close §6 row 13** — see row 31. Full report: [baselines/2026-08-21/s7_ship_b_bound_report.md](baselines/2026-08-21/s7_ship_b_bound_report.md) |
+| 31 | **§6 row 13 re-test — the route IS glut-constrained** | *Not a STOP — a reopening.* Row 30's first pass measured glut on **WHEAT only** and re-closed row 13 on it. WHEAT is structurally the **one product whose price our selling cannot crash** (`above_target` **0,2**: +400 units moves it $25 → $20); MELON is `above_func 'sq'` / `above_target 3,6`. Re-measured model-free across all nine products on the same 178 episodes: **WOOL sits at the $1 floor a median 30 turns/episode** (base $200), MILK 7 turns, STRAWBERRY 2; at just **+100 units** above baseline MILK / WOOL / STRAWBERRY are all at **$1**, MELON bottoms at **$4** against base $250. **The premium products — the route's actual revenue — are deep in the collapse zone.** ⚠️ This does **not** revive the sell-floor lever: §6 row 21's shed wall, 1.32.7's 30 units/product/season town absorption (recovery is slow, so a floor may mean never selling) and §5.2's common-mode result all argue it still fails. **Status: open and untested** — §11 row 2 reopened |
 
 ---
 
@@ -431,33 +447,39 @@ settles it before an upload burns a slot.
   variable SHEEP**). MELON tile-days 110-180 (was 180). WHEAT first sell d0-5 (was d5/6).
   **§5.1's table now carries the re-fit in full, as its own column.**
 
-### 7.2 Ship B — the closed-loop layer on our own route ⇐ NOW CARRIES BOTH SLOTS (2026-08-21)
+### 7.2 Ship B — the closed-loop layer on our own route ⇐ (iv) KILLED, (i) IN BUILD (2026-08-21)
 
-*§7.1 KILLed by measurement (see row 29). Both slots now come from this section. §9's differentiation
-rule ("two near-identical active submits → meta shift kills both") still binds — build two variants
-of §7.2, not two copies. Cheapest split: ship (i) alone on one slot, (i)+(iv) on the other. Both
-share the reconstruction backbone but differ in market-side exposure — that is the differentiation
-§9 asks for on tapes.*
+*§7.1 KILLed by measurement (row 29). Both slots come from this section. §9's differentiation rule
+("two near-identical active submits → meta shift kills both") still binds. The paper-bound step
+(below) killed the (i)+(iv) variant; **the differentiated pair is now (i) as the new upload +
+`55586926` unchanged in the other slot** — one new upload, pre-decided eviction (Ueddy tape)
+unchanged. ⚠️ **This is thin differentiation and is flagged, not resolved:** §7.2 justified the
+pair by *"differ in market-side exposure"*, and killing (iv) removed exactly that. Backbone vs
+backbone-plus-a-6,2-pt patch is close to the "two near-identical active submits" pattern §9 rule 2
+warns kills both on a meta shift. Row 31's glut finding is the most promising candidate for a
+genuinely differentiated second variant.*
 
-What §5.3(c) ships and we do not. Three of its four components are already measured here; the fourth
-has never been looked at.
+What §5.3(c) ships and we do not. Three of the four components were already measured here; the
+fourth is now measured too and priced out.
 
 | Component | Status here |
 |---|---|
-| (i) transaction / weed-legality recovery | bounded at **+6,2 rating points** (§6 rows 26-27) — small, cheap, and the bound is *on our episodes against our opponents* |
-| (ii) SELL reordering | ⛔ shed wall on a tape (§6 row 21) — **but that STOP is donor-specific**; re-test only on a route with shed headroom |
+| (i) transaction / weed-legality recovery | bounded at **+6,2 rating points** (§6 rows 26-27) — small, cheap, and the bound is *on our episodes against our opponents*. **In build (task list #3).** |
+| (ii) SELL reordering | ⛔ shed wall on a tape (§6 row 21) — donor-specific; re-test only on a route with shed headroom |
 | (iii) near-clone preemption | ⛔ the sell-timing is a fixed calendar and already reproduced (§6 row 24) |
-| (iv) **WHEAT market maker** on residual capital above a cash floor + feed reserve + shed headroom | 🔵 **never examined.** The only component whose surface area is unpriced |
+| (iv) **WHEAT market maker** | ⛔ **KILLED on paper 2026-08-21**, row 30 — impact ceiling **$2.009/ep = 7,9 pts** across 178 live episodes with *no* cash/shed/order limit, **6,3× under** §7.2's +50-pt threshold. The roof is our own price impact (WHEAT $25 → $47 as we buy inventory down), not the order cap. Full report: [baselines/2026-08-21/s7_ship_b_bound_report.md](baselines/2026-08-21/s7_ship_b_bound_report.md) |
 
-- **Bound (iv) on paper first** (§3): from the recorded route's own idle capital and shed headroom,
-  what is the maximum it could earn firing perfectly on every opportunity? If that is under ~+50
-  rating points, build only (i) and ship.
-- **Ride-along (§11):** that same computation answers whether this route is **ever**
-  glut-constrained, which is the untested half of §6 row 13. Report it and either revive the
-  sell-floor lever or re-close the row at 1.316 tile-days on 1.32.7.
+- 🔴 **Ride-along CORRECTED (row 31).** The first pass measured glut on **WHEAT** — the one product
+  whose glut side is flat by construction — and wrongly re-closed §6 row 13. Across all nine
+  products the route **is** glut-constrained where it earns: **WOOL at the $1 floor a median 30
+  turns/episode**, MILK 7, STRAWBERRY 2, MELON bottoming at $4 of base $250. **§11 row 2 is
+  reopened**; whether the sell-floor lever is *takeable* is still untested (§6 row 21's shed wall
+  and §5.2's common-mode result argue it is not).
 - **Gate:** §3.1(4) order, against §8's bench, both seats.
-- **The purpose of this slot is differentiation**, not maximum expected score: two open-loop tapes is
-  the exact pattern §9 warns kills both on a meta shift.
+- **Standing rule adopted 2026-08-21 (promoted into §3):** any future "add a market-side arm" pass
+  must run the **impact ceiling** first — the roof is set by how fast your own trading walks the
+  price against you, never by a flow heuristic on the order cap. Under ~1 rating point → do not
+  build.
 
 ### 7.3 Then — and only then — the deployment-neighbourhood bench
 
@@ -591,7 +613,7 @@ already touches the same data, and the third is closed below.
 | Item | Scheduled | Why there, and what it costs |
 |---|---|---|
 | ~~**The §5.1 top-N profile is stale**~~ | ✅ **DONE 2026-08-21** — the re-fit is **in §5.1's table as its own column** ([analysis/b1_top4_profile_2026_08_21.py](analysis/b1_top4_profile_2026_08_21.py)) | Refit against the 60 fresh top-4 traces pulled by the §7.1 selection pass. Old profile largely holds: quadrants 3 (SE never), first extra day 5-7, second 8-10, d29 end $82,5-$98,4k (was $82,7k median). What moved: **COW peaks 7-8 (was 8-9), SHEEP more variable (2-7 vs 4-5), MELON tile-days 110-180 (was 180), WHEAT first sell d0-5 (was d5/6)**. The old b1_top5_profile.py depends on the retired collector chain (§11 last row) and cannot re-run without it; the v2 script reads the kaggle-CLI-fetched replays directly |
-| **§6 row 13 is engine-stale *and* production-stale** — re-test the `shop-adaptive sell floor` STOP | 🟢 **inside §7.2's paper-bounding step** (Ship B) | It failed at **415** crop tile-days as *"production-constrained, never glut-constrained"* — true then, plausibly false at the tape's **~1.316**, and measured on 1.32.6. Ship B must already bound the WHEAT market maker against the route's idle capital and shed headroom; *"is this route ever glut-constrained?"* is the **same computation on the same route**. It either revives a lever or re-closes the row honestly |
+| 🔴 **§6 row 13 REOPENED — the route *is* glut-constrained** | 🟠 **needs its own bounded arm** (was closed 2026-08-21, reopened the same day) | The first re-test measured **WHEAT only** and re-closed the row; WHEAT's `above_target` is **0,2**, so it is the one product whose price our selling cannot crash. Across all nine products (§6 row 31): **WOOL at the $1 floor a median 30 turns/ep**, MILK 7, STRAWBERRY 2, MELON $4 of base $250 — the premium products are deep in the collapse zone. What is still **not** shown is that a sell floor is *takeable*: §6 row 21's shed wall, 1.32.7's 30 units/product/season absorption and §5.2's common-mode result all argue it fails. Scope when it runs: how much revenue does **metering** recover under a real shed constraint, priced in **wins** (§3.1(4)), not dollars |
 | ~~**Untracked collector chain**~~ | ⛔ **CLOSED as obsolete, 2026-08-20** | The item asked whether `data/archive/*.py` should be tracked. **They no longer exist on disk.** `scrape.py` / `repack.py` / `teams.py` / `features.py` were tracked once (`a4783c8`), removed from the index when `data/archive/` was gitignored wholesale, and are now gone from the working tree — so the two bug fixes made to the untracked copies are **lost**, and only the pre-fix version is recoverable from git. ⚠️ **This does not need rebuilding:** every input the plan uses now comes from the official daily episode datasets, `kaggle competitions replay`, `episodes -v` and `leaderboard -d` (§9), which is how the 178 live replays and both leaderboard snapshots were obtained |
 
 ---

@@ -111,3 +111,7 @@ docs/reviews/
 /data/derived/s6_step1_clusters*.json
 /data/derived/s6_step1_agreement*.json
 /data/derived/s6_step1_calendar*.json
+
+# S7 Ship B — WHEAT market-maker impact ceiling + the all-product glut re-test; derived from the
+# 178 live 55586926 action streams under data/archive/ (§2.4b / R11).
+/data/derived/s7_ship_b_wheat_bound.json

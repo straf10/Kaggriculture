@@ -9,6 +9,119 @@
 
 ---
 
+## 2026-08-21 ο — Session: **S7 Ship B — paper-bound του WHEAT market maker (component iv): ⛔ KILL· και μετά έλεγχος του ίδιου του report → το verdict στέκει, αλλά το «loose bound» ΔΕΝ ήταν bound και το glut ride-along μετρήθηκε στο ΛΑΘΟΣ προϊόν — το §6 row 13 ΞΑΝΑΝΟΙΓΕΙ**
+
+**Εντολή (user):** τρέξε το paper-bound του §7.2 για το component (iv)· μετά, **έλεγξε ότι το task
+υλοποιήθηκε σωστά και ότι τα ευρήματα είναι αληθινά**.
+
+### Το verdict (σωστό, και επιβεβαιώθηκε): KILL το (iv), χτίσε μόνο το (i)
+Το §7.2 ζητά **≥+50 rating points στο χαρτί**. Η άμυνα του engine είναι δομική: το `market_price`
+(`kaggriculture.py:192`) είναι **καθαρή συνάρτηση του inventory** και τα quotes είναι συμμετρικά
+(SELL στο `I`, `BUY_PRODUCT` στο `I−1`), άρα round-trip στον ίδιο γύρο βγάζει **μηδέν**
+(`:600`). Κέρδος υπάρχει μόνο για units που **κρατιούνται μεταξύ γύρων**.
+
+### 🔴 Τρία λάθη στο πρώτο report — το verdict δεν αλλάζει, η αιτιολόγηση αλλάζει ολόκληρη
+1. **Το «LOOSE bound» χαρακτηριζόταν *"a strict upper bound"*. ΔΕΝ είναι.** Δύο ανεξάρτητοι λόγοι:
+   (α) το `maxMarketOrdersPerTurn = 10` κόβει **orders, όχι units** — το `_parse_order` δίνει σε
+   κάθε order ποσότητα `remaining`, και το ίδιο μας το backbone στέλνει `['SELL','STRAWBERRY',14]`·
+   (β) χρεώνει μόνο τα free slots του γύρου σε κάθε άνοδο τιμής, ενώ ένας maker **συσσωρεύει**.
+2. **Ο δηλωμένος μηχανισμός ήταν λάθος.** Δεν είναι το «monotone-rising shape» — το άθροισμα των
+   θετικών βημάτων είναι **$36/ep** (όχι το «spread $21» της αριθμητικής). Αυτό που κόβει τον maker
+   είναι το **price impact**: αγοράζοντας ανεβάζεις την τιμή εναντίον σου (WHEAT inventory
+   10.000 → $25, 9.900 → **$35**, 9.500 → **$47**).
+3. 🔴 **Το glut ride-along μετρήθηκε ΜΟΝΟ στο WHEAT** — το ένα προϊόν του παιχνιδιού που δομικά
+   **δεν** μπορεί να γίνει glut (`above_target` **0,2**: +400 units το πάει $25 → $20) — και πάνω σ'
+   αυτό έκλεισε το §11 item και ξανα-επιβεβαίωσε το §6 row 13.
+
+### Ο σωστός αριθμός, και το σωστό ride-along
+- **Impact ceiling** (καλύτερο single round trip **με** price impact, **χωρίς κανένα** όριο cash /
+  shed / orders): **$2.009/ep = 7,94 rating pts**, με βέλτιστο σε **231 units** (2,3× ολόκληρο το
+  shed). **6,3× κάτω** από το κατώφλι ⇒ το KILL στέκει με μεγάλο περιθώριο. Το παλιό «loose» ήταν
+  **5,7× μικρότερο** από το πραγματικό ταβάνι.
+- **Το ride-along ξανα-μετρήθηκε model-free (από τις ίδιες τις τιμές των replays) και στα 9
+  προϊόντα:** το **WOOL κάθεται στο πάτωμα του $1 για median 30 γύρους/episode** (base $200), MILK
+  7, STRAWBERRY 2, MELON πιάνει **$4** σε base $250. Στα **+100 units** πάνω από το baseline,
+  MILK / WOOL / STRAWBERRY είναι **όλα στο $1**. **Η route ΕΙΝΑΙ glut-constrained εκεί που βγάζει
+  λεφτά.** ⇒ **§6 row 13 ΔΕΝ ξανα-κλείνει· §11 row 2 ΞΑΝΑΝΟΙΓΕΙ** (νέο §6 row 31).
+- ⚠️ **Αυτό ΔΕΝ αναβιώνει τον sell-floor lever**: το shed wall (§6 row 21), η απορρόφηση 30
+  units/προϊόν/σεζόν στο 1.32.7 (η τιμή ανακάμπτει αργά, άρα floor ≈ «δεν πουλάς ποτέ») και το
+  common-mode του §5.2 λένε ότι πιθανότατα πάλι αποτυγχάνει. **Status: ανοιχτό και αδοκίμαστο.**
+
+### Δευτερεύοντα
+- **Alignment των replays:** το observation στο step *t* είναι **μετά** την action-*t* (επαληθεύτηκε
+  σε inventory deltas, t=119→120: +10 units από δύο SELL των 5). Ό,τι διαβάζει pre-trade state
+  πρέπει να πάρει το step *t−1*.
+- Η παραπομπή `kaggriculture.py:544-628` είναι το `_process_market`· το `market_price` είναι στο 192.
+- ⚠️ **Λεπτή διαφοροποίηση slots:** με νεκρό το (iv), το ζευγάρι γίνεται backbone vs backbone+patch
+  6,2 πόντων. Το §7.2 δικαιολογούσε το ζευγάρι με *"differ in market-side exposure"* — αυτό έφυγε.
+  Σημειώθηκε στο ROADMAP ως flagged, όχι λυμένο· υποψήφιο για πραγματική διαφοροποίηση είναι το row 31.
+
+**Παραδοτέα:** `analysis/s7_ship_b_wheat_maker_bound.py` (διορθωμένο: `_slot_bound` υποβιβασμένο σε
+διαγνωστικό με γραμμένο *γιατί* δεν είναι bound· νέο `_impact_ceiling`· `_glut_analysis` σε **όλα**
+τα προϊόντα με verdict string)· report `baselines/2026-08-21/s7_ship_b_bound_report.md` ξαναγραμμένο
+με ενότητα **Corrections**· ROADMAP §3 (ο κανόνας γίνεται *impact ceiling*, με ρητή προειδοποίηση
+κατά των flow heuristics), **§6 rows 30-31**, §7.2, §11 row 2. Καμία `agent/` αλλαγή, **μηδέν
+episodes**, κανένα upload.
+
+**Next session should:** χτίσε το **component (i)** (transaction/weed-legality recovery πάνω στο
+reconstruction backbone, φραγμένο +6,2 pts) **και ανέβασέ το** — 9 συνεχόμενα desk passes, 0 uploads,
+40 μέρες. Το §3 λέει «ένα pass τελειώνει σε upload».
+
+---
+
+## 2026-08-21 ξ — Session: **S7 Leg A (Ship A) — re-donor σε top-4 route: ⛔ KILL by measurement· και τα τέσσερα top-4 είναι state-adaptive, το fidelity replay γκρεμίζει τη recon στο 59% median bank error· **και τα δύο slots** πάνε στο §7.2**
+
+**Εντολή (user):** τρέξε το §7.1 — donor selection στο τρέχον top-4, με το προ-δηλωμένο *"ship anyway"*.
+
+### Το εύρημα: η κορυφή δεν αντιγράφεται με majority vote
+15 φρέσκα public episodes ανά υποψήφιο (39 μοναδικά replays — παίζουν συνέχεια μεταξύ τους), με
+**ρητό submission-id mapping**, όχι opening-fingerprint clustering (§R31). Cross-trace agreement:
+
+| | prod | market |
+|---|---:|---:|
+| Ryo Hasegawa `55614463` | 0,331 | 0,692 |
+| tetsuya `55574890` | 0,374 | 0,856 |
+| Arman Tuganbaev `55617399` | 0,247 | 0,777 |
+| Crop Dusta `55623460` | 0,269 | 0,636 |
+| **ReCurSiON (calibration)** | **0,993** | **0,980** |
+
+Κανένας δεν σπάει σε δύο πληθυσμούς (dominant fraction 0,60-0,87, silhouette 0,03-0,18) — είναι
+**ένα** submission με **έντονα state-adaptive** policy, ακριβώς το σχήμα που το §5.3(c) σημείο 4
+κατέγραψε ως μη-ανακατασκευάσιμο από state-blind μέθοδο.
+
+### 🔴 Το όργανο που έλειπε: fidelity replay απέναντι στους ΔΙΚΟΥΣ ΤΟΥ αντιπάλους
+Η recon του tetsuya (ο υψηλότερος σε agreement πάνω από 2.900) ξανα-έπαιξε στις **ίδιες** πόλεις
+απέναντι στους **ίδιους** καταγεγραμμένους αντιπάλους: **59% median bank error** (μία περίπτωση
+$1.567 vs $105.369 = **98,5%**). Η recon του ReCurSiON, ίδιο τεστ: **0,12%**. Το προ-δηλωμένο
+*"ship anyway"* θα ανέβαζε **χίμαιρα** — το γράμμα του §7.1 (KILL μόνο σε trace count) περνούσε.
+
+### Τι άλλαξε στο σχέδιο
+- **§6 row 29** (το KILL)· **§7.1 KILLED**· **§7.2 παίρνει και τα δύο slots**.
+- **Δύο standing rules, προαγμένα ΕΞΩ από το νεκρό §7.1** ώστε να επιβιώσουν: (α) το **fidelity
+  replay είναι πλέον §3 rule + §9 checklist item** πριν από κάθε reconstruction upload· (β)
+  advisory KILL floor `market_agr < 0,90`. Κλείνει και τη ρήτρα *"the ladder is the only instrument
+  that can settle it"* — το fidelity το λύνει πριν καεί slot.
+- **§10 risks 2 & 5** ενημερώθηκαν: το re-donoring πάνω από τον ReCurSiON είναι **μετρημένα
+  κλειστό**· και το fidelity είναι αποφασιστικό ακριβώς εκεί που το ερώτημα ΕΙΝΑΙ fidelity.
+- **Ride-along (§11 row 1) — ΕΓΙΝΕ:** re-fit του §5.1 profile στα 60 φρέσκα traces
+  (`analysis/b1_top4_profile_2026_08_21.py`), **μπήκε στο §5.1 ως δική του στήλη**. Το σχήμα κρατά·
+  τι κουνήθηκε: **hands d20 = 12 (όχι 14)**, peak herd **7-8 COW / 2-7 SHEEP** (ήταν 8-9 / 4-5),
+  **WHEAT πρώτο sell d0-5** (ήταν d5/6), MELON tile-days 110-180. ⚠️ Η γραμμή των ζώων κουνήθηκε
+  **μακριά** μας, όχι προς εμάς: το top-4 κρατά 12-16 ζώα ως d20 και εμείς δεν φτάνουμε τα 13.
+
+### ⚠️ Bug που πιάστηκε πριν το commit
+Τα τέσσερα νέα `data/derived/*` **δεν ήταν gitignored** (τα date-suffixed outputs του Phase 0
+ξέφευγαν από τα un-suffixed patterns) — το report τα ανέφερε ως «gitignored» ενώ ένα `git add -A`
+θα τα ανέβαζε σε **δημόσιο** repo. Διορθώθηκε πριν το staging.
+
+**Παραδοτέα:** report `baselines/2026-08-21/s7_leg_a_report.md`· scripts
+`analysis/s7_leg_a_donor_select.py`, `analysis/b1_top4_profile_2026_08_21.py`· `s6_step1_phase0.py`
+δέχεται `S6_ARCHIVE_DATE` και γράφει date-suffixed outputs· ROADMAP §1/§5.1/§6/§7.1/§7.2/§10/§11·
+`.gitignore`. Καμία `agent/` αλλαγή, μηδέν episodes πέρα από το fidelity replay, **κανένα upload**.
+Commit `b791dab`. `pytest tests/` → **358 passed, 3 failed** (τα γνωστά `test_v1h2d_*`).
+
+---
+
 ## 2026-08-20 ν — Session: **episodes update (85→179 replays) + δύο εξωτερικές πηγές· 🔴 τρία standing readings του ROADMAP ήταν λάθος — το win rate 65% ήταν το placement burst (43,4% converged), το score deflate-άρει pool-wide (διάβασε RANK), και το `median_bank` είναι κατά ένα τρίτο η πόλη που ο βαθμός ΔΕΝ βλέπει· §2.1.4 αλλάζει σε wins → BT → bank· ανοίγει το S7**
 
 **Εντολή (user):** ενημέρωσε τα episodes αν συμφέρει· διάβασε την ανάλυση του τρέχοντος #1 για τη μηχανική
