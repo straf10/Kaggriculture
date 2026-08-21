@@ -33,6 +33,55 @@ from .state import parse
 
 _PRODUCT = "STRAWBERRY"
 
+_TILE_OPS = {"WATER", "PLANT", "DIG", "HARVEST", "FERTILIZE",
+             "BUILD_COOP", "BUILD_PASTURE", "FEED", "CARE", "COLLECT_FERTILIZER"}
+
+
+def _tile_valid(op, tile):
+    """True if a tile-level action is effective (not a silent no-op) given the tile."""
+    if op == "WATER":
+        return isinstance(tile, dict) and tile.get("kind") == "PLANT" and not tile.get("watered_today")
+    if op == "PLANT":
+        return tile is None
+    if op == "DIG":
+        return tile is not None and not (isinstance(tile, dict) and "animal" in tile)
+    if op == "HARVEST":
+        return isinstance(tile, dict) and tile.get("yield_units", 0) > 0
+    if op == "FERTILIZE":
+        return isinstance(tile, dict) and tile.get("kind") == "PLANT"
+    if op in ("BUILD_COOP", "BUILD_PASTURE"):
+        return tile is None
+    if op == "FEED":
+        return isinstance(tile, dict) and "animal" in tile and not tile.get("fed_today")
+    if op == "CARE":
+        return isinstance(tile, dict) and "animal" in tile and not tile.get("cared_today")
+    if op == "COLLECT_FERTILIZER":
+        return isinstance(tile, dict) and "animal" in tile and tile.get("fertilizer_available")
+    return True
+
+
+def _tile_recovery(op, tile):
+    """Return the recovery action list when `op` is invalid on `tile`."""
+    if op == "WATER":
+        if isinstance(tile, dict) and tile.get("kind") == "WEED":
+            return ["DIG"]
+        return ["PASS"]
+    if op == "PLANT":
+        if isinstance(tile, dict) and tile.get("kind") == "PLANT":
+            if not tile.get("watered_today"):
+                return ["WATER"]
+            return ["PASS"]
+        if isinstance(tile, dict) and tile.get("kind") == "WEED":
+            return ["DIG"]
+        return ["PASS"]
+    if op == "DIG":
+        return ["PASS"]
+    if op == "HARVEST":
+        if isinstance(tile, dict) and tile.get("kind") == "PLANT" and not tile.get("watered_today"):
+            return ["WATER"]
+        return ["PASS"]
+    return ["PASS"]
+
 
 class TapeOverlay:
     """Seat-local, per-episode. One instance per running agent process/seat."""
@@ -80,6 +129,32 @@ class TapeOverlay:
             horizon = self.exec_cfg.get("sell_ahead", {}).get("predict_horizon_turns", 6)
             self.tracker = OpponentSupplyTracker(horizon)
         self._last_step = step
+
+    @staticmethod
+    def _recover_tile_actions(snapshot, farmer_a, hands_a):
+        tiles = snapshot.my_tiles
+        all_actions = [farmer_a] + list(hands_a)
+        positions = [snapshot.farmer_pos] + list(snapshot.hand_positions)
+        for i, action in enumerate(all_actions):
+            if i >= len(positions):
+                break
+            if not (isinstance(action, list) and action):
+                continue
+            op = action[0]
+            if op not in _TILE_OPS:
+                continue
+            x, y = positions[i]
+            if y < len(tiles) and x < len(tiles[y]):
+                tile = tiles[y][x]
+            else:
+                tile = None
+            if not _tile_valid(op, tile):
+                recovery = _tile_recovery(op, tile)
+                if i == 0:
+                    farmer_a = recovery
+                else:
+                    hands_a[i - 1] = recovery
+        return farmer_a, hands_a
 
     def _decide_sells(self, snapshot, configuration) -> list[list]:
         orders = []
@@ -136,9 +211,15 @@ class TapeOverlay:
         self.tracker.record_our_orders(
             [o for o in combined if isinstance(o, list) and o and o[0] == "SELL"])
 
+        farmer_a = list(tape_action.get("farmer", ["PASS"]))
+        hands_a = [list(h) for h in tape_action.get("hands", [])]
+
+        farmer_a, hands_a = self._recover_tile_actions(
+            snapshot, farmer_a, hands_a)
+
         return {
-            "farmer": tape_action.get("farmer", ["PASS"]),
-            "hands": tape_action.get("hands", []),
+            "farmer": farmer_a,
+            "hands": hands_a,
             "market": combined,
         }
 

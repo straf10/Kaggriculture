@@ -1,97 +1,132 @@
-# Pass brief — Ship A: re-donor to a top-4 route, and upload it
+# Pass brief — Ship B component (i): transaction / weed-legality recovery overlay
 
-> **Read first:** [ROADMAP.md](ROADMAP.md) **§7.1** (this pass), **§1.1** (why re-donoring is the bet),
-> **§2** (how to read the ladder — nothing in this pass judges a score before 100 episodes),
-> **§3** (the two new standing rules: price the *programme*, and **a pass ends in an upload**),
-> **§3.1** (protocol; note the amended acceptance order), **§6 rows 23-27** (why the previous
-> programme is closed), **§9** (the checklist and the slot policy). Then the top of
-> [memory.md](memory.md).
+> **Read first:** [ROADMAP.md](ROADMAP.md) **§7.2** (this pass), **§6 rows 26-27** (the measurement
+> behind it), **§3.1** (protocol — acceptance is four numbers, wins first), **§9** (the checklist
+> and the slot policy). Then [memory.md](memory.md) entries for `s6-step2d-branch-iv` and
+> `s6-step2e-loss-tail`.
 
 ## Why this pass exists
 
-Seven consecutive desk passes ran 2026-08-17 → 08-20 with **zero uploads**, closing a programme
-whose ceiling was **+2,4 rating points** against a **1.036-point** gap — a bound that was computed in
-the first of those passes. That is now a standing rule (§3), and this brief is the first pass under
-it: **it ends with a submission on the ladder.**
+The open-loop tape (`55586926`, ReCurSiON reconstruction) plays back a fixed action stream
+regardless of the actual board state. When the town's per-turn `weedSpawnChance` realisation
+places a WEED on a tile the tape expects to be a PLANT, the tape's action for that tile becomes
+a silent no-op — it WATERs a weed, PLANTs over a plant, DIGs empty ground. These are **88
+production-disagreement steps** across 178 live episodes, measured in §6 step 2d (leg A).
 
-The bet is §7.1. Our reconstruction is a **faithful** copy — market layer, production layer and loss
-tail all closed — of a route that is now **#9 / 2.915,8**. It plays at **#924 / 1.879,9** and wins
-**38%** against 2.100+ opponents. The standing rule says **a copied route's ceiling is its donor's
-own rating**, and we pointed the instrument at a #9. The instrument is built and works
-(`analysis/s6_step1_reconstruct.py`, `analysis/build_reconstruction_submission.py`,
-`analysis/s6_step1b_cluster.py`).
+The mechanism: closed-loop tile control (DIG the weed, re-PLANT, WATER by actual dry state) that
+a fixed-index 50-town majority vote cannot carry. The vote reproduces the **modal** production at
+88/88 — it is a faithful open-loop copy, and this is the residual it cannot copy.
 
-## The one question
+**Bound:** 11/178 episodes are flippable (margin < desync cost), for **+6.2 rating points**. The
+per-episode own-farm loss is **$597/ep** ($14.89 decay + $4.99 weeds). This is small against the
+1,036-point gap, but it is the only remaining component that is both **measured** and **cheap to
+build** — the three other §7.2 components are all KILLED or blocked.
 
-> **Which currently top-4 team is reconstructible, and does its reconstruction clear the gate?**
-> Not "is a better donor better" — that is the standing rule. The open question is purely whether a
-> top-4 route survives the same instrument that reproduced ReCurSiON at production 0,993 / market
-> 0,980.
+**§7.1 is dead.** Re-donoring to a top-4 route was KILLED by measurement (§6 row 29): all four
+candidates are state-adaptive with cross-trace agreement 0.25–0.37 (vs ReCurSiON's 0.993). Both
+slots come from §7.2.
 
-## Phase 0 — donor selection. Time-boxed: half a pass, hard stop.
+## What to build
 
-Candidates from the 2026-08-20 board: **Ryo Hasegawa 3.147,0 · tetsuya 3.095,3 · Arman Tuganbaev
-3.053,1 · Crop Dusta 3.017,2**. カワシギ (#5, 2.988,3) is on the list only to re-confirm its known
-agreement 0,31.
+Extend `TapeOverlay` ([agent/tape_overlay.py](agent/tape_overlay.py)) to also overlay the
+**farmer/hands** channel — currently it passes `farmer` and `hands` through verbatim from the tape
+and only overlays `market`. The new overlay reads the **actual tile state** from the observation
+and substitutes a legal action when the tape's action would be a no-op.
 
-Per candidate, from the held daily episode datasets and any needed pulls:
+### The validity logic already exists
 
-1. **Trace inventory.** How many public traces of **one** submission exist, dated after that team's
-   `LastSubmissionDate`? **≥3 required** (ReCurSiON had 50 — do not assume that is available).
-2. **Cross-trace agreement**, production and market channels separately, the step-1 instrument
-   unchanged. **Report both figures against ReCurSiON's 0,993 / 0,980.**
-3. **The 2-medoid check** (`s6_step1b_cluster.py`): is this one policy mode or a two-submission
-   population? `two_submissions == False` is required, and the minority share is reported.
-   ⚠️ **"Same submission" is tested on the market/full stream, never on the opening.** The 48-step
-   opening is byte-identical across **1.219 of 1.398** live seats (87%) — it discriminates nothing,
-   and the original Phase 0 provenance check was written against it.
-4. **Rank candidates by the town-controlled ratio**, never by median reward — reward is 99% the
-   town's shop draw (§5.2), and that error already put ReCurSiON nowhere on a first shortlist (§3).
+`_tile_valid(op, tile)` in [analysis/s6_step2e.py](analysis/s6_step2e.py:65) is the complete
+checker — it returns `True` if a tile-level action is effective given the tile state. The 10
+tile ops it covers: `WATER`, `PLANT`, `DIG`, `HARVEST`, `FERTILIZE`, `BUILD_COOP`,
+`BUILD_PASTURE`, `FEED`, `CARE`, `COLLECT_FERTILIZER`. Move this function (or its logic) into
+`agent/` so the overlay can use it at runtime.
 
-⚠️ **Do not rank by, or report, the candidates' local bank.** §3.1(4): the acceptance currency is
-wins. Bank is a diagnostic here and nothing more.
+### Recovery rules
 
-**Pre-registered "ship anyway" (this is the point of the time box):** if the best candidate's
-agreement is materially below ReCurSiON's, **still ship the highest-agreement donor above 2.900**,
-recording the agreement figure in the submission description. A #4 route reconstructed at 0,95 is a
-better bet than a #9 route reconstructed at 0,99, and **only the ladder can settle which** — that is
-this pass's whole thesis. Do not spend a second pass improving the reconstruction instead.
+When the tape issues an invalid tile action, the overlay substitutes the **cheapest legal
+recovery** for the actual tile state. These are the desync types step 2e measured, in order of
+frequency:
 
-**Kill:** if **no** candidate above 2.900 clears 3 traces of one submission, say so plainly, stop
-Ship A, and hand both slots to §7.2 (Ship B). That is a real outcome, not a failure.
+| Tape action | Actual tile | Recovery |
+|---|---|---|
+| `WATER` | WEED | `DIG` (remove the weed so the tile can be replanted next turn) |
+| `WATER` | already watered PLANT | `PASS` (already done, skip) |
+| `PLANT` | PLANT (already planted) | `WATER` if not watered, else `PASS` |
+| `PLANT` | WEED | `DIG` |
+| `DIG` | empty | `PASS` (nothing to dig) |
+| `HARVEST` | no yield | `WATER` if plant and dry, else `PASS` |
 
-## Phase 1 — reconstruct, gate, upload
+The recovery is **always the single cheapest action that returns the tile to the tape's expected
+trajectory**. The goal is re-sync: after recovery, the tape's next action for that tile should
+be valid again. Do NOT build a full replanning system — that is §5.3(c)'s state-adaptive layer
+and it is out of scope.
 
-- **Reconstruct** with the existing instrument. Record the stream sha256, step count, and the
-  per-decision modal-vote statistics, exactly as `55586926`'s description does.
-- **Gate against the incumbent** (`55586926`, the current reconstruction), in the **§3.1(4) order**:
-  **per-opponent W/L per seat first**, then BT over §8's bench (A1 + A2 + A3 + `meta_route`), then
-  `median_bank`, then `mean_diff`. Report each opponent as its own row. Apply §3.1(5)'s selection
-  key if panels disagree. Report the seed set's **realised drain distribution** beside the dollars
-  (§8's closing warning — a few seeds can be one town).
-- **SMOKE 0-11 → DEV 0-47 → unpinned holdout 100-147**, both seats. A route-only package has no
-  `agent/` mechanism accounting, so a formal `GO=True` is structurally unreachable — say so, and
-  report the *differenced* priced loss instead, as step 1b did.
-- **Ride-along, free (ROADMAP §11):** while the top-4 traces are in hand, re-run
-  `analysis/b1_top5_profile.py` against the refreshed archive. §5.1's profile was fitted before the
-  top-5 turned over twice, and this is the same data pull.
-- **§9 checklist before upload**, including the **new two-filename archive-hash check**.
-- **Upload.** Eviction is pre-decided and needs no re-upload: it drops **`55575305` (Ueddy tape)**
-  and keeps `55586926`. Record the eviction in the description.
+### Where it plugs in
+
+In `TapeOverlay.act()` (line 105), after reading `tape_action` from the stream, and before
+returning the action dict:
+
+1. Read the player's farm tiles from `snapshot` (the parsed observation).
+2. For the farmer action and each hands action, get the unit's position and look up the tile.
+3. If the action's op is a tile op and `_tile_valid(op, tile)` is False, substitute the recovery.
+4. Return the modified `farmer` and `hands` in the action dict.
+
+The farmer's position is at `farm["farmer"]` (an `[x, y]`), hands positions at `farm["hands"]`
+(list of `[x, y]`). The tile grid is `farm["tiles"][y][x]`.
+
+### What NOT to change
+
+- **Market overlay is untouched.** The strawberry sell-timing overlay works and is shipped. Do not
+  modify `_decide_sells()`, the mode logic, or the market order assembly.
+- **Do not condition on the town or opponent.** The recovery must be a pure function of
+  `(tape_action, actual_tile_state)` — no lookup tables, no per-town tuning.
+- **Do not add a learned model or heuristic.** The recovery table above is exhaustive.
+- **Do not touch the tape stream itself.** The overlay reads the stream and modifies the output;
+  it never mutates `self.stream`.
+- **No new config arms.** This is a single unconditional fix, not a tunable parameter.
+
+## Gate
+
+**§3.1(4) order**, against §8's bench (A1 + A2 + A3 + `meta_route`), both seats:
+
+1. **Per-opponent W/L per seat** — the primary acceptance criterion. Report each opponent as its
+   own row.
+2. **Bradley-Terry** (`harness/ladder.py`, `--round-robin`).
+3. **`median_bank`** — diagnostic only.
+4. **`mean_diff`** in mirror — regression detector.
+
+Seed plan: **SMOKE 0-11 → DEV 0-47 → unpinned holdout 100-147**, both seats. This is an
+**occupancy** change (tile actions alter how many tiles are occupied on any night), so it
+requires **`--town-pin basket`** on both arms per §3.1(2).
+
+**Priced loss (§3.1(6)):** `plant_decay_units_lost` and `unexpected_weeds_lost` should both
+**decrease** (that is the point). Report `priced_loss_delta` and confirm it is ≤ 10% of
+`mean_diff` and ≤ $500/ep.
+
+**Pre-registered kill:** if the overlay **increases** total losses against any bench opponent on
+both seats, STOP — the recovery rules are wrong. Report and do not ship.
+
+## Package and upload
+
+- Self-contained `main.py` with the overlay logic inlined (no `agent/` import at runtime, §2.12).
+  Use `analysis/build_reconstruction_submission.py` or equivalent to build, but **inline the new
+  farmer/hands recovery** alongside the existing market overlay.
+- **§9 checklist before upload** — every box, including the archive-hash two-filename check.
+- **Eviction is pre-decided:** drops `55575305` (Ueddy tape), keeps `55586926`.
+- Record the stream sha256, step count, and the recovery hit rate in the submission description.
 
 ## What this pass does NOT do
 
-- **Judge the new submission.** §2 rule 2: nothing is read before ~100 episodes, and the first ~70
-  are the placement burst. The pass ends at the upload; the read is a later, separate step.
-- **Build Ship B.** It is the *next* pass and the *other* slot (§7.2).
-- **Build the deployment-neighbourhood bench** (§7.3) — it is deliberately after both ships.
-- **Re-open** the "what did the vote erase" family ⛔ · the market-layer overlay ⛔ · C-A ⛔ · a
-  learned continuation rule from replays ⛔ (§5.3(c) measured that one post-freeze and deleted it).
+- **Judge the submission.** §2 rule 2: nothing is read before ~100 episodes.
+- **Build the deployment-neighbourhood bench** (§7.3) — after both ships.
+- **Reopen the "what did the vote erase" family** — CLOSED across all channels (§6).
+- **Build a market maker** — KILLED at 7.9 pts (§6 row 30).
+- **Build a sell-floor lever** — §6 row 13 reopened but untested; shed wall blocks it.
+- **Re-donor** — KILLED (§6 row 29).
 
 ## Standing conditions
 
-`agent/` may be touched only if the package needs it (the reconstruction ships self-contained; prefer
-that). Local episodes are played for the gate; **the only Kaggle-side action is the single upload.**
-Routes, packages, replays and derived data stay **gitignored** (§3.2) and carry the **verdict
-string**. Guards in `tests/`. Report to `baselines/<date>/`, session entry to `memory.md`,
-**ROADMAP only if a plan, gate or standing rule changes** (its header block states this). Commit with no co-author.
+Local episodes are played for the gate; **the only Kaggle-side action is the single upload.**
+Routes, packages, replays and derived data stay **gitignored** (§3.2) and carry the verdict
+string. Guards in `tests/`. Report to `baselines/<date>/`, session entry to `memory.md`,
+**ROADMAP only if a plan, gate or standing rule changes**. Commit with no co-author.
