@@ -166,8 +166,19 @@ def cmd_fidelity(args) -> int:
         banks.append(rep_bank)
         print(f"  ep {m['episode_id']} s{donor_seat}: recon=${rep_bank:>10,.0f}  "
               f"recorded=${rec_bank:>10,.0f}  err={err:.2%}  clean={res.clean}")
-    med = statistics.median([e for e in errs if e is not None])
-    print(f"\nmedian abs error: {med:.2%}   median recon bank: ${statistics.median(banks):,.0f}")
+    valid_errs = [e for e in errs if e is not None]
+    med = statistics.median(valid_errs)
+    med_bank = statistics.median(banks)
+    print(f"\nmedian abs error: {med:.2%}   median recon bank: ${med_bank:,.0f}")
+    out_path = DERIVED / f"s6_step1_fidelity_{args.team}.json"
+    out_path.write_text(json.dumps({
+        "team": args.team,
+        "n_episodes": len(members),
+        "median_abs_error": round(med, 6),
+        "median_recon_bank": med_bank,
+        "per_episode_errors": [round(e, 6) if e is not None else None for e in errs],
+    }, indent=2), encoding="utf-8")
+    print(f"saved: {out_path}")
     return 0
 
 

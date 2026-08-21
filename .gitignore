@@ -64,6 +64,7 @@ docs/reviews/
 /data/derived/s6_step1_reconstruction_*.json
 /data/derived/s6_step1_shed_*.json
 /data/derived/s6_step1_bank_*.json
+/data/derived/s6_step1_fidelity_*.json
 
 # S6-step-1b (package/gate/ship) — cluster split, R21 shop-draw summaries and gate replay dirs are
 # all derived from the competition action streams; kept local (§2.4b / R11).

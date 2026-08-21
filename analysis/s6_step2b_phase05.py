@@ -190,6 +190,9 @@ def units_modal_count(units, i, n):
 
 
 def _pearson(x, y):
+    x, y = list(x), list(y)
+    if len(x) != len(y):
+        raise ValueError(f"_pearson: length mismatch {len(x)} vs {len(y)}")
     n = len(x)
     if n < 2:
         return None
@@ -215,15 +218,21 @@ def live() -> dict:
     our = Counter(); opp = Counter()
     our_rev = defaultdict(float); opp_rev = defaultdict(float)
     n = 0
+    total_transitions = 0
+    skipped_transitions = 0
+    last_skip_exc = None
     for f in files:
         d = load(f)
         steps = d["steps"]; cfg = d.get("configuration", {})
         teams = d.get("info", {}).get("TeamNames", [None, None])
         our_seat = 1 if (teams[1] == "STRAF" and teams[0] != "STRAF") else 0
         for i in range(1, len(steps)):
+            total_transitions += 1
             try:
                 _a, _o, sales, _ab, _h = _transition_events(steps[i - 1], steps[i], cfg)
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                skipped_transitions += 1
+                last_skip_exc = exc
                 continue
             h = steps[i - 1][our_seat]["observation"].get("hour")
             for s in sales[our_seat]:
@@ -234,12 +243,20 @@ def live() -> dict:
                     opp[h] += 1; opp_rev[h] += s["price"]
         n += 1
 
+    if total_transitions > 0 and skipped_transitions > 0.02 * total_transitions:
+        raise SystemExit(
+            f"live(): {skipped_transitions}/{total_transitions} transitions failed — "
+            f"measurement not trustworthy: {last_skip_exc!r}"
+        )
+
     def summ(u, r):
         tot = sum(u.values()); h0 = u.get(0, 0)
         return {"total_units": tot, "hour0_units": h0,
                 "hour0_share": h0 / tot if tot else None,
                 "hour0_realised": (r.get(0, 0) / h0) if h0 else None}
     return {"available": True, "n_episodes": n,
+            "skipped_transitions": skipped_transitions,
+            "total_transitions": total_transitions,
             "our_reconstruction": summ(our, our_rev), "opponents": summ(opp, opp_rev)}
 
 

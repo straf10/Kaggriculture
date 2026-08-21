@@ -81,7 +81,7 @@ in the sidecar provenance.json; summary (§4.2's mandatory conditions):
                       layer's scope — step 2, not shipped here)
     stream sha256   : {sha256}
     n_steps         : {n_steps}
-    fidelity        : reproduces recorded donor banks to median 0.12% (S1.2); shed peak 72/100,
+    fidelity        : reproduces recorded donor banks to median {fidelity_err:.2%} (S1.2); shed peak {shed_peak}/100,
                       never >=90 (headroom the raw tape lacked)
 
 Self-contained: no `agent/` import, no engine constants (the 1.32.7 hinge bump is orthogonal —
@@ -102,6 +102,13 @@ def agent(obs, configuration=None):
 '''
 
 
+def _load_required_artifact(name: str, team: str) -> dict:
+    path = DERIVED / f"{name}_{team}.json"
+    if not path.exists():
+        raise SystemExit(f"no {name} artifact for {team} — run the measurement first: {path}")
+    return json.loads(path.read_text())
+
+
 def build(team: str, package: bool) -> Path:
     rec_path = DERIVED / f"s6_step1_reconstruction_{team}.json"
     if not rec_path.exists():
@@ -113,6 +120,18 @@ def build(team: str, package: bool) -> Path:
     prod_agr = rec["prod_modal_share_mean"]
     market_agr = rec["market_modal_share_mean"]
     n_dm = rec["n_disagree_market"]
+
+    fidelity_data = _load_required_artifact("s6_step1_fidelity", team)
+    shed_data = _load_required_artifact("s6_step1_shed", team)
+    cluster_data = _load_required_artifact("s6_step1b_cluster", team)
+
+    fidelity_err = fidelity_data["median_abs_error"]
+    shed_peak = int(shed_data["reconstruction"]["peak_med"])
+    cluster_sil = round(cluster_data["two_medoid"]["silhouette"], 3)
+    cluster_sizes = cluster_data["two_medoid"]["sizes"]
+    cluster_dominant = max(cluster_sizes)
+    cluster_vote_inv = cluster_data["majority_vote_invariance"]
+    cluster_verdict = cluster_data["verdict"]
 
     stream_json = json.dumps(stream, separators=(",", ":"))
     if '"""' in stream_json:
@@ -127,7 +146,7 @@ def build(team: str, package: bool) -> Path:
     main_path.write_text(MAIN_TEMPLATE.format(
         team=team, n_traces=rec["n_traces"], prod_agr=prod_agr, market_agr=market_agr,
         n_disagree_market=n_dm, n_steps=n_steps, sd_pct=n_dm / n_steps, sha256=sha,
-        stream_json=stream_json,
+        stream_json=stream_json, fidelity_err=fidelity_err, shed_peak=shed_peak,
     ), encoding="utf-8")
 
     per_trace = _per_trace_provenance(rec["episodes_used"])
@@ -144,12 +163,17 @@ def build(team: str, package: bool) -> Path:
         "state_dependent_market_steps": {"count": n_dm, "of": n_steps,
                                          "fraction": n_dm / n_steps,
                                          "note": "adaptive layer scope — step 2, not shipped"},
+        "fidelity": {"median_abs_error": fidelity_err, "team": team,
+                     "source": f"data/derived/s6_step1_fidelity_{team}.json"},
+        "shed": {"peak_med": shed_peak, "team": team,
+                 "source": f"data/derived/s6_step1_shed_{team}.json"},
         "one_submission_test": {
             "method": "2-medoid on pairwise market-decision distance (R31; opening fingerprint is "
                       "dead as a submission test — 87% of the field shares it)",
-            "result": "one mode + 2-trace low-reward outlier tail; majority-vote invariance 1.000 "
-                      "(minority cannot carry a modal decision); dominant-48 silhouette 0.153",
+            "result": (f"{cluster_verdict}; majority-vote invariance {cluster_vote_inv:.3f}; "
+                       f"dominant-{cluster_dominant} silhouette {cluster_sil}"),
             "script": "analysis/s6_step1b_cluster.py",
+            "source": f"data/derived/s6_step1b_cluster_{team}.json",
         },
         "source_traces": per_trace,
     }

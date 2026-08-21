@@ -223,6 +223,8 @@ def _partial_r(x, y, z):
     rxz = _pearson(x, z)
     ryz = _pearson(y, z)
     rxy = _pearson(x, y)
+    if rxz is None or ryz is None or rxy is None:
+        return None
     denom_sq = (1 - rxz ** 2) * (1 - ryz ** 2)
     if denom_sq <= 0:
         return None
@@ -427,12 +429,24 @@ def leg_d(data):
 def _verdict(a, b, c, d):
     """Build the verdict string (R35)."""
     uniform = a["uniform"] == "YES"
-    r_drain = c.get("r_drain_bank") or 0
-    r_desync_raw = c.get("r_desync_bank_raw") or 0
-    partial_desync = c.get("partial_r_desync_given_drain") or 0
+    r_drain = c.get("r_drain_bank")
+    r_desync_raw = c.get("r_desync_bank_raw")
+    partial_desync = c.get("partial_r_desync_given_drain")
     n_flip = d["n_flippable"]
     n_total = d["n_total"]
     dd = a["decay_units_distrib"]
+
+    if r_drain is None or r_desync_raw is None or partial_desync is None:
+        missing = [k for k, v in [("r_drain_bank", r_drain),
+                                   ("r_desync_bank_raw", r_desync_raw),
+                                   ("partial_r_desync_given_drain", partial_desync)] if v is None]
+        branch = "INCONCLUSIVE"
+        reading = (f"Statistics undefined (None): {', '.join(missing)}. "
+                   f"Likely perfect collinearity or constant input. "
+                   f"The tail is UNRESOLVED — do not close any programme on this measurement.")
+        return (f"BRANCH {branch}. {reading} "
+                f"Episodes flippable by full recovery: {n_flip}/{n_total} (upper bound, +{d['rating_upper_bound_pts']:.1f} pts). "
+                f"No agent/ change, no episode, no upload (R27).")
 
     if uniform and abs(r_drain) > 0.4 and abs(partial_desync) < 0.15:
         branch = "(i)+(iv)"

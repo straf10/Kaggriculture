@@ -287,6 +287,8 @@ def leg_b() -> dict:
 
         live = []
         decay, weeds, water_w = [], [], []
+        skipped_metrics = 0
+        last_metrics_exc = None
         for f in files:
             d = load(f)
             teams = d.get("info", {}).get("TeamNames", [None, None])
@@ -299,18 +301,26 @@ def leg_b() -> dict:
                 decay.append(m.get("plant_decay_units_lost", 0))
                 weeds.append(m.get("unexpected_weeds_lost", 0))
                 water_w.append(m.get("water_weeds_lost", 0))
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                skipped_metrics += 1
+                last_metrics_exc = exc
+        n_total_episodes = len(live)
+        if n_total_episodes > 0 and skipped_metrics > 0.02 * n_total_episodes:
+            raise SystemExit(
+                f"leg B metrics: {skipped_metrics}/{n_total_episodes} episodes failed — "
+                f"measurement not trustworthy: {last_metrics_exc!r}"
+            )
         live_s = summ(live, "our live (55586926 recon)")
-        decay_mean = statistics.fmean(decay) if decay else 0.0
-        ceiling = decay_mean * WHEAT_UNIT_PRICE  # units-only honest recoverable (step 2a basis)
+        decay_mean = statistics.fmean(decay) if decay else None
+        ceiling = decay_mean * WHEAT_UNIT_PRICE if decay_mean is not None else None
         ledger = {
             "n_episodes_metered": len(decay),
-            "plant_decay_units_per_ep": round(decay_mean, 2),
-            "unexpected_weeds_per_ep": round(statistics.fmean(weeds), 2) if weeds else 0.0,
-            "water_weeds_per_ep": round(statistics.fmean(water_w), 2) if water_w else 0.0,
-            "recoverable_ceiling_dollars_per_ep": round(ceiling),
-            "recoverable_ceiling_rating_pts": round(ceiling / 253.0, 1),  # $253/ep per pt (step 2a)
+            "n_episodes_skipped": skipped_metrics,
+            "plant_decay_units_per_ep": round(decay_mean, 2) if decay_mean is not None else None,
+            "unexpected_weeds_per_ep": round(statistics.fmean(weeds), 2) if weeds else None,
+            "water_weeds_per_ep": round(statistics.fmean(water_w), 2) if water_w else None,
+            "recoverable_ceiling_dollars_per_ep": round(ceiling) if ceiling is not None else None,
+            "recoverable_ceiling_rating_pts": round(ceiling / 253.0, 1) if ceiling is not None else None,
             "free_half_dollars_per_ep": [0, 241],  # on-tile $0 → reachable $241, step 2a; both < gate
             "free_half_below_gate": True,
             "note": ("units-only honest ceiling (decay units x $40.1/u); the $300/tile proxy "
