@@ -48,11 +48,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-ARCHIVE = ROOT / "data" / "archive" / "raw" / "2026-08-16"
+import os
+_ARCHIVE_DATE = os.environ.get("S6_ARCHIVE_DATE", "2026-08-16")
+_SUFFIX = "" if _ARCHIVE_DATE == "2026-08-16" else f"_{_ARCHIVE_DATE}"
+ARCHIVE = ROOT / "data" / "archive" / "raw" / _ARCHIVE_DATE
 DERIVED = ROOT / "data" / "derived"
-INVENTORY = DERIVED / "s6_step1_inventory.jsonl"
-CLUSTERS = DERIVED / "s6_step1_clusters.json"
-AGREEMENT = DERIVED / "s6_step1_agreement.json"
+INVENTORY = DERIVED / f"s6_step1_inventory{_SUFFIX}.jsonl"
+CLUSTERS = DERIVED / f"s6_step1_clusters{_SUFFIX}.json"
+AGREEMENT = DERIVED / f"s6_step1_agreement{_SUFFIX}.json"
 
 LIVE_ENGINE = "1.32.7"          # §4.1b: the live engine; stale episodes are excluded
 TURNS_PER_DAY = 24
@@ -305,7 +308,7 @@ def cmd_agreement(args) -> int:
     return 0
 
 
-CALENDAR = DERIVED / "s6_step1_calendar.json"
+CALENDAR = DERIVED / f"s6_step1_calendar{_SUFFIX}.json"
 
 
 def _realised_premium(steps: list, cfg: dict) -> tuple[dict, dict, list, list]:

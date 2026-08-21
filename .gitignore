@@ -99,3 +99,15 @@ docs/reviews/
 # S7 leg 0 — deployment-neighbourhood census: per-episode win/opponent/composition data derived
 # from the live 55586926 replays plus two public-leaderboard snapshots (§2.4b / R11).
 /data/derived/s7_ladder_census.json
+
+# S7 Leg A (2026-08-21) — top-4 donor selection: per-candidate cross-trace agreement, town-controlled
+# premium ratios and the 2-medoid check, plus the b1 top-4 profile re-fit. All derived from the
+# competition action streams of the 39 replays under data/archive/raw/2026-08-21/ (§2.4b / R11).
+/data/derived/s7_leg_a_selection.json
+/data/derived/b1_top4_profile_*.json
+# The Phase 0 pipeline now writes date-suffixed outputs (S6_ARCHIVE_DATE); ignore every partition,
+# not only the un-suffixed 2026-08-16 one above.
+/data/derived/s6_step1_inventory*.jsonl
+/data/derived/s6_step1_clusters*.json
+/data/derived/s6_step1_agreement*.json
+/data/derived/s6_step1_calendar*.json

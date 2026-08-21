@@ -38,13 +38,13 @@ from kaggle_environments import make  # noqa: E402
 from analysis.donor_streams import make_donor_tape  # noqa: E402
 from analysis.s1_extract_donors import action_stream  # noqa: E402
 from analysis.s6_step1_phase0 import (  # noqa: E402
+    ARCHIVE,
     LIVE_ENGINE,
     _load_inventory,
     _reload_streams,
 )
 from analysis.tape_agent import make_tape_agent  # noqa: E402
 
-ARCHIVE = ROOT / "data" / "archive" / "raw" / "2026-08-16"
 DERIVED = ROOT / "data" / "derived"
 VALMORLEE_EID = 91456307
 PASS_ACTION = {"farmer": ["PASS"], "hands": [], "market": []}

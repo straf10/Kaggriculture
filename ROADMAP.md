@@ -17,7 +17,7 @@
 
 ---
 
-## 1. Where we are — 2026-08-20
+## 1. Where we are — 2026-08-21
 
 | | Value |
 |---|---|
@@ -26,7 +26,7 @@
 | **Converged win rate** | **43,4%** (controlled, past the placement window). By opponent band: **54% / 41% / 38%** at <1.800 / 1.800-2.100 / 2.100+ |
 | **Ladder top** | #1 Ryo Hasegawa **3.147,0** · #2 tetsuya 3.095,3 · #3 Arman Tuganbaev 3.053,1 · #4 Crop Dusta 3.017,2 · #5 カワシギ 2.988,3 · **#9 ReCurSiON 2.915,8** (our donor, frozen 08-14) |
 | **The gap** | **1.036 points / 915 places** to our own donor. Measured, not inferred — §1.1 |
-| **Deadline** | **2026-09-30 23:59 UTC** (41 days). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
+| **Deadline** | **2026-09-30 23:59 UTC** (40 days). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
 | **Prizes** | 10 **equal** $5.000 prizes, places 1-10 ⇒ the target is **stable top-10**, not #1. A high-variance 3.200 is worth less than a steady 3.050 |
 | **Gates** | **2.800+** = minimum bar (below it we are still copying) · **3.000+** = "top-5 tactics replicated"; only above it is originating our own tactics the highest-value work |
 | **Local suite** | `pytest tests/` **358 passed, 3 failed** — the 3 are the known `test_v1h2d_*` cases (pre-existing, expected) |
@@ -125,6 +125,16 @@ document.
   (a) stand in for (b).
 - **A STOP is not final until its own root cause's implied control has been run.** Twice, a stated
   root cause was refuted by the control it implied (§6 rows 18, 19).
+- 🔴 **Any route reconstruction is gated on a fidelity replay before it can be shipped (added
+  2026-08-21).** Replay the reconstruction against the **donor's own recorded opponents in their own
+  recorded towns** and report median bank error against the donor's recorded bank. Calibration:
+  ReCurSiON's reconstruction replays at **0,12%**; the tetsuya reconstruction replayed at **59%**
+  (§6 row 29). A trace count and a cross-trace agreement figure are **not** sufficient — §7.1's
+  literal KILL condition (*"≥3 traces of one submission"*) passed for a policy whose reconstruction
+  was a chimera. Advisory floor alongside it: **`market_agr < 0,90` is a KILL** (halfway between
+  ReCurSiON's 0,980 and カワシギ's town-adaptive 0,31). This is the check the desk instruments have
+  been missing, and it retires the *"the ladder is the only instrument that can settle it"* clause —
+  fidelity settles it before an upload burns a slot.
 
 ### 3.1 Experimental protocol
 
@@ -232,20 +242,37 @@ document.
 
 ## 5. What the top of the ladder actually does
 
-### 5.1 The target profile — 120 seats, current engine
+### 5.1 The target profile — 120 seats, **re-fit 2026-08-21**
 
-| Quantity | Median per seat |
-|---|---|
-| Money d5 / d10 / d15 / **d20** / d24 / end | $516 / $4.863 / $16.720 / **$48.560** / $63.129 / **$82.747** |
-| Planted tiles d10 / d15 / d20 / **d24** / d27 / d29 | 56 / 62 / 60 / **61** / 45 / **1** |
-| Hands d5 / d10 / d15 / d20 / d29 | 3 / **14** / 9 / **14** / 10 |
-| Animals d5 / d10 / d15 / d20 / end | 6 / 12 / 12 / 12 / **13** — peak **8-9 COW + 4-5 SHEEP** |
-| Quadrants | **3** — second on day **6**, third on day **10**, SE never |
-| Crop tile-days | **STRAWBERRY 577 · WHEAT 559 · MELON 180** (~1.316 total) |
-| Sell calendar (first day, batch) | WHEAT d5/6 · FERT d2/4 · WOOL d6/**10** · MILK d9/6 · MELON d10/6 · STRAWBERRY d14/**14** |
+Column 2 is the original 120-seat fit; column 3 is the **2026-08-21 re-fit** against 60 fresh traces
+of the current top-4 (15 each, `analysis/b1_top4_profile_2026_08_21.py`, §11 row 1), given as the
+per-team median **range** across the four. **The shape holds; the levels moved where marked.**
 
-⚠️ **Our own planner cannot reach the 13-animal row** — blocked on feed logistics, not config or cash
-(§6 rows 11, 12, 20). The profile is not refuted; reaching it with `assign()`'s routing is.
+| Quantity | 120-seat fit | **Top-4 re-fit 2026-08-21** (per-team median range) |
+|---|---|---|
+| Money d5 / d10 / d15 / **d20** / d24 / end | $516 / $4.863 / $16.720 / **$48.560** / $63.129 / **$82.747** | $23-465 / $1,1-16,5k / $18,7-22,2k / **$42,0-51,5k** / $59,5-68,9k / **$82,5-98,4k** |
+| Planted tiles d10 / d15 / d20 / **d24** / d27 / d29 | 56 / 62 / 60 / **61** / 45 / **1** | 30-51 / 54-60 / 51-60 / **45-60** / 33-53 / **4-12** |
+| Hands d5 / d10 / d15 / d20 / d29 | 3 / **14** / 9 / **14** / 10 | 3-8 / 9-12 / 11-12 / **12 (all four)** / 8-12 |
+| Animals d5 / d10 / d15 / d20 / end | 6 / 12 / 12 / 12 / **13** — peak **8-9 COW + 4-5 SHEEP** | 4-8 / 10-15 / 12-15 / **12-16** / 11-15 — peak **7-8 COW + 2-7 SHEEP** |
+| Quadrants | **3** — second on day **6**, third on day **10**, SE never | **3** — second d**5-7**, third d**8-10**, fourth never |
+| Crop tile-days | **STRAWBERRY 577 · WHEAT 559 · MELON 180** (~1.316 total) | STR **384-609** · WHEAT **432-604** · MELON **110-180** (CARROT 0 on three of four; 99 for Ryo) |
+| Sell calendar (first day, batch) | WHEAT d5/6 · FERT d2/4 · WOOL d6/**10** · MILK d9/6 · MELON d10/6 · STRAWBERRY d14/**14** | WHEAT d**0-5**/3-11 · FERT d1-2/1-5 · WOOL d6-7/4-8 · MILK d**8-13**/3-4 · MELON d10-14/6-9 · STRAWBERRY d**11-14**/4-6 |
+
+**What moved, and what it means for the plan:**
+
+- **The animal row moved *away* from us, not toward us.** The old fit's 13 was already unreachable;
+  today's top-4 hold **12-16** through d20 and **11-15** at the end, with `hands` pinned at **12** at
+  d20 across all four. Peak composition leans **lower COW / more variable SHEEP** (7-8 C, 2-7 S).
+- **Hands d20 is 12, not 14** — consistent with §6 row 2's engine reading (one HIRE = one market
+  order, cap 10/turn, hands wiped nightly), and it makes the 14 in the old fit look like a
+  transient rather than a target.
+- **WHEAT's first sell is d0-5, not d5/6** — two of the four sell on **day 0**.
+- **MELON tile-days span 110-180**, so §5.2's *"MELON is our largest revenue hole"* stands but its
+  ceiling is the low end of the old single figure, not the high end.
+
+⚠️ **Our own planner cannot reach the animal row** — blocked on feed logistics, not config or cash
+(§6 rows 11, 12, 20). The profile is not refuted; reaching it with `assign()`'s routing is. The
+re-fit widens that gap rather than closing it.
 
 ### 5.2 The town, not the agent
 
@@ -349,6 +376,7 @@ One line each: the increment, the number, and the **mechanism** that makes it bi
 | 26 | **S6 step 2d — the production channel** | BRANCH (iv): the 88 production-disagreement steps **are** town-reactive (per-town weed spawns → the hands DIG, re-PLANT and WATER by real dry state, re-syncing one op later; farmer op differs 0/88; 62% of hand-slot disagreements stand on a disjoint tile) — **a genuine closed-loop rule the vote cannot carry**, bounded at **$597/ep ⇒ +2,4 pts**. ⚠️ Its bank-gap decomposition blamed the opponent pool; **that gloss is circular** — Kaggle pairs by rating |
 | 27 | **S6 step 2e — the loss tail, re-priced in wins** | BRANCH (i)+(iv), replicated on 178 episodes. Decay counters **do not track bank** (r=−0,029); desync depth explains **nothing** (r=−0,085; partial r given drain **−0,029**) while the town's drain explains **R²=0,366**. Flippable losses **11/178 ⇒ +6,2 pts** upper bound. **The 2,14× bank spread is the town, not a defect. Programme CLOSED** |
 | 28 | **S7 leg 0 — the census** | *Not a STOP — a re-reading.* Retired three of this document's own claims; see §1.1 and §2 |
+| 29 | **S7 Leg A — re-donor to a top-4 route** | KILL by measurement. All four candidates (Ryo Hasegawa, tetsuya, Arman Tuganbaev, Crop Dusta) are highly state-adaptive: cross-trace agreement **prod 0,25-0,37 / market 0,64-0,86** (vs ReCurSiON's 0,993/0,980). The tetsuya reconstruction — the highest-agreement candidate above 2.900 — replayed against its own recorded opponents in their own towns at **59% median bank error** (one episode $1.567 vs $105.369 = **98,5%**), for comparison ReCurSiON's reconstruction replayed at 0,12%. The pre-registered *"ship anyway"* would have shipped a chimera. **Both slots go to §7.2.** §5.3(c)'s state-aliasing warning applies verbatim |
 
 ---
 
@@ -361,33 +389,55 @@ in a submission; the diagnostics inside them are time-boxed gates, not passes.*
 can measure at the desk explains it. Two responses are available and they are not alternatives — they
 occupy the **two slots**, which is exactly the differentiation §9 demands.
 
-### 7.1 Ship A — re-donor to a top-4 route
+### 7.1 Ship A — re-donor to a top-4 route ⛔ KILLED BY MEASUREMENT 2026-08-21
 
-The reconstruction instrument works and is built (`analysis/s6_step1_reconstruct.py`,
-`analysis/build_reconstruction_submission.py`). It was pointed at a **#9** donor. The standing rule
-is **a copied route's ladder ceiling is its donor submission's own rating** — one API call, and the
-cheapest external check this repo ever failed to run.
+**Verdict:** the top-4 population is a state-adaptive one. Every candidate sits far below
+ReCurSiON's cross-trace agreement line, and a fidelity replay of the highest-agreement candidate's
+majority-vote reconstruction against its own recorded opponents in their own towns lost **59%
+median bank** — for comparison, the ReCurSiON reconstruction replayed at **0.12%**. §7.1 as written
+would have "shipped anyway" tetsuya at 0.856 market / 0.374 production; the fidelity replay says
+that would have shipped a chimera. **Both slots go to §7.2.** Full report:
+[baselines/2026-08-21/s7_leg_a_report.md](baselines/2026-08-21/s7_leg_a_report.md).
 
-- **Front gate, time-boxed (≤ half a pass).** Donor selection by the **town-controlled** ratio
-  (candidate's realised price ÷ its same-town opponent's, straight from the recorded episode — never
-  by median reward, which is 99% town luck; §3). Candidates: Ryo Hasegawa 3.147 · tetsuya 3.095 ·
-  Arman Tuganbaev 3.053 · Crop Dusta 3.017. Require ≥3 traces of **one** submission, cross-trace
-  agreement comparable to ReCurSiON's (production 0,993 / market 0,980), and the 2-medoid check
-  against a two-submission population. ⚠️ **That check reads the market/full stream, never the
-  opening** — the 48-step opening is byte-identical across 87% of live seats and discriminates
-  nothing.
-- **Pre-registered "ship anyway":** if the best candidate's agreement is materially lower than
-  ReCurSiON's, **ship the highest-agreement donor above 2.900 regardless**, recording the agreement
-  figure. A #4 route reconstructed at 0,95 is a better bet than a #9 route reconstructed at 0,99,
-  and the ladder is the only instrument that can settle it.
-- **Kill:** if **no** top-4 team clears 3 traces of one submission (the カワシギ problem — agreement
-  0,31, town-adaptive, unreconstructible), say so and go straight to 7.2 with both slots.
-- **Ride-along (§11):** the same trace pull re-fits §5.1's top-N profile — run
-  `analysis/b1_top5_profile.py` against the refreshed archive while the data is in hand.
-- **Gate before upload:** §9's checklist, including the new two-filename archive-hash check.
-- **Eviction:** drops the Ueddy tape, keeps `55586926`. Already decided.
+Measured per submission (15 fresh public episodes per candidate, `kaggle competitions episodes`):
 
-### 7.2 Ship B — the closed-loop layer on our own route
+| Candidate | prod agr | market agr | mean premium ratio |
+|---|---:|---:|---:|
+| Ryo Hasegawa `55614463` | 0,331 | 0,692 | 0,90 |
+| tetsuya `55574890` | 0,374 | 0,856 | 0,94 |
+| Arman Tuganbaev `55617399` | 0,247 | 0,777 | 0,99 |
+| Crop Dusta `55623460` | 0,269 | 0,636 | **1,18** |
+| ReCurSiON (calibration) | **0,993** | **0,980** | — |
+
+The strong price ratios (Crop Dusta ≥1,10 on all three premium products) confirm the top-4 has a
+real edge in the market layer against the opponents it faces — **and that edge is not portable via
+a fixed calendar.** §5.3(c) point 4's state-aliasing warning applies here in its exact form.
+
+**Standing rules the pass added — both promoted out of this killed section, into §3 and §9's
+checklist, so they survive it:** (a) §7.1's KILL condition needs a numerical threshold beyond
+trace count — the literal *"3 traces of one submission"* passes for a policy whose reconstruction
+is a chimera; adopt `market_agr < 0,90` as an advisory KILL floor (halfway between ReCurSiON and
+カワシギ). (b) **The fidelity replay against the donor's own recorded opponents is the decisive
+front-gate check for any future reconstruction** — it is what the desk instruments have been
+missing; add it to the gate ahead of every reconstruction upload. It closes the "the ladder is the
+only instrument that can settle it" clause: at 0,86 market / 0,37 production, fidelity already
+settles it before an upload burns a slot.
+
+- **Ride-along (§11) done in the same pass.** `analysis/b1_top4_profile_2026_08_21.py` refit §5.1's
+  top-N profile against the 60 fresh top-4 traces (gitignored:
+  `data/derived/b1_top4_profile_2026_08_21.json`). The old profile holds: quadrants **3** (SE never)
+  · first extra day 5-7 · second extra day 8-10 · d29 end $82,5-$98,4k (was $82,7k median) · COW
+  peaks 7-8, SHEEP 2-7 (§5.1 said 8-9 COW + 4-5 SHEEP; today's top-4 leans **lower COW / more
+  variable SHEEP**). MELON tile-days 110-180 (was 180). WHEAT first sell d0-5 (was d5/6).
+  **§5.1's table now carries the re-fit in full, as its own column.**
+
+### 7.2 Ship B — the closed-loop layer on our own route ⇐ NOW CARRIES BOTH SLOTS (2026-08-21)
+
+*§7.1 KILLed by measurement (see row 29). Both slots now come from this section. §9's differentiation
+rule ("two near-identical active submits → meta shift kills both") still binds — build two variants
+of §7.2, not two copies. Cheapest split: ship (i) alone on one slot, (i)+(iv) on the other. Both
+share the reconstruction backbone but differ in market-side exposure — that is the differentiation
+§9 asks for on tapes.*
 
 What §5.3(c) ships and we do not. Three of its four components are already measured here; the fourth
 has never been looked at.
@@ -481,6 +531,9 @@ Auth: `KAGGLE_API_TOKEN` in `.env`; the CLI lives in `.venv/`, not on `PATH`. Pa
       gzip filename header cannot make a non-deterministic build look deterministic.
 - [ ] **Mirror smoke:** `python -m harness.cli play main.py main.py --steps 720` → `clean=True`.
 - [ ] Size < 100 MiB · `pytest tests/` green (bar the 3 known `test_v1h2d_*`) · `KAGGRI_DEBUG` off.
+- [ ] 🔴 **Fidelity replay (reconstructions only, §3):** the packaged route replayed against the
+      donor's own recorded opponents in their own towns, median bank error reported. Calibration
+      0,12% (ReCurSiON) vs 59% (tetsuya, §6 row 29). A chimera does not get a slot.
 - [ ] **Provenance recorded** in the submission description; route files gitignored.
 
 **Slot policy** — 5 uploads/day, **latest 2 active**, eviction by **date**:
@@ -509,15 +562,21 @@ Auth: `KAGGLE_API_TOKEN` in `.env`; the CLI lives in `.venv/`, not on `PATH`. Pa
    half is real and separate (a competitor measured its own frozen version going **87/90 → 14/27**
    against a newer field), and the only instrument that sees it is a **win rate against a bench that
    retains earlier generations** — §8's A3/A4. **Rank for the clock; wins for the decay.**
-2. **A ceiling around 3.130.** The public-fork cluster plateaus there while private agents sit above
-   it. A replication path tops out at whatever the donor is worth (§7.1).
+2. **A ceiling around 3.130 — and the replication path can no longer be re-pointed upward.** The
+   public-fork cluster plateaus there while private agents sit above it. A replication path tops out
+   at whatever the donor is worth, and **re-donoring above ReCurSiON is now measured shut**: the
+   whole top-4 is state-adaptive and unreconstructible by any state-blind method (§6 row 29).
+   ReCurSiON's 2.915,8 is the ceiling of the copying route; passing it requires §7.2's own layer.
 3. **The donor is frozen and the meta moves.** Our current donor last submitted 08-14; the top-4 has
    turned over completely twice since 08-11.
 4. **The engine can move again.** §4's detector runs regularly; a json-only balance change has caught
    this repo out once.
-5. **Desk instruments measure fidelity, not strength.** Six passes established our copy is faithful
-   and none of them could see a 1.036-point gap. Any future *"the route lacks X"* claim needs an
-   opponent, not a trace comparison.
+5. **Desk instruments measure fidelity, not strength — and that is exactly what makes the fidelity
+   replay decisive.** Six passes established our copy is faithful and none of them could see a
+   1.036-point gap; any future *"the route lacks X"* claim still needs an opponent, not a trace
+   comparison. **The converse now also holds:** a *"this route is worth copying"* claim is a
+   fidelity question, and §3's replay gate answered it at the desk for a fraction of an upload
+   slot (§6 row 29). Use fidelity where fidelity is the question, and only there.
 6. **Licensing at the prize stage.** Replays are game data and using them is permitted; the exposure
    is the "own original work" warranty and winner licensing, and it lands only if we finish top-10.
    Recorded, decided, not re-opened.
@@ -531,7 +590,7 @@ already touches the same data, and the third is closed below.
 
 | Item | Scheduled | Why there, and what it costs |
 |---|---|---|
-| **The §5.1 top-N profile is stale** — re-run [analysis/b1_top5_profile.py](analysis/b1_top5_profile.py) against the refreshed archive | 🟢 **inside §7.1 Phase 0** (Ship A) | The top-5 has turned over **completely, twice** since §5.1 was fitted (カワシギ #1 → #5; Ryo Hasegawa, tetsuya, Arman Tuganbaev, Crop Dusta are all new). Ship A's Phase 0 already pulls traces for exactly those teams, so the profile re-fit is **the same data pull** — marginal cost ≈ 0, and it refreshes the one table the whole plan aims at |
+| ~~**The §5.1 top-N profile is stale**~~ | ✅ **DONE 2026-08-21** — the re-fit is **in §5.1's table as its own column** ([analysis/b1_top4_profile_2026_08_21.py](analysis/b1_top4_profile_2026_08_21.py)) | Refit against the 60 fresh top-4 traces pulled by the §7.1 selection pass. Old profile largely holds: quadrants 3 (SE never), first extra day 5-7, second 8-10, d29 end $82,5-$98,4k (was $82,7k median). What moved: **COW peaks 7-8 (was 8-9), SHEEP more variable (2-7 vs 4-5), MELON tile-days 110-180 (was 180), WHEAT first sell d0-5 (was d5/6)**. The old b1_top5_profile.py depends on the retired collector chain (§11 last row) and cannot re-run without it; the v2 script reads the kaggle-CLI-fetched replays directly |
 | **§6 row 13 is engine-stale *and* production-stale** — re-test the `shop-adaptive sell floor` STOP | 🟢 **inside §7.2's paper-bounding step** (Ship B) | It failed at **415** crop tile-days as *"production-constrained, never glut-constrained"* — true then, plausibly false at the tape's **~1.316**, and measured on 1.32.6. Ship B must already bound the WHEAT market maker against the route's idle capital and shed headroom; *"is this route ever glut-constrained?"* is the **same computation on the same route**. It either revives a lever or re-closes the row honestly |
 | ~~**Untracked collector chain**~~ | ⛔ **CLOSED as obsolete, 2026-08-20** | The item asked whether `data/archive/*.py` should be tracked. **They no longer exist on disk.** `scrape.py` / `repack.py` / `teams.py` / `features.py` were tracked once (`a4783c8`), removed from the index when `data/archive/` was gitignored wholesale, and are now gone from the working tree — so the two bug fixes made to the untracked copies are **lost**, and only the pre-fix version is recoverable from git. ⚠️ **This does not need rebuilding:** every input the plan uses now comes from the official daily episode datasets, `kaggle competitions replay`, `episodes -v` and `leaderboard -d` (§9), which is how the 178 live replays and both leaderboard snapshots were obtained |
 
