@@ -187,6 +187,9 @@ def cmd_select(args) -> int:
         sil = _silhouette(D, labels)
         sizes = (int((labels == 0).sum()), int((labels == 1).sum()))
         dom_frac = max(sizes) / n
+        dom_label = 0 if sizes[0] >= sizes[1] else 1
+        dom_episodes = [(members[i]["episode_id"], members[i]["seat"])
+                        for i in range(n) if labels[i] == dom_label]
 
         cal = _town_controlled_ratio(members)
         rm = cal["ratio_med"]
@@ -199,7 +202,8 @@ def cmd_select(args) -> int:
                           "market_premium_steps": agr["market_agreement_premium_steps"],
                           "n_premium_sell_steps": agr["n_premium_sell_steps"]},
             "medoid_2": {"sizes": sizes, "silhouette": sil,
-                         "dominant_fraction": dom_frac, "medoids": list(medoids)},
+                         "dominant_fraction": dom_frac, "medoids": list(medoids),
+                         "dominant_cluster_episodes": dom_episodes},
             "town_controlled": {"ratio_med": rm, "ratio_n": cal["ratio_n"],
                                  "vol_med": cal["vol_med"]},
             "episodes_used": [(m["episode_id"], m["seat"]) for m in members],
@@ -262,7 +266,6 @@ def cmd_select(args) -> int:
           f"mean premium ratio={_ratio_score(best_agr):.3f}")
 
     if not single_sub:
-        # §7.1: 2-medoid check found two populations — carry only the larger cluster later; note it
         note = ("top-by-ratio candidate splits 2-way — the reconstruction must carry the larger "
                 "cluster (kill (ii) fires, s6_step1b handling). Proceeding with the candidate.")
     else:
@@ -291,18 +294,25 @@ def cmd_select(args) -> int:
     if caveat:
         print(f"\n{caveat}")
 
+    restrict_to_cluster = None
+    if not single_sub:
+        restrict_to_cluster = chosen["medoid_2"]["dominant_cluster_episodes"]
+
     out = {
         "archive_date": ARCHIVE.name,
         "benchmark": {"prod_agr": RECURSION_PROD_AGR, "market_agr": RECURSION_MARKET_AGR},
         "advisory_kill_threshold": {"market_agr": KILL_MARKET_AGR},
         "per_candidate": per_candidate,
         "chosen": {"team": chosen["team"], "submission_id": chosen["submission_id"]},
+        "restrict_to_cluster": restrict_to_cluster,
         "verdict": verdict,
         "notes": note,
         "caveat": caveat,
     }
     (DERIVED / "s7_leg_a_selection.json").write_text(json.dumps(out, indent=1))
     print(f"\nwrote {DERIVED / 's7_leg_a_selection.json'} (gitignored)")
+    if caveat:
+        return 4  # select-with-caveat: escalate before upload
     return 0
 
 

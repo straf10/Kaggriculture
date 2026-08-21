@@ -176,7 +176,10 @@ def _impact_ceiling(ep: EpisodeSeries, item: str = "WHEAT") -> tuple[float, int]
             continue
         profit, k = 0.0, 0
         for j in range(1, 2001):
-            gain = px(lo + j - 1) - px(prefix_max - j)
+            sell_inv = lo - j  # our earlier buy shifted inventory down by K
+            if sell_inv < 0:
+                break
+            gain = px(sell_inv) - px(prefix_max - j)
             if gain <= 0:
                 break
             profit += gain
@@ -219,51 +222,36 @@ def _tight_bound(ep: EpisodeSeries) -> float:
     # Buys are optimal any turn t whose price < some future price.
     # Sells are optimal any turn t whose price >= max_future_price[t+1:].
     for t in range(n):
-        free = max(0, MKT_SLOTS_CAP - ep.mkt_orders_used[t])
-        if free <= 0:
+        free_orders = max(0, MKT_SLOTS_CAP - ep.mkt_orders_used[t])
+        if free_orders <= 0:
             continue
         price = ep.price[t]
 
         # ---- SELL leg ----
-        # If price[t] >= max future price, dump all inventory bought below it.
-        # Sell room: our_wheat - FEED_RESERVE (never dip below feed reserve).
-        our_wheat = ep.wheat_shed[t]  # what the backbone holds; the maker's
-                                      # additions are on top, tracked in `inventory`
         maker_held = sum(u for _, _, u in inventory)
-        # We can sell any of `maker_held`; feed reserve is protected by backbone's own wheat
-        can_sell = min(free, maker_held)
-        # Optimal: sell only if price[t] > buy_price and price[t] is at least as good as any FUTURE opportunity for this unit
+        can_sell = maker_held  # one order can carry any quantity
         future_max_after = max_future_price[t + 1] if t + 1 < n else 0
-        # Sort inventory by buy_price desc; sell only units where price[t] > buy_price AND price[t] >= future_max_after
-        if can_sell > 0 and price >= future_max_after:
-            # Sell up to can_sell units, taking highest-buy-price units first (they're least profitable but must go before we lose money)
-            # Actually for max profit at this turn: sell units with lowest buy_price first (max profit per unit).
-            inventory.sort(key=lambda x: x[0])  # ascending buy_price
+        if can_sell > 0 and price >= future_max_after and free_orders > 0:
+            inventory.sort(key=lambda x: x[0])
             sold = 0
             new_inv = []
             for bp, bt, u in inventory:
-                if sold >= can_sell or price <= bp:
+                if price <= bp:
                     new_inv.append((bp, bt, u))
                     continue
-                take = min(u, can_sell - sold)
-                total_profit += take * (price - bp)
-                if u > take:
-                    new_inv.append((bp, bt, u - take))
-                sold += take
-                free -= take
-                if free <= 0:
-                    break
+                total_profit += u * (price - bp)
+                sold += u
             inventory = new_inv
+            free_orders -= 1  # one SELL order used
 
         # ---- BUY leg ----
-        # Buy only if there's a future price above current.
         future_max = max_future_price[t + 1] if t + 1 < n else 0
-        if future_max <= price or free <= 0:
+        if future_max <= price or free_orders <= 0:
             continue
         cash_slack = max(0.0, ep.cash[t] - CASH_FLOOR)
-        shed_slack = max(0, SHED_CAP - ep.shed_total[t] - maker_held)
+        maker_held_now = sum(u for _, _, u in inventory)
+        shed_slack = max(0, SHED_CAP - ep.shed_total[t] - maker_held_now)
         max_units = min(
-            free,
             int(cash_slack // max(1, price)),
             shed_slack,
         )
@@ -310,6 +298,9 @@ def _glut_analysis(episodes: list[EpisodeSeries], replay_paths: list[str]) -> di
     series: dict[str, dict[str, list[float]]] = {
         p: {"max_inv": [], "min_price": [], "floor_turns": []} for p in products
     }
+    live_ids = {ep.episode_id for ep in episodes}
+    replay_paths = [p for p in replay_paths
+                    if os.path.basename(p).split("-")[1] in live_ids]
     for path in replay_paths:
         with open(path) as f:
             steps = json.load(f)["steps"]
@@ -336,11 +327,16 @@ def _glut_analysis(episodes: list[EpisodeSeries], replay_paths: list[str]) -> di
         if statistics.median(series[p]["floor_turns"]) > 0
         or statistics.median(series[p]["min_price"]) < 0.5 * MARKET_PARAMS[p]["base"]
     ]
+    if glut_products:
+        verdict = (f"GLUT-CONSTRAINED on {', '.join(glut_products)}; "
+                   f"NOT on {', '.join(p for p in products if p not in glut_products)}. "
+                   f"§6 row 13 is NOT re-closed by this measurement.")
+    else:
+        verdict = ("NOT glut-constrained on any product; "
+                   "§6 row 13 re-closed by this measurement.")
     return {
-        "verdict": (
-            "GLUT-CONSTRAINED on the premium products; NOT on WHEAT. "
-            "§6 row 13 is NOT re-closed by this measurement."
-        ),
+        "verdict": verdict,
+        "n_replays_read": len(replay_paths),
         "glut_constrained_products": glut_products,
         "per_product": per_product,
     }

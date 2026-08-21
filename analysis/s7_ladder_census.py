@@ -245,25 +245,33 @@ def leg_c(eps):
             if (r.get("id") or "").isdigit():
                 played_at[int(r["id"])] = dt.datetime.fromisoformat(r["createTime"].split(".")[0])
 
-    board = {}
-    _, latest = LB_SNAPSHOTS[-1]
-    for r in _load_lb(ROOT / "data" / "archive" / "raw" / latest):
-        board[r["team"]] = (r["rank"], r["score"],
-                            dt.datetime.fromisoformat(r["last_sub"]))
+    snapshots = []
+    raw = ROOT / "data" / "archive" / "raw"
+    for date_str, rel in LB_SNAPSHOTS:
+        snap_dt = dt.datetime.fromisoformat(date_str)
+        board = {}
+        for r in _load_lb(raw / rel):
+            board[r["team"]] = (r["rank"], r["score"],
+                                dt.datetime.fromisoformat(r["last_sub"]))
+        snapshots.append((snap_dt, board))
+
+    def _closest_board(ep_time):
+        return min(snapshots, key=lambda sb: abs((sb[0] - ep_time).total_seconds()))[1]
 
     raw_rows, ctrl_rows = [], []
     for i, e in enumerate(eps):
-        o = board.get(e["opponent"])
         t = played_at.get(e["episode_id"])
+        board = _closest_board(t) if t is not None else snapshots[-1][1]
+        o = board.get(e["opponent"])
         if not o:
             continue
         row = {"i": i, "win": e["win"], "margin": e["margin"], "opp_score": o[1], "opp_rank": o[0]}
         raw_rows.append(row)
-        # the board submission is the one that played us only if it predates the episode
         if t is not None and o[2] <= t:
             ctrl_rows.append(row)
 
-    converged_from = len(eps) // 3  # blocks past the placement burst (see leg A)
+    PLACEMENT_BURST_EPISODES = 70
+    converged_from = PLACEMENT_BURST_EPISODES
 
     def bucket(rows, edges):
         out = []

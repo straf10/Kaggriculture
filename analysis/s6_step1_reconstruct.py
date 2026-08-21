@@ -27,7 +27,7 @@ import argparse
 import json
 import statistics
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,15 +59,12 @@ def _decanon_prod(canon: str):
 
 def _team_members(team: str) -> list[dict]:
     rows = _load_inventory()
-    live = [r for r in rows if r["version"] == LIVE_ENGINE and r["clean"] and r["team"] == team]
+    live = [r for r in rows
+            if r["version"] == LIVE_ENGINE and r["clean"]
+            and r["team"] == team and r["interval"] == 24]
     if not live:
         raise SystemExit(f"no live clean traces for team {team!r}")
-    # one submission = one opening fingerprint; take the largest opening cluster (the shared line)
-    by_open = defaultdict(list)
-    for r in live:
-        by_open[r["fp_prod_open"]].append(r)
-    fp, members = max(by_open.items(), key=lambda kv: len(kv[1]))
-    return sorted(members, key=lambda m: (m["episode_id"], m["seat"]))
+    return sorted(live, key=lambda m: (m["episode_id"], m["seat"]))
 
 
 def build_reconstruction(team: str, cap: int) -> dict:
