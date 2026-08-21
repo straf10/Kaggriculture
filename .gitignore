@@ -46,73 +46,20 @@ docs/reviews/
 # never fetched (R23 / §4.5).
 /harness/bench_agents/reference/
 
-# S6-step-0 derived outputs computed by replaying the gitignored donor tapes — derived from
-# competition data, kept local (§2.4b). Leg 3 (data/derived/s6_step0_leg3.json) is from the
-# public dataset and stays tracked.
-/data/derived/s6_step0_leg1.json
-/data/derived/s6_step0_leg1_smoke.json
-/data/derived/s6_step0_leg2.json
-
-# S6-step-1 Phase 0 (donor selection) — inventories, fingerprints, agreement, calendar and the
-# reconstruction are all derived from competition action streams; kept local (§2.4b / R11).
-/data/derived/s6_step1_inventory.jsonl
-/data/derived/s6_step1_clusters.json
-/data/derived/s6_step1_agreement.json
-/data/derived/s6_step1_calendar.json
-/data/derived/s6_step1_calendar_replay.json
-/data/derived/s6_step1_replay_0-23.log
-/data/derived/s6_step1_reconstruction_*.json
-/data/derived/s6_step1_shed_*.json
-/data/derived/s6_step1_bank_*.json
-/data/derived/s6_step1_fidelity_*.json
-
-# S6-step-1b (package/gate/ship) — cluster split, R21 shop-draw summaries and gate replay dirs are
-# all derived from the competition action streams; kept local (§2.4b / R11).
-/data/derived/s6_step1b_cluster_*.json
-/data/derived/s6_step1b_gate_draw_*.json
-/data/derived/s6_step1b_gate_*/
-
-# S6 step 2a Phase 0 — per-episode own-farm loss decomposition, computed by replaying the
-# gitignored reconstruction package; derived from competition action streams, kept local (§2.4b).
-/data/derived/s6_step2a_phase0.json
-
-# S6 step 2b Phase 0 — per-episode extract of our own live public episodes (opponent names, banks,
-# realised premium $/u); derived from competition action streams (the downloaded replays under
-# data/archive/, itself gitignored), kept local (§2.4b / R11).
-/data/derived/s6_step2b_live.json
-
-# S6 step 2b Phase 0.5 — the recovered donor strawberry sell-rule (determinism across towns,
-# hour-of-day calendar, live reachability); derived from the donor + live action streams, local (§2.4b / R11).
-/data/derived/s6_step2b_phase05.json
-
-# S6 step 2c — the non-strawberry town-conditioning sweep (WOOL/MILK/WHEAT/MELON per-product
-# determinism, within-step drain split, drift ceiling); derived from the donor action streams (§2.4b / R11).
-/data/derived/s6_step2c.json
-
-# S6 step 2d (Track 2) — production-channel town-reactivity (leg A) + bank decomposition / loss
-# ledger (leg B); derived from the donor + live 55586926 action streams (§2.4b / R11).
-/data/derived/s6_step2d.json
-
-# S6 step 2e — the loss tail: per-episode decay/desync/composition analysis on 84 live ladder
-# episodes; derived from live 55586926 action streams (§2.4b / R11).
-/data/derived/s6_step2e.json
-
-# S7 leg 0 — deployment-neighbourhood census: per-episode win/opponent/composition data derived
-# from the live 55586926 replays plus two public-leaderboard snapshots (§2.4b / R11).
-/data/derived/s7_ladder_census.json
-
-# S7 Leg A (2026-08-21) — top-4 donor selection: per-candidate cross-trace agreement, town-controlled
-# premium ratios and the 2-medoid check, plus the b1 top-4 profile re-fit. All derived from the
-# competition action streams of the 39 replays under data/archive/raw/2026-08-21/ (§2.4b / R11).
-/data/derived/s7_leg_a_selection.json
-/data/derived/b1_top4_profile_*.json
-# The Phase 0 pipeline now writes date-suffixed outputs (S6_ARCHIVE_DATE); ignore every partition,
-# not only the un-suffixed 2026-08-16 one above.
-/data/derived/s6_step1_inventory*.jsonl
-/data/derived/s6_step1_clusters*.json
-/data/derived/s6_step1_agreement*.json
-/data/derived/s6_step1_calendar*.json
-
-# S7 Ship B — WHEAT market-maker impact ceiling + the all-product glut re-test; derived from the
-# 178 live 55586926 action streams under data/archive/ (§2.4b / R11).
-/data/derived/s7_ship_b_wheat_bound.json
+# data/derived/ — ALLOWLIST: everything is ignored by default (§2.4b competition-data exposure).
+# New analysis scripts do NOT need to remember to add their output here — only tracked files
+# need an explicit un-ignore entry below.
+/data/derived/**
+!/data/derived/**/
+!/data/derived/b1_top5_profile.json
+!/data/derived/b2_current_engine_meta.json
+!/data/derived/b3_target_profile.json
+!/data/derived/daily_meta-2026-08-10.json
+!/data/derived/s6_step0_leg3.json
+!/data/derived/top_agent_profiles.csv
+!/data/derived/top_agent_profiles.md
+!/data/derived/v1t_engine_probe-2026-08-14.json
+!/data/derived/v1t_engine_probe-2026-08-15.json
+!/data/derived/v1u_oracle-2026-08-15.json
+!/data/derived/v1u_travel_ratio-2026-08-15.json
+!/data/derived/v1v_shop_demand.json

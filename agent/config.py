@@ -637,7 +637,8 @@ CONFIG = {
         #     leaving the undercount in place, to tell "reserve too small" from "liability
         #     undercounted". 2 is the shipped value.
         "feed_reserve_days": 2,
-        "feed_reserve_counts_in_flight": False,
+        # arm C1: count in-flight animals in the reserved liability (6f208cd located defect)
+        "feed_reserve_counts_in_flight": True,
         "feed_reserve_horizon": "in_flight",  # "in_flight" | "target"
         # current_phase.md §v1i — the two remaining sell-ahead levers, each independently
         # switchable so the §v1i KILL clause ("try the other one alone before dropping both")

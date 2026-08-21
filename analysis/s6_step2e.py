@@ -419,9 +419,9 @@ def leg_d(data):
         "n_losses": n_loss,
         "n_flippable": flipped,
         "flipped_share_of_total": round(flipped / n_total, 4) if n_total else 0,
-        "rating_upper_bound_pts": round(flipped / n_total * 100, 1) if n_total else 0,
-        "note": ("upper bound: assumes every recovered dollar converts to a win; "
-                 "stated beside $597/ep mean, not replacing it"),
+        "win_rate_delta_pct": round(flipped / n_total * 100, 1) if n_total else 0,
+        "note": ("upper bound on win-rate percentage-point delta: assumes every recovered dollar "
+                 "converts to a win; stated beside $597/ep mean, not replacing it"),
         "closest_losses": details[:10],
     }
 
@@ -445,7 +445,7 @@ def _verdict(a, b, c, d):
                    f"Likely perfect collinearity or constant input. "
                    f"The tail is UNRESOLVED — do not close any programme on this measurement.")
         return (f"BRANCH {branch}. {reading} "
-                f"Episodes flippable by full recovery: {n_flip}/{n_total} (upper bound, +{d['rating_upper_bound_pts']:.1f} pts). "
+                f"Episodes flippable by full recovery: {n_flip}/{n_total} (upper bound, +{d['win_rate_delta_pct']:.1f} pts). "
                 f"No agent/ change, no episode, no upload (R27).")
 
     if uniform and abs(r_drain) > 0.4 and abs(partial_desync) < 0.15:
@@ -482,7 +482,7 @@ def _verdict(a, b, c, d):
                    f"A third owner (opponent, seat, unmeasured counter) likely.")
 
     return (f"BRANCH {branch}. {reading} "
-            f"Episodes flippable by full recovery: {n_flip}/{n_total} (upper bound, +{d['rating_upper_bound_pts']:.1f} pts). "
+            f"Episodes flippable by full recovery: {n_flip}/{n_total} (upper bound, +{d['win_rate_delta_pct']:.1f} pts). "
             f"No agent/ change, no episode, no upload (R27).")
 
 
@@ -592,7 +592,7 @@ def _print(rec):
     print(f"  losses: {d['n_losses']} of {d['n_total']}")
     print(f"  flippable by full recovery: {d['n_flippable']}/{d['n_total']} "
           f"({d['flipped_share_of_total']:.1%})")
-    print(f"  rating upper bound: ~{d['rating_upper_bound_pts']:.1f} pts")
+    print(f"  rating upper bound: ~{d['win_rate_delta_pct']:.1f} pts")
     print(f"  closest losses (margin vs cost):")
     for cl in d["closest_losses"][:5]:
         print(f"    ep {cl['episode_id']}: margin ${cl['margin']:+,} vs cost ${cl['decay_cost']:,.0f} "

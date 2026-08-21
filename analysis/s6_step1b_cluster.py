@@ -62,7 +62,7 @@ def _pairwise_market_distance(streams: list[list[str]]) -> np.ndarray:
     return D
 
 
-def _best_2_medoid(D: np.ndarray) -> tuple[list[int], np.ndarray]:
+def _best_2_medoid(D: np.ndarray) -> tuple[tuple[int, int], np.ndarray]:
     """Exhaustive 2-medoid: pick the medoid pair minimising total assignment cost."""
     n = D.shape[0]
     best_cost, best = float("inf"), None

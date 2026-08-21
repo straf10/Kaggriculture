@@ -221,7 +221,14 @@ def _reload_streams(episode_id: int, seat: int) -> tuple[list, list, list]:
 
 
 def _premium_sold_at(market_canon: str) -> bool:
-    return any(p in market_canon for p in PREMIUM) and "SELL" in market_canon
+    try:
+        orders = json.loads(market_canon)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(orders, list):
+        return False
+    return any(o[0] == "SELL" and o[1] in PREMIUM
+               for o in orders if isinstance(o, list) and len(o) >= 2)
 
 
 def _agreement_for_traces(traces: list[tuple[list, list]]) -> dict:

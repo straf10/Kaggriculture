@@ -126,12 +126,21 @@ def bradley_terry(rows, *, iterations: int = 10_000, tol: float = 1e-10,
     return strength
 
 
-def to_elo(strength: dict, *, anchor: float = 1500.0, scale: float = 400.0) -> dict:
-    """Strengths → an Elo-like scale: `scale` points per 10× strength, mean at `anchor`."""
+def to_elo(strength: dict, *, anchor: float = 1500.0, scale: float = 400.0,
+           anchor_agent: str | None = "starter") -> dict:
+    """Strengths → an Elo-like scale: `scale` points per 10× strength, anchored at `anchor`.
+
+    When `anchor_agent` names an agent present in `strength`, that agent is pinned to `anchor`
+    so ratings are comparable across runs with different bench compositions. Falls back to
+    mean-anchoring when the agent is absent.
+    """
     if not strength:
         return {}
     raw = {a: scale * math.log10(max(s, 1e-300)) for a, s in strength.items()}
-    shift = anchor - statistics.fmean(raw.values())
+    if anchor_agent and anchor_agent in raw:
+        shift = anchor - raw[anchor_agent]
+    else:
+        shift = anchor - statistics.fmean(raw.values())
     return {a: v + shift for a, v in raw.items()}
 
 
@@ -148,13 +157,14 @@ def _read_town(replay_path) -> list:
 def duel(name_a, agent_a, name_b, agent_b, seeds, *, steps=None,
          shop_draw: bool = False, run_dir=None, towns: list | None = None) -> Duel:
     """Seat-swapped series. `agent_a` plays every seed from BOTH seats (§2.1.1)."""
+    duel_dir = (Path(run_dir) / f"{name_a}_vs_{name_b}") if run_dir is not None else None
     out = Duel(agent_a=name_a, agent_b=name_b, seeds=tuple(seeds))
     for seed in seeds:
         for seat_a in (0, 1):
             pair = (agent_a, agent_b) if seat_a == 0 else (agent_b, agent_a)
             result = play(*pair, seed=seed, steps=steps,
                           record=shop_draw, metrics=False, strict=False,
-                          run_dir=run_dir)
+                          run_dir=duel_dir)
             if not result.clean or any(r is None for r in result.rewards):
                 out.errors += 1
                 continue

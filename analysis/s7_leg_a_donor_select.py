@@ -82,7 +82,8 @@ def _pairwise_market_distance(streams: list[list[str]]) -> np.ndarray:
     return D
 
 
-def _best_2_medoid(D: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
+def _best_2_medoid(D: np.ndarray) -> tuple[tuple[int, int], np.ndarray]:
+    """Exhaustive 2-medoid: pick the medoid pair minimising total assignment cost."""
     n = D.shape[0]
     best_cost, best = float("inf"), None
     for m0, m1 in combinations(range(n), 2):
@@ -90,7 +91,7 @@ def _best_2_medoid(D: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
         cost = sum(D[i, (m1 if labels[i] else m0)] for i in range(n))
         if cost < best_cost:
             best_cost, best = cost, (labels.copy(), (m0, m1))
-    return best[0], best[1]
+    return best[1], best[0]
 
 
 def _silhouette(D: np.ndarray, labels: np.ndarray) -> float:
@@ -183,7 +184,7 @@ def cmd_select(args) -> int:
         T = min(len(s) for s in market_streams)
         market_streams = [s[:T] for s in market_streams]
         D = _pairwise_market_distance(market_streams)
-        labels, medoids = _best_2_medoid(D)
+        medoids, labels = _best_2_medoid(D)
         sil = _silhouette(D, labels)
         sizes = (int((labels == 0).sum()), int((labels == 1).sum()))
         dom_frac = max(sizes) / n

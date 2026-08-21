@@ -42,7 +42,7 @@ class TapeOverlay:
                  liquidate_step: int = 690,
                  overlay_products=(_PRODUCT,),
                  floor_override: dict | None = None,
-                 mode: str = "replace",
+                 mode: str = "augment",
                  pull_forward_before_step: int = 336):
         self.stream = stream
         self.n = len(stream)

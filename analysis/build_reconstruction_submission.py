@@ -39,7 +39,7 @@ DERIVED = ROOT / "data" / "derived"
 
 
 def _sha256(stream: list) -> str:
-    return hashlib.sha256(json.dumps(stream, sort_keys=True).encode("utf-8")).hexdigest()
+    return hashlib.sha256(json.dumps(stream, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def _assert_gitignored(path: Path) -> None:
@@ -134,8 +134,8 @@ def build(team: str, package: bool) -> Path:
     cluster_verdict = cluster_data["verdict"]
 
     stream_json = json.dumps(stream, separators=(",", ":"))
-    if '"""' in stream_json:
-        raise SystemExit("stream JSON contains a triple-quote; cannot embed safely")
+    if '"""' in stream_json or stream_json.endswith("\\"):
+        raise SystemExit("stream JSON contains a triple-quote or ends with backslash; cannot embed safely in raw string")
 
     out_dir = (ROOT / "baselines" / date.today().isoformat() / "tape_submissions"
                / f"reconstruction_{team}")

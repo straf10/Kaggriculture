@@ -73,6 +73,9 @@ def build_reconstruction(team: str, cap: int) -> dict:
     prod_streams = [t[0] for t in traces]
     market_streams = [t[1] for t in traces]
     T = min(len(p) for p in prod_streams)
+    if any(len(m) < T for m in market_streams):
+        raise ValueError(f"market stream shorter than prod minimum {T}: "
+                         f"{[len(m) for m in market_streams]}")
     n = len(traces)
 
     stream = []
@@ -105,7 +108,7 @@ def build_reconstruction(team: str, cap: int) -> dict:
     return out
 
 
-def _run_shed_curve(agent_a, agent_b, seed: int, focal_seat: int) -> list[int]:
+def _run_shed_curve(agent_a, agent_b, seed: int, focal_seat: int) -> tuple[list[int], float, dict]:
     env = make("kaggriculture", configuration={"seed": seed})
     env.run([agent_a, agent_b])
     ej = env.toJSON()
@@ -161,8 +164,9 @@ def cmd_fidelity(args) -> int:
         err = abs(rep_bank - rec_bank) / abs(rec_bank) if rec_bank else None
         errs.append(err)
         banks.append(rep_bank)
+        err_str = f"{err:.2%}" if err is not None else "N/A (rec_bank=0)"
         print(f"  ep {m['episode_id']} s{donor_seat}: recon=${rep_bank:>10,.0f}  "
-              f"recorded=${rec_bank:>10,.0f}  err={err:.2%}  clean={res.clean}")
+              f"recorded=${rec_bank:>10,.0f}  err={err_str}  clean={res.clean}")
     valid_errs = [e for e in errs if e is not None]
     med = statistics.median(valid_errs)
     med_bank = statistics.median(banks)

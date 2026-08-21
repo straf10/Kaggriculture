@@ -239,11 +239,19 @@ def leg_c(eps):
     if not EP_CSV.exists():
         raise SystemExit(f"episode listing missing: {EP_CSV} "
                          f"(`kaggle competitions episodes 55586926 -v`, §2.4b)")
+    def _to_naive_utc(s: str) -> dt.datetime:
+        """Parse an ISO timestamp to a naive-UTC datetime, stripping fractional seconds and tzinfo."""
+        s = s.split(".")[0].rstrip("Z")
+        d = dt.datetime.fromisoformat(s)
+        if d.tzinfo is not None:
+            d = d.astimezone(dt.timezone.utc).replace(tzinfo=None)
+        return d
+
     played_at = {}
     with open(EP_CSV, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
             if (r.get("id") or "").isdigit():
-                played_at[int(r["id"])] = dt.datetime.fromisoformat(r["createTime"].split(".")[0])
+                played_at[int(r["id"])] = _to_naive_utc(r["createTime"])
 
     snapshots = []
     raw = ROOT / "data" / "archive" / "raw"
@@ -252,7 +260,7 @@ def leg_c(eps):
         board = {}
         for r in _load_lb(raw / rel):
             board[r["team"]] = (r["rank"], r["score"],
-                                dt.datetime.fromisoformat(r["last_sub"]))
+                                _to_naive_utc(r["last_sub"]))
         snapshots.append((snap_dt, board))
 
     def _closest_board(ep_time):

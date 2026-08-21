@@ -86,7 +86,10 @@ def _load_episode(path: str) -> EpisodeSeries:
             priv_same += 1
     is_mirror = priv_same > 500  # crude classifier; verified over the archive
     final_obs = steps[-1][0]["observation"]
-    ep_id = os.path.basename(path).split("-")[1]
+    parts = os.path.basename(path).split("-")
+    if len(parts) < 2:
+        raise ValueError(f"unexpected replay filename format (no '-'): {path}")
+    ep_id = parts[1]
     return EpisodeSeries(
         episode_id=ep_id,
         is_mirror=is_mirror,

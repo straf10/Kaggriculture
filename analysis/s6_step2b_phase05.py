@@ -225,6 +225,10 @@ def live() -> dict:
         d = load(f)
         steps = d["steps"]; cfg = d.get("configuration", {})
         teams = d.get("info", {}).get("TeamNames", [None, None])
+        if "STRAF" not in teams:
+            raise ValueError(f"replay {f}: neither team is STRAF ({teams})")
+        if teams[0] == "STRAF" and teams[1] == "STRAF":
+            continue
         our_seat = 1 if (teams[1] == "STRAF" and teams[0] != "STRAF") else 0
         for i in range(1, len(steps)):
             total_transitions += 1

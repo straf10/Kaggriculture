@@ -110,6 +110,13 @@ def test_vendored_constants_and_prices_match_pinned_engine():
     assert _vendored.LAND_ORDER == engine.LAND_ORDER
     assert _vendored.LAND_PRICES == engine.LAND_PRICES
     assert _vendored.SHOPS == engine.SHOPS
+    # M7: analysis/ scripts carry their own SHOPS copies — verify they match the engine too
+    from analysis.s7_ladder_census import SHOPS as census_SHOPS
+    from analysis.s6_step2e import SHOPS as step2e_SHOPS
+    from analysis.v1v_shop_demand import SHOPS as v1v_SHOPS
+    assert census_SHOPS == engine.SHOPS, "s7_ladder_census.SHOPS drifted from engine"
+    assert step2e_SHOPS == engine.SHOPS, "s6_step2e.SHOPS drifted from engine"
+    assert v1v_SHOPS == engine.SHOPS, "v1v_shop_demand.SHOPS drifted from engine"
     # v1g.2 — the demand model reads TOWN_CENTER_PRODUCTS, so the fallback's derivation of it
     # (from MARKET_PARAMS, minus FERTILIZER) has to stay identical to the engine's own.
     assert _vendored.PRODUCTS == engine.PRODUCTS
@@ -895,10 +902,11 @@ def test_v1r_feed_reserve_counts_in_flight_animals():
     snapshot = _in_flight_animal_snapshot(money=500, shed_cow=3)
     plan = DayPlan(hands_target=2, animal_purchases={"COW": 10})
 
-    assert _buy_cow(snapshot, plan) == 1  # shipped undercount buys the 4th COW
+    assert _buy_cow(snapshot, plan) == 0  # arm C1 default: counts in-flight, blocks the 4th COW
     assert _buy_cow(snapshot, plan, feed_reserve_counts_in_flight=True) == 0  # C1
     assert _buy_cow(snapshot, plan, feed_reserve_horizon="target") == 0  # C2
-    assert _buy_cow(snapshot, plan, feed_reserve_days=3) == 1  # X does not fix the undercount
+    assert _buy_cow(snapshot, plan, feed_reserve_counts_in_flight=False,
+                    feed_reserve_days=3) == 1  # X alone does not fix the undercount
 
 
 def test_v1r_c2_reserves_for_the_full_target_herd_not_just_in_flight():
@@ -917,12 +925,10 @@ def test_v1r_c2_reserves_for_the_full_target_herd_not_just_in_flight():
 
 
 def test_v1r_feed_reserve_defaults_are_inert():
-    """The three feed_reserve_* keys ship at values that reproduce the pre-v1r behaviour exactly:
-    days 2, count-in-flight off, horizon by-what's-in-flight. A checkpoint built at the defaults
-    must be behaviour-identical to the shipped agent (confirmed live: mean_diff 0.0 vs
-    checkpoints/v1q_base). Pin the defaults so a later edit can't flip one silently."""
+    """Pin feed_reserve defaults so a later edit can't flip one silently.
+    arm C1 (counts_in_flight=True) adopted as the minimum correct liability count (M6)."""
     assert CONFIG["executor"]["feed_reserve_days"] == 2
-    assert CONFIG["executor"]["feed_reserve_counts_in_flight"] is False
+    assert CONFIG["executor"]["feed_reserve_counts_in_flight"] is True
     assert CONFIG["executor"]["feed_reserve_horizon"] == "in_flight"
 
 

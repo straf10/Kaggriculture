@@ -286,7 +286,7 @@ def _build_animal_tasks(
     bundle_enabled = bool(scheduler_config.get("bundle_animal_visits", False))
     bundle_priority = int(scheduler_config.get("bundle_priority", 0))
     bundle_yields_to_feed_round = bool(
-        scheduler_config.get("bundle_yields_to_feed_round", True)
+        scheduler_config.get("bundle_yields_to_feed_round", False)
     )
     spawn = SHED_ACCESS[0]
     structure_tiles = config["scheduler"].get("animal_structure_tiles", {})

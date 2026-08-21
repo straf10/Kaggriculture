@@ -215,6 +215,9 @@ def _herd_ramp_cap(ramp, day: int, targets: dict) -> int | None:
     """
     if not ramp:
         return None
+    thresholds = [r[0] for r in ramp]
+    if thresholds != sorted(thresholds):
+        raise ValueError(f"_herd_ramp_cap: rungs must be sorted ascending by day, got {thresholds}")
     for day_threshold, cap in ramp:
         if day <= int(day_threshold):
             return int(cap)
