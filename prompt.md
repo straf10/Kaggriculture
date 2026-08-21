@@ -72,6 +72,9 @@ Ship A, and hand both slots to §7.2 (Ship B). That is a real outcome, not a fai
 - **SMOKE 0-11 → DEV 0-47 → unpinned holdout 100-147**, both seats. A route-only package has no
   `agent/` mechanism accounting, so a formal `GO=True` is structurally unreachable — say so, and
   report the *differenced* priced loss instead, as step 1b did.
+- **Ride-along, free (ROADMAP §11):** while the top-4 traces are in hand, re-run
+  `analysis/b1_top5_profile.py` against the refreshed archive. §5.1's profile was fitted before the
+  top-5 turned over twice, and this is the same data pull.
 - **§9 checklist before upload**, including the **new two-filename archive-hash check**.
 - **Upload.** Eviction is pre-decided and needs no re-upload: it drops **`55575305` (Ueddy tape)**
   and keeps `55586926`. Record the eviction in the description.

@@ -382,6 +382,8 @@ cheapest external check this repo ever failed to run.
   and the ladder is the only instrument that can settle it.
 - **Kill:** if **no** top-4 team clears 3 traces of one submission (the カワシギ problem — agreement
   0,31, town-adaptive, unreconstructible), say so and go straight to 7.2 with both slots.
+- **Ride-along (§11):** the same trace pull re-fits §5.1's top-N profile — run
+  `analysis/b1_top5_profile.py` against the refreshed archive while the data is in hand.
 - **Gate before upload:** §9's checklist, including the new two-filename archive-hash check.
 - **Eviction:** drops the Ueddy tape, keeps `55586926`. Already decided.
 
@@ -400,6 +402,9 @@ has never been looked at.
 - **Bound (iv) on paper first** (§3): from the recorded route's own idle capital and shed headroom,
   what is the maximum it could earn firing perfectly on every opportunity? If that is under ~+50
   rating points, build only (i) and ship.
+- **Ride-along (§11):** that same computation answers whether this route is **ever**
+  glut-constrained, which is the untested half of §6 row 13. Report it and either revive the
+  sell-floor lever or re-close the row at 1.316 tile-days on 1.32.7.
 - **Gate:** §3.1(4) order, against §8's bench, both seats.
 - **The purpose of this slot is differentiation**, not maximum expected score: two open-loop tapes is
   the exact pattern §9 warns kills both on a meta shift.
@@ -519,16 +524,16 @@ Auth: `KAGGLE_API_TOKEN` in `.env`; the CLI lives in `.venv/`, not on `PATH`. Pa
 
 ---
 
-## 11. Open items
+## 11. Open items — and where each one runs
 
-The only carried-forward actions with live obligations. Everything else on the old follow-up list is
-either done, folded into §3.1 as a protocol rule, or housekeeping recorded in git.
+Carried-forward actions. **None of them gets its own pass**: two ride along inside a pass that
+already touches the same data, and the third is closed below.
 
-| Item | Action | Why it is still open |
+| Item | Scheduled | Why there, and what it costs |
 |---|---|---|
-| **Top-5 profile is stale** | Re-run [analysis/b1_top5_profile.py](analysis/b1_top5_profile.py) against the refreshed archive. | The top-5 has turned over **completely, twice** since the profile in §5.1 was fitted (カワシギ #1 → #5; Ryo Hasegawa, tetsuya, Arman Tuganbaev and Crop Dusta are all new). §7.1 selects a donor from exactly that set, so this feeds the next pass |
-| **§6 row 13 is engine-stale and production-stale** | Re-test the `shop-adaptive sell floor` STOP against `v1u_base`. | It failed at **415** crop tile-days as *"production-constrained, never glut-constrained"* — true then, and possibly false at the tape's ~1.316. Also measured on 1.32.6. Relevant to §7.2's component (ii)/(iv) |
-| **Untracked collector chain** | Decide whether `data/archive/*.py` (`scrape.py` / `repack.py` / `teams.py` / `features.py`) should be tracked. | `data/archive/` is gitignored wholesale, so the whole episode-collection chain — including two bug fixes — is version-controlled nowhere |
+| **The §5.1 top-N profile is stale** — re-run [analysis/b1_top5_profile.py](analysis/b1_top5_profile.py) against the refreshed archive | 🟢 **inside §7.1 Phase 0** (Ship A) | The top-5 has turned over **completely, twice** since §5.1 was fitted (カワシギ #1 → #5; Ryo Hasegawa, tetsuya, Arman Tuganbaev, Crop Dusta are all new). Ship A's Phase 0 already pulls traces for exactly those teams, so the profile re-fit is **the same data pull** — marginal cost ≈ 0, and it refreshes the one table the whole plan aims at |
+| **§6 row 13 is engine-stale *and* production-stale** — re-test the `shop-adaptive sell floor` STOP | 🟢 **inside §7.2's paper-bounding step** (Ship B) | It failed at **415** crop tile-days as *"production-constrained, never glut-constrained"* — true then, plausibly false at the tape's **~1.316**, and measured on 1.32.6. Ship B must already bound the WHEAT market maker against the route's idle capital and shed headroom; *"is this route ever glut-constrained?"* is the **same computation on the same route**. It either revives a lever or re-closes the row honestly |
+| ~~**Untracked collector chain**~~ | ⛔ **CLOSED as obsolete, 2026-08-20** | The item asked whether `data/archive/*.py` should be tracked. **They no longer exist on disk.** `scrape.py` / `repack.py` / `teams.py` / `features.py` were tracked once (`a4783c8`), removed from the index when `data/archive/` was gitignored wholesale, and are now gone from the working tree — so the two bug fixes made to the untracked copies are **lost**, and only the pre-fix version is recoverable from git. ⚠️ **This does not need rebuilding:** every input the plan uses now comes from the official daily episode datasets, `kaggle competitions replay`, `episodes -v` and `leaderboard -d` (§9), which is how the 178 live replays and both leaderboard snapshots were obtained |
 
 ---
 
