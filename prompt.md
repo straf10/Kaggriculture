@@ -1,99 +1,94 @@
-# Pass brief — S7 legs 1-2: score our own assets against real ladder opponents, in wins
+# Pass brief — Ship A: re-donor to a top-4 route, and upload it
 
-> **Read first:** `baselines/2026-08-20/s7_leg0_report.md` (the census this pass continues) and the
-> 178-episode addendum to `s6_step2e_report.md`; [ROADMAP.md](ROADMAP.md) **§1.1** (how to read a
-> ladder number — the three corrections this pass operates under), **§2.1.4** (the amended
-> acceptance order — *this is the pass that first uses it*), **§4.5(c)** (Kaito v36: the selection
-> key, the three surfaces, and the state-aliasing refutation), **§4.3 S6 step 2** (the bench, now
-> with **A4**), **§4.3 S7**, **§4.3 S6 step 3** (`harness/ladder.py`, and **R33** — the
-> reconstruction's BT rung is still a blank), §3.3's step 2a/2c/2d/2e rows, §2.1.1-5, R21/R27/R32/R35,
-> and the top of [memory.md](memory.md).
+> **Read first:** [ROADMAP.md](ROADMAP.md) **§7.1** (this pass), **§1.1** (why re-donoring is the bet),
+> **§2** (how to read the ladder — nothing in this pass judges a score before 100 episodes),
+> **§3** (the two new standing rules: price the *programme*, and **a pass ends in an upload**),
+> **§3.1** (protocol; note the amended acceptance order), **§6 rows 23-27** (why the previous
+> programme is closed), **§9** (the checklist and the slot policy). Then the top of
+> [memory.md](memory.md).
 
-## Where we are
+## Why this pass exists
 
-Six passes closed the question *"what did the majority vote erase?"* — market layer town-invariant
-(2c), production residual town-reactive but worth **$597/ep ⇒ +6,2 rating points** (2d/2e), loss
-tail owned by the town's shop draw (2e). The vote is a **faithful open-loop copy**.
+Seven consecutive desk passes ran 2026-08-17 → 08-20 with **zero uploads**, closing a programme
+whose ceiling was **+2,4 rating points** against a **1.036-point** gap — a bound that was computed in
+the first of those passes. That is now a standing rule (§3), and this brief is the first pass under
+it: **it ends with a submission on the ladder.**
 
-S7 leg 0 then removed the three remaining ways to explain the gap away:
-
-| escape hatch | measured verdict |
-|---|---|
-| "our rating is deflating, the donor's isn't" | both deflate; **band-local** rates; our rank *rose* while our score fell |
-| "we're underrated — 65% win rate says so" | 65% was the **placement burst**; converged and controlled it is **43,4%** |
-| "the copy is lossy" | closed channel-by-channel by 2c/2d/2e |
-
-**So: our reconstruction is a rank-924 agent (1.879,9) copied faithfully from a rank-9 agent
-(ReCurSiON, 2.915,8), and it wins 41% against 1.800-2.100 opponents and 38% against 2.100+.**
+The bet is §7.1. Our reconstruction is a **faithful** copy — market layer, production layer and loss
+tail all closed — of a route that is now **#9 / 2.915,8**. It plays at **#924 / 1.879,9** and wins
+**38%** against 2.100+ opponents. The standing rule says **a copied route's ceiling is its donor's
+own rating**, and we pointed the instrument at a #9. The instrument is built and works
+(`analysis/s6_step1_reconstruct.py`, `analysis/build_reconstruction_submission.py`,
+`analysis/s6_step1b_cluster.py`).
 
 ## The one question
 
-> **Where, against a real ladder opponent, does our route actually lose — and does any bench we can
-> build locally reproduce that loss?** Every gate in this repo has scored arms against our own
-> lineage, `meta_route`, six reference tiers and three donor tapes. **None of those is an opponent
-> we have ever lost to on the ladder.** We now hold 178 replays containing both seats' full action
-> streams for **165 distinct opponent teams** in exactly the band where we lose.
+> **Which currently top-4 team is reconstructible, and does its reconstruction clear the gate?**
+> Not "is a better donor better" — that is the standing rule. The open question is purely whether a
+> top-4 route survives the same instrument that reproduced ReCurSiON at production 0,993 / market
+> 0,980.
 
-## Legs
+## Phase 0 — donor selection. Time-boxed: half a pass, hard stop.
 
-**Leg 1 — build the deployment-neighbourhood bench (no episodes to acquire; extraction only).**
-Extract opponent action streams from the held live replays the way `analysis/donor_streams.py`
-extracts the three donor tapes, and register them as fixed-production bench opponents. Requirements:
+Candidates from the 2026-08-20 board: **Ryo Hasegawa 3.147,0 · tetsuya 3.095,3 · Arman Tuganbaev
+3.053,1 · Crop Dusta 3.017,2**. カワシギ (#5, 2.988,3) is on the list only to re-confirm its known
+agreement 0,31.
 
-- **Stratify by the *controlled* opponent score** (§1.1 / R36's replacement: the team's board
-  submission must predate our episode). Report the strata sizes; the two that matter are
-  **1.800-2.100** and **2.100+**.
-- Keep **provenance** per opponent: `(episode_id, seat, team, sha256)`, held **gitignored** (§2.4b).
-- **Verify each stream replays**: a tape that desyncs into a no-op parade is not an opponent. Reuse
-  `analysis/s2_replay_fidelity.py`'s check and state a retention figure, as S2 did for the donors.
-- ⚠️ **Expect attrition and report it honestly.** Many neighbourhood opponents will themselves be
-  open-loop tapes that desync against *us*. An opponent that cannot hold its own route is a weak
-  sparring partner, and the count of usable ones is a result, not an inconvenience.
+Per candidate, from the held daily episode datasets and any needed pulls:
 
-**Leg 2 — re-score every asset we already hold, in the amended currency.** Round-robin
-Bradley-Terry (`python -m harness.cli ladder --round-robin`, both seats, `--town-pin basket`) over:
-the shipped reconstruction · the Valmorlee and Ueddy tapes · `v1h` / `v1i` / `v1o_2` / `v1u_base` ·
-reference tiers 0-5 · `meta_route` · leg 1's live opponents. **This closes R33.** Report, in this
-order (§2.1.4): **per-opponent W/L per seat → BT rating → `median_bank` → `mean_diff`**, then the
-§4.5(c) selection key — *worst panel → worst seat → overall wins → tail log-ratio → margin*.
+1. **Trace inventory.** How many public traces of **one** submission exist, dated after that team's
+   `LastSubmissionDate`? **≥3 required** (ReCurSiON had 50 — do not assume that is available).
+2. **Cross-trace agreement**, production and market channels separately, the step-1 instrument
+   unchanged. **Report both figures against ReCurSiON's 0,993 / 0,980.**
+3. **The 2-medoid check** (`s6_step1b_cluster.py`): is this one policy mode or a two-submission
+   population? `two_submissions == False` is required, and the minority share is reported.
+   ⚠️ **"Same submission" is tested on the market/full stream, never on the opening.** The 48-step
+   opening is byte-identical across **1.219 of 1.398** live seats (87%) — it discriminates nothing,
+   and the original Phase 0 provenance check was written against it.
+4. **Rank candidates by the town-controlled ratio**, never by median reward — reward is 99% the
+   town's shop draw (§5.2), and that error already put ReCurSiON nowhere on a first shortlist (§3).
 
-**R21 binds hard here.** A small seed set is biased in its shop draw (48% wool-dead on seeds 0-3
-against a 34% population rate), and §1.3 of leg 0's report shows the draw moves bank by 2,1× while
-moving no wins — so **report the realised drain distribution beside the dollars**, and read the W/L
-rows, not the bank rows, when they disagree.
+⚠️ **Do not rank by, or report, the candidates' local bank.** §3.1(4): the acceptance currency is
+wins. Bank is a diagnostic here and nothing more.
 
-## Kills / branches, pre-registered
+**Pre-registered "ship anyway" (this is the point of the time box):** if the best candidate's
+agreement is materially below ReCurSiON's, **still ship the highest-agreement donor above 2.900**,
+recording the agreement figure in the submission description. A #4 route reconstructed at 0,95 is a
+better bet than a #9 route reconstructed at 0,99, and **only the ladder can settle which** — that is
+this pass's whole thesis. Do not spend a second pass improving the reconstruction instead.
 
-- **(i) The bench reproduces the ladder ordering** — the reconstruction beats tiers 0-5 and the
-  tapes but loses to the 2.100+ stratum, at roughly the live rates (38-41%) ⇒ **we finally have an
-  instrument.** Proceed to leg 3 (the one bounded build) with the specific losing matchups named.
-- **(ii) The reconstruction sweeps the 2.100+ stratum locally while losing to it live** ⇒ **the
-  bench is still not the ladder and S7's premise is wrong.** Say so and stop. Do not tune against a
-  bench that does not transfer — that is precisely what §4.3 S6 step 3(ii) caught on our own lineage
-  (local BT ranked v1i above v1h; the ladder ordered them the opposite way).
-- **(iii) Too few live opponents survive the replay check to form a stratum** ⇒ report the retention
-  figure and fall back to A1+A2 with the limitation stated. **Do not pad the bench with our own
-  lineage and call it a neighbourhood.**
-- **(iv) The BT ordering and the per-opponent W/L ordering disagree** ⇒ that is the finding (it
-  already happened once: v1h out-margins v1i and under-rates it). Report both and let the selection
-  key arbitrate; do not collapse them into one number.
+**Kill:** if **no** candidate above 2.900 clears 3 traces of one submission, say so plainly, stop
+Ship A, and hand both slots to §7.2 (Ship B). That is a real outcome, not a failure.
 
-## Out of scope
+## Phase 1 — reconstruct, gate, upload
 
-- **Leg 3 (any build), including §4.5(c)'s WHEAT market maker.** It is gated on leg 2 and it must be
-  surface-area-bounded on paper first (§3.4). This pass ends with a measurement and a named target.
-- **Any upload (R27)**, so the eviction is not raised — though it is pre-decided: the next upload
-  drops the **Ueddy tape** (older by date) and keeps the reconstruction.
-- **Re-opening the "what did the vote erase" family** ⛔ closed across every channel and both
-  currencies · **market-layer overlay** ⛔ (2c) · **step 2a's wheat repair** ⛔ on the shelf ·
-  **C-A** ⛔ refuted · **a learned continuation rule from replays** ⛔ — §4.5(c) measured that one
-  post-freeze and deleted it from their own artifact.
+- **Reconstruct** with the existing instrument. Record the stream sha256, step count, and the
+  per-decision modal-vote statistics, exactly as `55586926`'s description does.
+- **Gate against the incumbent** (`55586926`, the current reconstruction), in the **§3.1(4) order**:
+  **per-opponent W/L per seat first**, then BT over §8's bench (A1 + A2 + A3 + `meta_route`), then
+  `median_bank`, then `mean_diff`. Report each opponent as its own row. Apply §3.1(5)'s selection
+  key if panels disagree. Report the seed set's **realised drain distribution** beside the dollars
+  (§8's closing warning — a few seeds can be one town).
+- **SMOKE 0-11 → DEV 0-47 → unpinned holdout 100-147**, both seats. A route-only package has no
+  `agent/` mechanism accounting, so a formal `GO=True` is structurally unreachable — say so, and
+  report the *differenced* priced loss instead, as step 1b did.
+- **§9 checklist before upload**, including the **new two-filename archive-hash check**.
+- **Upload.** Eviction is pre-decided and needs no re-upload: it drops **`55575305` (Ueddy tape)**
+  and keeps `55586926`. Record the eviction in the description.
+
+## What this pass does NOT do
+
+- **Judge the new submission.** §2 rule 2: nothing is read before ~100 episodes, and the first ~70
+  are the placement burst. The pass ends at the upload; the read is a later, separate step.
+- **Build Ship B.** It is the *next* pass and the *other* slot (§7.2).
+- **Build the deployment-neighbourhood bench** (§7.3) — it is deliberately after both ships.
+- **Re-open** the "what did the vote erase" family ⛔ · the market-layer overlay ⛔ · C-A ⛔ · a
+  learned continuation rule from replays ⛔ (§5.3(c) measured that one post-freeze and deleted it).
 
 ## Standing conditions
 
-**No `agent/` change.** Episodes may be *played locally* by the harness for leg 2 (that is what a BT
-round-robin is); **no episodes are played on Kaggle and nothing is uploaded.** Routes, packages,
-replays and derived data stay **gitignored** (§2.4b / R11) and carry the **verdict string** (R35).
-R32: price every counter you report; list unpriced structural counters as "unpriced". Competitor
-notebook source untouched (§2 item 8). Report to `baselines/<date>/`, `memory.md` entry, commit with
-no co-author.
+`agent/` may be touched only if the package needs it (the reconstruction ships self-contained; prefer
+that). Local episodes are played for the gate; **the only Kaggle-side action is the single upload.**
+Routes, packages, replays and derived data stay **gitignored** (§3.2) and carry the **verdict
+string**. Guards in `tests/`. Report to `baselines/<date>/`, session entry to `memory.md`,
+**ROADMAP only if a plan, gate or standing rule changes** (its header block states this). Commit with no co-author.

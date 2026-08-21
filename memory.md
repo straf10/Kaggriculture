@@ -61,14 +61,44 @@ bank» (r=−0,029), **όχι** «uniform» (το raw range άνοιξε 12-15�
   backbone + 4 φραγμένα closed-loop components, εκ των οποίων το **WHEAT market maker** δεν το έχουμε
   εξετάσει ΠΟΤΕ. ⚠️ Το live score τους (1.542,7 / #1.489) είναι restart από 600 — μη το διαβάσεις.
 
-### Τι άλλαξε στο ROADMAP
-**§1** νέες γραμμές 08-20 + προειδοποίηση deflation· **§1.1 ΝΕΟ** («How to read a ladder number» — το
-μοντέλο + οι 3 διορθώσεις + το τίμημα του re-roll: Ueddy −970/−779, Peter Parker −365/−345, Kaito
-−1.217/−1.426)· **§2.1.4 ΑΛΛΑΖΕΙ ΣΕΙΡΑ**: per-opponent W/L → Bradley-Terry → `median_bank` → `mean_diff`·
-**§3.3** +2 γραμμές (2e, S7 leg 0)· **§3.4** +2 standing lessons· **§4.3** ενότητες 2e + **S7 (NEXT)**·
-**§4.4#1** ξεχωρίζει deflation από skill-decay· **§4.5(c)/(d)** οι δύο πηγές· **§4.3 S6 step 2 bench** +A4
-(deployment neighbourhood)· **§6bis** endgame policy (5 κανόνες)· **§7** νέο state· **R36 ✅ DISCHARGED**·
-Appendix A +1 γραμμή.
+### 🔴 Το ROADMAP ξαναγράφτηκε: 2.906 → 544 γραμμές (απόφαση user, ίδιο session)
+**Η κριτική του user, και είναι σωστή:** το ROADMAP είχε γίνει δεύτερο memory.md — narrative ανά pass,
+superseded γραμμές «κρατημένες για το σκεπτικό τους», §7 σε μορφή ημερολογίου. Νέα δομή, **μόνο
+τεχνική/προοπτική**: §1 πού είμαστε + §1.1 οι 4 κλειστές διέξοδοι · §2 πώς διαβάζεται ένα ladder νούμερο ·
+§3 standing rules + §3.1 protocol + §3.2 data handling · §4 engine ground truth · §5 τι κάνει η κορυφή
+(profile / η πόλη / οι 4 εξωτερικές πηγές) · **§6 STOP register, ΜΙΑ γραμμή ανά νεκρό δρόμο (28)** ·
+§7 το σχέδιο · §8 bench · §9 submission ops · §10 risks · §11 open items · §12 gated on 2.800+.
+**Κανόνας από δω:** ένα pass γράφει report στο `baselines/`, narrative στο `memory.md`, και αγγίζει το
+ROADMAP **μόνο** αν αλλάζει σχέδιο/gate/standing rule.
+
+⚠️ **Πρώτη προσπάθεια έκοψε παραπάνω απ' όσο έπρεπε** — ο πίνακας R-items έφυγε ολόκληρος, αλλά μερικά
+ήταν **ανοιχτές υποχρεώσεις**, όχι narrative. Επαναφέρθηκαν: **R31** (το «ίδιο submission» ελέγχεται στο
+market/full stream, ΠΟΤΕ στο opening — byte-identical σε 1.219/1.398 seats· κρίσιμο για το Phase 0 του
+επόμενου pass) → §7.1 + prompt.md· **R13** (δήλωσε μηχανισμό για κάθε counter που ΜΠΟΡΕΙ να είναι
+non-zero, όχι μόνο όσα έδειξε ένα pinned screen) → §3.1(6)· **R12/R18/R19** (τα τρία tooling traps:
+fingerprint από comment μετά το checkpoint, σύγκρουση δύο `main.py`, config-override που κάνει insert
+αντί replace) → §3.1(9)· **R3** (ξανα-τρέξε το top-5 profile — η κορυφή γύρισε δύο φορές) και **R24**
+(το `shop-adaptive sell floor` STOP είναι engine-stale ΚΑΙ production-stale) και το untracked collector
+chain → **§11 Open items**.
+
+### Το νέο σχέδιο (§7): **ship twice, then measure** — απόφαση user
+Η δεύτερη κριτική: *«τα prompts είναι μικρά subtasks χωρίς ουσιαστική πρόοδο από το τελευταίο
+submission»*. **Σωστό, και χειρότερο απ' όσο ακούγεται:** 7 συνεχόμενα desk passes (2a, 2b, 2b-0.5, 2c,
+2d, 2e, S7 leg 0) από 08-17 έως 08-20, **μηδέν uploads**, ~15 αχρησιμοποίητα slots — και το **2a είχε
+υπολογίσει το ταβάνι όλου του προγράμματος σε +2,4 πόντους την πρώτη μέρα**, απέναντι σε κενό 1.036.
+Ο κανόνας «τιμολόγησε σε rating points» εφαρμοζόταν **μέσα** σε κάθε pass και ποτέ **ανάμεσά** τους.
+Δύο νέοι standing rules στο §3: **τιμολόγησε και το ΠΡΟΓΡΑΜΜΑ** (ταβάνι <1% του κενού ⇒ όχι δεύτερο
+pass), και **ένα pass τελειώνει σε upload, αλλιώς δεν τρέχει**.
+
+Το σχέδιο, και τα δύο σκέλη καταλήγουν σε submission (τα δύο slots ⇒ η διαφοροποίηση που ζητά το §9):
+- **Ship A (§7.1, το τρέχον prompt.md)** — re-donor σε top-4 route. Το instrument δουλεύει· το
+  στρέψαμε σε #9 donor. Phase 0 time-boxed (μισό pass) με προ-δηλωμένο **«ship anyway»** αν το
+  agreement είναι χαμηλότερο· kill αν κανείς πάνω από 2.900 δεν έχει 3 traces ενός submission.
+- **Ship B (§7.2)** — το closed-loop layer του Kaito στη δική μας route. Τα 3 από τα 4 components
+  είναι ήδη μετρημένα/φραγμένα εδώ· το **WHEAT market maker** είναι το μόνο ανεξέταστο ⇒ φράξ' το στο
+  χαρτί πρώτα.
+- **§7.3 το deployment-neighbourhood bench ΜΕΤΑ** — είναι όργανο μέτρησης, και τα δύο uploads είναι
+  αυτό που το βαθμονομεί.
 
 ### Τι σημαίνει
 Και οι τρεις «διέξοδοι» για το ~1.036-πόντο κενό προς τον donor (#9 / 2.915,8 vs εμείς #924 / 1.879,9)
@@ -80,8 +110,12 @@ leg 2 ξανα-βαθμολογεί ΟΛΑ τα assets στο νέο νόμισ�
 
 **Παραδοτέα:** report `baselines/2026-08-20/s7_leg0_report.md`· addendum στο `s6_step2e_report.md`· script
 `analysis/s7_ladder_census.py`· guards `tests/test_s7_ladder_census.py` (8)· re-pin `tests/test_s6_step2e.py`·
-extract `docs/source/notebooks/106-130-multi-generation-v36-robust-hybrid.md`· νέο `prompt.md` (S7 leg 1-2).
-Καμία `agent/` αλλαγή, **μηδέν episodes παιγμένα**, κανένα upload (R27).
+extract `docs/source/notebooks/106-130-multi-generation-v36-robust-hybrid.md`· **ROADMAP.md ξαναγραμμένο
+(544 γρ.)**· **`prompt.md` = Ship A (re-donor + upload)**. Καμία `agent/` αλλαγή, **μηδέν episodes
+παιγμένα**, κανένα upload σ' αυτό το session — το επόμενο pass κάνει το upload.
+
+**Το .ipynb του Kaito** μετακινήθηκε στο gitignored `/notebooks/` (ήταν untracked στο repo root, δηλαδή
+έκθεση σε δημόσιο repo). Ο standing κανόνας λέει διαγραφή μετά το extract — **απόφαση του user**.
 
 ---
 
