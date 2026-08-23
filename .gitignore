@@ -63,3 +63,4 @@ docs/reviews/
 !/data/derived/v1u_oracle-2026-08-15.json
 !/data/derived/v1u_travel_ratio-2026-08-15.json
 !/data/derived/v1v_shop_demand.json
+/harness/bench_agents/neighbourhood/

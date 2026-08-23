@@ -92,12 +92,35 @@ class TapeOverlay:
                  overlay_products=(_PRODUCT,),
                  floor_override: dict | None = None,
                  mode: str = "augment",
-                 pull_forward_before_step: int = 336):
+                 pull_forward_before_step: int = 336,
+                 liq_floor_price: int = 25,
+                 liq_first_day: int = 22,
+                 liq_h_max: int = 12,
+                 liq_d_days: int = 4,
+                 liq_force_step: int = 686):
         self.stream = stream
         self.n = len(stream)
         self.shed_guard = shed_guard
         self.liquidate_step = liquidate_step
         self.overlay_products = tuple(overlay_products)
+        # mode="liquidate" (S9 Phase 1, H2): a FROZEN transfer of the tail-liquidation rule
+        # validated in analysis/s9_h2_k10.py::make_h2_agent(variant="tail"). It is NOT the market
+        # augment/replace channel — it keeps every tape order verbatim (farmer/hands/BUY/HIRE/other
+        # sells) and only DEFERS the sub-$25 tail of a STRAWBERRY batch on day >= liq_first_day,
+        # re-selling at the first later step whose price is back >= liq_floor_price, or when forced.
+        # No tile recovery (the arm is market-only, ROADMAP §3.1(2)). Every parameter is frozen;
+        # none is tuned in this pass. Any change to this path must also land in the inlined copy in
+        # analysis/build_tape_overlay_submission.py (bit-equivalent, part of G13).
+        self.liq_floor_price = int(liq_floor_price)
+        self.liq_first_day = int(liq_first_day)
+        self.liq_h_max = int(liq_h_max)
+        self.liq_d_days = int(liq_d_days)
+        self.liq_force_step = int(liq_force_step)
+        # Held-tail state. Seat-local and per-episode; reset in _reset_if_new_episode at the exact
+        # point the tracker resets (a mid-episode carry-over would open episode 2 holding phantom
+        # units).
+        self._held_units = 0
+        self._held_since_day = None
         # mode="replace": strip the tape's overlay-product sells, substitute ours (can DEFER →
         #   overflows the shed; Phase 0 forbade this).
         # mode="augment": keep ALL of the tape's orders verbatim and only ADD early sells before
@@ -128,6 +151,8 @@ class TapeOverlay:
         if self._last_step is None or step <= self._last_step:
             horizon = self.exec_cfg.get("sell_ahead", {}).get("predict_horizon_turns", 6)
             self.tracker = OpponentSupplyTracker(horizon)
+            self._held_units = 0
+            self._held_since_day = None
         self._last_step = step
 
     @staticmethod
@@ -177,7 +202,73 @@ class TapeOverlay:
                 orders.append(["SELL", product, int(n)])
         return orders
 
+    def _sellable_above_floor(self, inv: int, q: int) -> int:
+        """How many of q units still price at or above the floor, walking the engine's own
+        (monotone non-increasing) price curve one unit at a time. Reading market_price(inv) once
+        is not enough: a batch can start at $120 and end at $1, and the sub-floor units are exactly
+        the tail we defer (analysis/s9_h2_k10.py::_sellable_above_floor)."""
+        n = 0
+        for j in range(q):
+            if market_price(_PRODUCT, inv + j) < self.liq_floor_price:
+                break
+            n += 1
+        return n
+
+    def _liquidate_act(self, obs):
+        """H2 tail-liquidation, frozen. Byte-for-byte the tail variant of
+        analysis/s9_h2_k10.py::make_h2_agent — no tile recovery, farmer/hands verbatim."""
+        step = obs.get("step", 0) if hasattr(obs, "get") else int(getattr(obs, "step", 0))
+        self._reset_if_new_episode(step)
+        snapshot = parse(obs)
+        t = step
+        day = t // 24
+        base = self.stream[t] if 0 <= t < self.n else {"farmer": ["PASS"], "hands": [], "market": []}
+        inv = int(snapshot.market_inventory.get(_PRODUCT, 0))
+        shed = int(snapshot.shed.get(_PRODUCT, 0))
+
+        out = []
+        for od in list(base.get("market") or []):
+            is_target = (isinstance(od, list) and len(od) >= 3 and od[0] == "SELL"
+                         and od[1] == _PRODUCT and day >= self.liq_first_day
+                         and t < self.liq_force_step)
+            if not is_target:
+                out.append(od)
+                continue
+            q = int(od[2])
+            keep = self._sellable_above_floor(inv, q)
+            room = max(0, self.liq_h_max - self._held_units)
+            defer = min(q - keep, room)
+            if defer > 0:
+                if self._held_units == 0:
+                    self._held_since_day = day
+                self._held_units += defer
+            if q - defer > 0:
+                out.append([od[0], od[1], q - defer])
+
+        if self._held_units > 0:
+            forced = (t >= self.liq_force_step) or (day - self._held_since_day > self.liq_d_days)
+            above = market_price(_PRODUCT, inv) >= self.liq_floor_price
+            if forced or above:
+                qty = min(self._held_units, shed)
+                if qty > 0 and len(out) <= 9:
+                    out.append(["SELL", _PRODUCT, qty])
+                    self._held_units = 0
+                    self._held_since_day = None
+                elif qty <= 0:
+                    # the tape already sold the shed out from under us; nothing to re-sell.
+                    self._held_units = 0
+                    self._held_since_day = None
+                # elif forced: blocked by the 10-order cap this step — carry to the next step.
+
+        return {
+            "farmer": base.get("farmer", ["PASS"]),
+            "hands": base.get("hands", []),
+            "market": out[:10],
+        }
+
     def act(self, obs, configuration=None):
+        if self.mode == "liquidate":
+            return self._liquidate_act(obs)
         step = obs.get("step", 0) if hasattr(obs, "get") else int(getattr(obs, "step", 0))
         self._reset_if_new_episode(step)
         snapshot = parse(obs)

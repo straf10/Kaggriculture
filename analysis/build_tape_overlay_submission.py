@@ -404,7 +404,169 @@ def agent(obs, configuration=None):
 '''
 
 
-def build(team: str, package: bool) -> Path:
+# The self-contained main.py template for mode="liquidate" (S9 Phase 1, H2). It embeds the SAME
+# reconstruction stream but replaces the market/tile overlays with the frozen tail-liquidation rule
+# — a bit-for-bit inline of agent/tape_overlay.py::TapeOverlay._liquidate_act (which is itself a
+# byte-copy of analysis/s9_h2_k10.py::make_h2_agent tail variant). Only market_price is vendored;
+# there is no supply tracker, no tile recovery, no sell-batch controller. farmer/hands pass through
+# verbatim. G13 requires this inline path and the agent/ path to yield an identical trajectory.
+MAIN_TEMPLATE_LIQUIDATE = '''\
+"""Kaggriculture submission — reconstruction + H2 tail-liquidation overlay (S9 Phase 1).
+
+COMPETITION DATA — this file embeds a route reconstructed from another participant's episode
+traces plus the frozen H2 liquidation overlay. Gitignored (§2.4b). Provenance in provenance.json.
+
+    donor team      : {team}
+    reconstruction  : per-decision majority vote across {n_traces} of {team}'s own traces
+    agreement       : production {prod_agr:.4f}, market {market_agr:.4f}
+    stream sha256   : {sha256}
+    n_steps         : {n_steps}
+    overlay         : H2 tail-liquidation — defer the sub-${F} tail of a STRAWBERRY batch on
+                      day>={FIRST_DAY}, hold <= {H_MAX} units, re-sell at the first later step whose
+                      price is back >= ${F} or when forced (age>{D_DAYS}d, step>={FORCE_STEP}).
+                      FROZEN — no parameter tuned in this pass. Measured margin +$458..+$529/ep
+                      over 412 replays (b=0 in 412/412); market-only (ROADMAP §3.1(2)).
+"""
+import json
+import math
+
+# ── embedded stream ──────────────────────────────────────────────────────────
+_STREAM = json.loads(r"""{stream_json}""")
+_N = len(_STREAM)
+
+# ── vendored engine constants (1.32.7) ───────────────────────────────────────
+_MARKET_I0 = 10000
+_PRICE_FLOOR = 1
+_HINGE_GAIN = 8.0
+
+_MARKET_PARAMS = {{
+    "WHEAT": {{"base": 25, "I0": _MARKET_I0, "T": 400, "below_func": "sqrt", "below_target": 0.80, "above_func": "log", "above_target": 0.20}},
+    "CARROT": {{"base": 35, "I0": _MARKET_I0, "T": 450, "below_func": "hinge", "below_target": 1.00, "above_func": "sqrt", "above_target": 0.70}},
+    "TOMATO": {{"base": 60, "I0": _MARKET_I0, "T": 200, "below_func": "hinge", "below_target": 0.40, "above_func": "sqrt", "above_target": 0.60}},
+    "STRAWBERRY": {{"base": 120, "I0": _MARKET_I0, "T": 100, "below_func": "sqrt", "below_target": 0.70, "above_func": "linear", "above_target": 1.60}},
+    "MELON": {{"base": 250, "I0": _MARKET_I0, "T": 300, "below_func": "log", "below_target": 0.20, "above_func": "sq", "above_target": 3.60}},
+    "EGG": {{"base": 50, "I0": _MARKET_I0, "T": 332, "below_func": "hinge", "below_target": 0.40, "above_func": "log", "above_target": 0.20}},
+    "MILK": {{"base": 160, "I0": _MARKET_I0, "T": 122, "below_func": "sqrt", "below_target": 0.60, "above_func": "linear", "above_target": 1.60}},
+    "WOOL": {{"base": 200, "I0": _MARKET_I0, "T": 105, "below_func": "log", "below_target": 0.20, "above_func": "sq", "above_target": 3.20}},
+    "FERTILIZER": {{"base": 100, "I0": _MARKET_I0, "T": 200, "below_func": "linear", "below_target": 0.40, "above_func": "linear", "above_target": 0.40}},
+}}
+
+
+def _shape(func, x, capacity=None):
+    x = max(0.0, x)
+    if func == "linear":
+        return x
+    if func == "sq":
+        return x * x
+    if func == "sqrt":
+        return math.sqrt(x)
+    if func == "log":
+        return math.log(1.0 + x)
+    if func == "hinge":
+        if not capacity or capacity <= 0:
+            return x
+        u = x / capacity
+        return u + _HINGE_GAIN * max(0.0, u - 1.0) ** 2
+    return x
+
+
+def _market_price(item, inventory):
+    p = _MARKET_PARAMS[item]
+    base, equilibrium, capacity = p["base"], p["I0"], p["T"]
+    if inventory < equilibrium:
+        func = p["below_func"]
+        amplitude = p["below_target"] * base / _shape(func, capacity, capacity)
+        price = base + amplitude * _shape(func, equilibrium - inventory, capacity)
+    else:
+        func = p["above_func"]
+        amplitude = p["above_target"] * base / _shape(func, capacity, capacity)
+        price = base - amplitude * _shape(func, inventory - equilibrium, capacity)
+    return max(_PRICE_FLOOR, int(round(price)))
+
+
+# ── H2 tail-liquidation (frozen) ─────────────────────────────────────────────
+_PRODUCT = "STRAWBERRY"
+_F = {F}              # floor price
+_FIRST_DAY = {FIRST_DAY}   # no holding before this day
+_H_MAX = {H_MAX}      # max simultaneously held units
+_D_DAYS = {D_DAYS}    # max hold age
+_FORCE_STEP = {FORCE_STEP}  # forced liquidation from here (NOT 690: queue at cap by 696)
+
+_held_units = 0
+_held_since_day = None
+_last_step = None
+
+
+def _sellable_above_floor(inv, q):
+    n = 0
+    for j in range(q):
+        if _market_price(_PRODUCT, inv + j) < _F:
+            break
+        n += 1
+    return n
+
+
+def agent(obs, configuration=None):
+    global _held_units, _held_since_day, _last_step
+
+    t = obs.get("step", 0) if hasattr(obs, "get") else int(getattr(obs, "step", 0))
+    # seat-local, per-episode: the server reuses the process, so a step that did not advance by one
+    # means a new episode — drop any held tail before it leaks into the next episode.
+    if _last_step is None or t <= _last_step:
+        _held_units = 0
+        _held_since_day = None
+    _last_step = t
+
+    day = t // 24
+    base = _STREAM[t] if 0 <= t < _N else {{"farmer": ["PASS"], "hands": [], "market": []}}
+    market = obs.get("market", {{}}) or {{}}
+    private = obs.get("private", {{}}) or {{}}
+    inv = int((market.get("inventory", {{}}) or {{}}).get(_PRODUCT, 0))
+    shed = int((private.get("shed", {{}}) or {{}}).get(_PRODUCT, 0))
+
+    out = []
+    for od in list(base.get("market") or []):
+        is_target = (isinstance(od, list) and len(od) >= 3 and od[0] == "SELL"
+                     and od[1] == _PRODUCT and day >= _FIRST_DAY and t < _FORCE_STEP)
+        if not is_target:
+            out.append(od)
+            continue
+        q = int(od[2])
+        keep = _sellable_above_floor(inv, q)
+        room = max(0, _H_MAX - _held_units)
+        defer = min(q - keep, room)
+        if defer > 0:
+            if _held_units == 0:
+                _held_since_day = day
+            _held_units += defer
+        if q - defer > 0:
+            out.append([od[0], od[1], q - defer])
+
+    if _held_units > 0:
+        forced = (t >= _FORCE_STEP) or (day - _held_since_day > _D_DAYS)
+        above = _market_price(_PRODUCT, inv) >= _F
+        if forced or above:
+            qty = min(_held_units, shed)
+            if qty > 0 and len(out) <= 9:
+                out.append(["SELL", _PRODUCT, qty])
+                _held_units = 0
+                _held_since_day = None
+            elif qty <= 0:
+                _held_units = 0
+                _held_since_day = None
+
+    return {{
+        "farmer": base.get("farmer", ["PASS"]),
+        "hands": base.get("hands", []),
+        "market": out[:10],
+    }}
+'''
+
+# Frozen H2 parameters, shared by the inline template and the equivalence assertions below.
+_H2_PARAMS = {"F": 25, "FIRST_DAY": 22, "H_MAX": 12, "D_DAYS": 4, "FORCE_STEP": 686}
+
+
+def build(team: str, package: bool, mode: str = "augment") -> Path:
     rec_path = DERIVED / f"s6_step1_reconstruction_{team}.json"
     if not rec_path.exists():
         raise SystemExit(f"reconstruction not found: {rec_path}")
@@ -419,37 +581,57 @@ def build(team: str, package: bool) -> Path:
     if '"""' in stream_json or stream_json.endswith("\\"):
         raise SystemExit("stream JSON contains a triple-quote or ends with backslash")
 
+    suffix = "" if mode == "augment" else f"_{mode}"
     out_dir = (ROOT / "baselines" / date.today().isoformat() / "tape_submissions"
-               / f"overlay_{team}")
+               / f"overlay_{team}{suffix}")
     out_dir.mkdir(parents=True, exist_ok=True)
     _assert_gitignored(out_dir)
 
     main_path = out_dir / "main.py"
-    main_path.write_text(MAIN_TEMPLATE.format(
-        team=team, n_traces=rec["n_traces"], prod_agr=prod_agr, market_agr=market_agr,
-        n_steps=n_steps, sha256=sha, stream_json=stream_json, n_recovery_rules=6,
-    ), encoding="utf-8")
-
-    provenance = {
-        "artifact": "reconstruction + market overlay + tile recovery (§7.2 component (i))",
-        "donor_team": team,
-        "reconstruction_stream_sha256": sha,
-        "n_steps": n_steps,
-        "cross_trace_agreement": {"production": prod_agr, "market": market_agr},
-        "overlays": {
-            "market": "augment mode, STRAWBERRY only, sell-ahead controller, "
-                      f"pull_forward_before_step=336",
-            "tile_recovery": "§7.2 component (i): 6 recovery rules for desync tile actions",
-        },
-    }
+    if mode == "liquidate":
+        main_path.write_text(MAIN_TEMPLATE_LIQUIDATE.format(
+            team=team, n_traces=rec["n_traces"], prod_agr=prod_agr, market_agr=market_agr,
+            n_steps=n_steps, sha256=sha, stream_json=stream_json, **_H2_PARAMS,
+        ), encoding="utf-8")
+        provenance = {
+            "artifact": "reconstruction + H2 tail-liquidation overlay (S9 Phase 1)",
+            "donor_team": team,
+            "reconstruction_stream_sha256": sha,
+            "n_steps": n_steps,
+            "cross_trace_agreement": {"production": prod_agr, "market": market_agr},
+            "overlays": {
+                "liquidate": "H2 tail-liquidation, STRAWBERRY only, FROZEN: "
+                             f"floor=${_H2_PARAMS['F']}, first_day={_H2_PARAMS['FIRST_DAY']}, "
+                             f"h_max={_H2_PARAMS['H_MAX']}, d_days={_H2_PARAMS['D_DAYS']}, "
+                             f"force_step={_H2_PARAMS['FORCE_STEP']}; market-only (§3.1(2))",
+            },
+        }
+    else:
+        main_path.write_text(MAIN_TEMPLATE.format(
+            team=team, n_traces=rec["n_traces"], prod_agr=prod_agr, market_agr=market_agr,
+            n_steps=n_steps, sha256=sha, stream_json=stream_json, n_recovery_rules=6,
+        ), encoding="utf-8")
+        provenance = {
+            "artifact": "reconstruction + market overlay + tile recovery (§7.2 component (i))",
+            "donor_team": team,
+            "reconstruction_stream_sha256": sha,
+            "n_steps": n_steps,
+            "cross_trace_agreement": {"production": prod_agr, "market": market_agr},
+            "overlays": {
+                "market": "augment mode, STRAWBERRY only, sell-ahead controller, "
+                          f"pull_forward_before_step=336",
+                "tile_recovery": "§7.2 component (i): 6 recovery rules for desync tile actions",
+            },
+        }
     (out_dir / "provenance.json").write_text(
         json.dumps(provenance, indent=2), encoding="utf-8")
 
     from harness.checkpoint import agent_fingerprint
     fingerprint = agent_fingerprint(str(main_path))
     manifest = {
-        "version": f"overlay_{team}",
-        "artifact": "reconstruction + overlays",
+        "version": f"overlay_{team}{suffix}",
+        "artifact": "reconstruction + overlays" if mode == "augment"
+                    else "reconstruction + H2 liquidation overlay",
         "fingerprint": fingerprint,
         "reconstruction_stream_sha256": sha,
     }
@@ -498,8 +680,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--team", default="ReCurSiON")
     ap.add_argument("--package", action="store_true")
+    ap.add_argument("--mode", default="augment", choices=("augment", "liquidate"),
+                    help="augment = the live 55675634 overlay; liquidate = S9 Phase 1 H2")
     args = ap.parse_args()
-    build(args.team, args.package)
+    build(args.team, args.package, args.mode)
 
 
 if __name__ == "__main__":
