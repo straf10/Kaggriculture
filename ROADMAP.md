@@ -17,19 +17,20 @@
 
 ---
 
-## 1. Where we are — 2026-08-21
+## 1. Where we are — **2026-08-23** *(refreshed against a live leaderboard snapshot + the episodes API)*
 
 | | Value |
 |---|---|
-| **Active pair** | `55586926` **ReCurSiON reconstruction — 1.879,9 / rank 924 of 5.501**, 181 episodes, frozen 08-17 22:29 · `55575305` **Ueddy tape — 1.323,9**, 120 episodes, frozen 08-17 09:24 |
-| **Next eviction** | by **date** ⇒ the next upload drops the **Ueddy tape** and keeps the reconstruction. No protective re-upload needed |
+| **Active pair** | `55586926` **ReCurSiON reconstruction — 1.815,1**, 293 public episodes, frozen 08-17 22:29 · `55675634` **reconstruction + market overlay + tile recovery — 1.658,4**, 119 public episodes, frozen 08-21 19:06. *(The Ueddy tape `55575305` was evicted by `55675634` on 08-21.)* |
+| **Team standing** | **STRAF rank 903 of 6.020, 1.815,1** (snapshot 2026-08-23 15:30). ⚠️ §2 rule 3: the pool deflates, so read the **rank**, not the score |
+| **Next eviction** | by **date** ⇒ 🔴 **the next upload drops `55586926` — our HIGHER-scored slot** (1.815,1 vs 1.658,4). This is no longer the free eviction it was on 08-21; it must be decided deliberately (§9 rule 3) |
 | **Converged win rate** | **43,4%** (controlled, past the placement window). By opponent band: **54% / 41% / 38%** at <1.800 / 1.800-2.100 / 2.100+ |
-| **Ladder top** | #1 Ryo Hasegawa **3.147,0** · #2 tetsuya 3.095,3 · #3 Arman Tuganbaev 3.053,1 · #4 Crop Dusta 3.017,2 · #5 カワシギ 2.988,3 · **#9 ReCurSiON 2.915,8** (our donor, frozen 08-14) |
-| **The gap** | **1.036 points / 915 places** to our own donor. Measured, not inferred — §1.1 |
-| **Deadline** | **2026-09-30 23:59 UTC** (40 days). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
+| **Ladder top** (2026-08-23) | #1 Ryo Hasegawa **3.140,7** · #2 Subramanya N 3.027,3 · #3 Arman Tuganbaev 2.966,0 · #4 MiMi 2.948,6 · #5 Izzoudine Mohamed KANTA 2.925,3 · **#16 ReCurSiON 2.769,2** (our donor, still frozen 08-14 — it has lost 146,6 points and 7 places since 08-21 while frozen, §2 rule 4) |
+| **The gap** | **954 points / 887 places** to our own donor (2026-08-23; was 1.036 / 915 on 08-21). Measured, not inferred — §1.1 |
+| **Deadline** | **2026-09-30 23:59 UTC** (38 days; §9 rule 5 freezes the last week ⇒ real limit ~**09-23**). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
 | **Prizes** | 10 **equal** $5.000 prizes, places 1-10 ⇒ the target is **stable top-10**, not #1. A high-variance 3.200 is worth less than a steady 3.050 |
 | **Gates** | **2.800+** = minimum bar (below it we are still copying) · **3.000+** = "top-5 tactics replicated"; only above it is originating our own tactics the highest-value work |
-| **Local suite** | `pytest tests/` **358 passed, 3 failed** — the 3 are the known `test_v1h2d_*` cases (pre-existing, expected) |
+| **Local suite** | `pytest tests/` **390 passed, 0 failed, 0 collection errors** (2026-08-23). ⚠️ The old *"3 known `test_v1h2d_*` failures, pre-existing, expected"* line is **retired** — they pass. Never accept a failure as "known" |
 
 ### 1.1 The gap is real strength — all four escape hatches are closed
 
