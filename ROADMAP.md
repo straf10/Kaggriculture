@@ -21,9 +21,9 @@
 
 | | Value |
 |---|---|
-| **Active pair** | `55586926` **ReCurSiON reconstruction — 1.815,1**, 293 public episodes, frozen 08-17 22:29 · `55675634` **reconstruction + market overlay + tile recovery — 1.658,4**, 119 public episodes, frozen 08-21 19:06. *(The Ueddy tape `55575305` was evicted by `55675634` on 08-21.)* |
-| **Team standing** | **STRAF rank 903 of 6.020, 1.815,1** (snapshot 2026-08-23 15:30). ⚠️ §2 rule 3: the pool deflates, so read the **rank**, not the score |
-| **Next eviction** | by **date** ⇒ 🔴 **the next upload drops `55586926` — our HIGHER-scored slot** (1.815,1 vs 1.658,4). This is no longer the free eviction it was on 08-21; it must be decided deliberately (§9 rule 3) |
+| **Active pair** | `55726984` **reconstruction + H2 tail-liquidation — unscored**, uploaded 08-23 23:07 · `55675634` **reconstruction + market overlay + tile recovery — 1.657,3**, 119 public episodes, frozen 08-21 19:06. *(`55726984` evicted `55586926` on 08-23; that route survives inside it — `55726984` **is** `55586926` + H2.)* |
+| **Team standing** | **STRAF rank 903 of 6.020, 1.815,1** (snapshot 2026-08-23 15:30, i.e. *before* the 08-23 upload). ⚠️ §2 rule 3: the pool deflates, so read the **rank**, not the score. ⚠️ §9 rule 4: `55726984` is inside its placement burst — **judge nothing before ~100 episodes** (~2-4 days) |
+| **Next eviction** | by **date** ⇒ the next upload drops **`55675634`** (08-21, 1.657,3) — the *lower*-scored slot, so this one is cheap again. Decide it deliberately anyway (§9 rule 3) |
 | **Converged win rate** | **43,4%** (controlled, past the placement window). By opponent band: **54% / 41% / 38%** at <1.800 / 1.800-2.100 / 2.100+ |
 | **Ladder top** (2026-08-23) | #1 Ryo Hasegawa **3.140,7** · #2 Subramanya N 3.027,3 · #3 Arman Tuganbaev 2.966,0 · #4 MiMi 2.948,6 · #5 Izzoudine Mohamed KANTA 2.925,3 · **#16 ReCurSiON 2.769,2** (our donor, still frozen 08-14 — it has lost 146,6 points and 7 places since 08-21 while frozen, §2 rule 4) |
 | **The gap** | **954 points / 887 places** to our own donor (2026-08-23; was 1.036 / 915 on 08-21). Measured, not inferred — §1.1 |
@@ -564,6 +564,19 @@ Auth: `KAGGLE_API_TOKEN` in `.env`; the CLI lives in `.venv/`, not on `PATH`. Pa
       0,12% (ReCurSiON) vs 59% (tetsuya, §6 row 29). A chimera does not get a slot.
 - [ ] **Provenance recorded** in the submission description; route files gitignored.
 
+🔴 **Reading the metric gate on a tape/reconstruction arm (standing rule, 2026-08-24).** The structural
+leg (`plant_decay_units_lost == 0`, ≤2% low-price sales) is **absolute on `agent_a`** by design and pinned
+by `test_v1h2d_structural_faults_stay_hard_zero_at_any_price` — its rationale is *"the agent did something
+it did not intend"*, which assumes **we authored the policy**. A tape replays a donor's policy, whose
+structural counters are non-zero **by construction** and cannot be driven to zero without abandoning the
+tape. So `metric_gate_passed=False` / `GO=False` is **expected on every tape arm and is NOT a STOP**.
+Precedent: `gates/s6_step1b_gate_holdout/results.json` — the gate of **`55586926`**, our highest-scored
+live slot — reads `metric_gate_passed=False` with `plant_decay=1437` and 11,09% low-price sales, and was
+shipped. Read the structural leg **differentially** (candidate vs the base it overlays): a STOP is a
+non-zero **Δ**, or a `priced_loss_delta` breach. Every gate leg that *can* detect overlay damage
+(`clipped_production_ticks`, `shed_overflow_burnt`, `animals_escaped`, `market_sim_aborted`,
+unexplained no-ops, declared mechanisms, `priced_loss_delta`) stays absolute and binding.
+
 **Slot policy** — 5 uploads/day, **latest 2 active**, eviction by **date**:
 
 1. **Never re-submit an unchanged agent** (§2 rule 6 — priced at ~1.000 points and hundreds of
@@ -572,8 +585,10 @@ Auth: `KAGGLE_API_TOKEN` in `.env`; the CLI lives in `.venv/`, not on `PATH`. Pa
    aggressiveness, route family. *"Two near-identical active submits → meta shift kills both."*
    §5.3(c) is the measured case: their v35 held two routes from the same basin and lost to an old
    generation carrying a new overlay.
-3. **Decide the eviction before the upload, never as a side effect.** Currently pre-decided: the next
-   upload drops the Ueddy tape.
+3. **Decide the eviction before the upload, never as a side effect.** Two pre-decisions are now spent:
+   the Ueddy tape (08-21, by `55675634`) and `55586926` (08-23, by `55726984` — approved deliberately,
+   and the route survives inside its evictor). Currently pre-decided: the next upload drops
+   **`55675634`**, the lower-scored slot (§1).
 4. **Judge nothing before ~100 episodes, never inside the first ~70** (§2 rule 2). At ~24-48
    episodes/day that is under two days, so **convergence time is not a constraint on shipping** — it
    is a constraint on judging, and the temptation it creates is to react to placement noise.

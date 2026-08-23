@@ -1,0 +1,200 @@
+{
+  "artifact": "S9 Phase 2 gate \u2014 reconstruction+H2 liquidation (candidate 92668d19) vs pure reconstruction/55586926 (base 9bac6496)",
+  "date": "2026-08-24",
+  "submitted": false,
+  "candidate_fingerprint": "92668d1952b587b3e6e0f32449c211fc73539ef4a6b6c599a73c1a368da1eae9",
+  "base_fingerprint": "9bac64960e095b2f8ef0d3422383f506b2a28bb118627b801462c52c9c446112",
+  "reconstruction_stream_sha256": "1d9e0efdfc48161896ceffea45581c1f501b6856a665a54c4c3a84ed69e7e975",
+  "harness_git_sha": "82bb984070609ceb9434402e5ce241df965921c0",
+  "python_version": "3.13.9",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "instrument_A_reference": {
+    "n_episodes": 412,
+    "wl_base": "232-180",
+    "wl_candidate": "255-157",
+    "c": 23,
+    "b": 0,
+    "mcnemar_p": 2.4e-07,
+    "A4_by_position": {
+      "pos0": {
+        "n": 202,
+        "wl": "126-76",
+        "c": 10,
+        "b": 0,
+        "p": 0.002
+      },
+      "pos1": {
+        "n": 210,
+        "wl": "129-81",
+        "c": 13,
+        "b": 0,
+        "p": 0.0002
+      }
+    }
+  },
+  "instrument_B": {
+    "dev_screen": {
+      "seed_set": "dev",
+      "stage": "dev-screen",
+      "arm_role": "acceptance",
+      "town_pin": null,
+      "n_episodes": 96,
+      "paired_wins_candidate": 43,
+      "paired_wins_base": 0,
+      "paired_ties": 5,
+      "per_seat_wl": {
+        "seat0": {
+          "win": 35,
+          "loss": 12,
+          "tie": 1
+        },
+        "seat1": {
+          "win": 38,
+          "loss": 9,
+          "tie": 1
+        }
+      },
+      "episode_wins_candidate": 73,
+      "episode_wins_base": 21,
+      "episode_ties": 2,
+      "sign_test_p": 2.2737367544323206e-13,
+      "mean_diff_per_ep": 566.4,
+      "ci95": [
+        457.3,
+        675.5
+      ],
+      "min_effect_used": 1744.4,
+      "verdict": "NON_INFERIOR",
+      "significant": true,
+      "practical": false,
+      "crop_revenue_delta_per_ep": 514.6,
+      "structural_candidate": {
+        "clipped_production_ticks": 0,
+        "animals_escaped": 0,
+        "shed_overflow_burnt": 0,
+        "market_sim_aborted": false,
+        "unexplained_noops": 0,
+        "plant_decay_units_lost": 1437,
+        "units_sold_at_or_below_5": 15781,
+        "sales_count": 133942
+      },
+      "priced_loss_delta_per_ep": 0.0,
+      "priced_loss_budget_per_ep": 56.6,
+      "unexplained_metrics": [],
+      "metric_gate_passed": false,
+      "go": false,
+      "production_diagnostics_identical_A_eq_B": true
+    },
+    "holdout_confirm": {
+      "seed_set": "holdout",
+      "stage": "holdout-confirm",
+      "arm_role": "acceptance",
+      "town_pin": null,
+      "n_episodes": 96,
+      "paired_wins_candidate": 39,
+      "paired_wins_base": 0,
+      "paired_ties": 9,
+      "per_seat_wl": {
+        "seat0": {
+          "win": 35,
+          "loss": 11,
+          "tie": 2
+        },
+        "seat1": {
+          "win": 45,
+          "loss": 1,
+          "tie": 2
+        }
+      },
+      "episode_wins_candidate": 80,
+      "episode_wins_base": 12,
+      "episode_ties": 4,
+      "sign_test_p": 3.637978807091713e-12,
+      "mean_diff_per_ep": 461.1,
+      "ci95": [
+        365.8,
+        556.3
+      ],
+      "min_effect_used": 1651.2,
+      "verdict": "NON_INFERIOR",
+      "significant": true,
+      "practical": false,
+      "crop_revenue_delta_per_ep": 439.9,
+      "structural_candidate": {
+        "clipped_production_ticks": 0,
+        "animals_escaped": 0,
+        "shed_overflow_burnt": 0,
+        "market_sim_aborted": false,
+        "unexplained_noops": 0,
+        "plant_decay_units_lost": 1437,
+        "units_sold_at_or_below_5": 18138,
+        "sales_count": 134442
+      },
+      "priced_loss_delta_per_ep": 0.0,
+      "priced_loss_budget_per_ep": 46.1,
+      "unexplained_metrics": [],
+      "metric_gate_passed": false,
+      "go": false,
+      "production_diagnostics_identical_A_eq_B": true
+    }
+  },
+  "differential_counters": {
+    "note": "base run as agent_a on identical episodes; every structural/priced counter \u0394<=0",
+    "smoke_seeds_0_11": {
+      "plant_decay": {
+        "candidate": 357,
+        "base": 357,
+        "delta": 0
+      },
+      "units_sold_at_or_below_5": {
+        "candidate": 3842,
+        "base": 4426,
+        "delta": -584
+      }
+    },
+    "dev_seeds_0_47": {
+      "plant_decay": {
+        "candidate": 1437,
+        "base": 1437,
+        "delta": 0
+      },
+      "units_sold_at_or_below_5": {
+        "candidate": 15781,
+        "base": 18482,
+        "delta": -2701
+      }
+    }
+  },
+  "section9_checklist": {
+    "G12_last_callable_is_agent": true,
+    "G12_top_level_imports": true,
+    "G12_no___file__": true,
+    "G12_no_package_import": true,
+    "G12_market_price_diffs": 0,
+    "G12_market_price_samples": 1566,
+    "stream_sha_recomputed_matches": true,
+    "timing_max_x3_lt_1s_both_seats": true,
+    "timing_seat0_max_ms": 11.9,
+    "timing_seat1_max_ms": 2.0,
+    "G13_cross_process_hashseed_identical": true,
+    "G13_inline_equals_agent_pkg": true,
+    "G13_process_reuse_equals_fresh": true,
+    "archive_two_filename_equal": true,
+    "archive_reproduces_shipped_sha": true,
+    "archive_sha256": "3db76233201ee817d8574fe439c81b22c3a1c5d27d87fc2be3efb23fb04e309f",
+    "size_tar_gz_bytes": 11098,
+    "size_main_py_bytes": 117443,
+    "under_100MiB": true,
+    "KAGGRI_DEBUG_off": true,
+    "pytest": "390 passed, 0 failed, 0 collection errors",
+    "fidelity_replay": "N/A (not a new reconstruction; 0/719 vs 55586926 already verified)"
+  },
+  "stops": {
+    "G1": "discharged (mechanism found, \u0394=0 inherited)",
+    "G2": "clear (delta $0/ep)",
+    "G3": "clear (no red box)",
+    "G4": "clear (b=0 both stages incl. Instrument A 2100+)",
+    "G5": "clear (nothing tuned)"
+  },
+  "gate_summary": "Differential clean (all structural/priced \u0394<=0; gain 100% market layer; b=0 paired W/L both stages). Harness metric_gate_passed=False/GO=False is the absolute structural gate on counters inherited from the already-live base. NOT submitted \u2014 awaiting user approval."
+}
