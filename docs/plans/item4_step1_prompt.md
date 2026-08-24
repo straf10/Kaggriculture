@@ -9,7 +9,7 @@
 >    is not), §1 (invariants **G-1…G-8**), §2 step 1, §3 (the step table). This is the spec.
 > 2. [ROADMAP.md](../../ROADMAP.md) §2 + §2.1 (method: both seats, classify the knob), **§3.3**
 >    (the measured STOPs), **§3.4** (standing lessons).
-> 3. [memory.md](../../memory.md) — the top two entries.
+> 3. [memory.md](../journal/memory.md) — the top two entries.
 >
 > **§3.4 contains the single most load-bearing sentence for this pass:** *"A ratio is a
 > diagnostic, never a target."* v1p1b arm A1 achieved the largest commute reduction ever measured
