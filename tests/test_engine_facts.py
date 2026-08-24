@@ -1,9 +1,9 @@
-"""Executable form of MASTERPLAN §2/§7 engine ground truth (plan.md §2.1, §2.3).
+"""Executable form of MASTERPLAN §2/§7 engine ground truth.
 
 Imports from the **installed** kaggle-environments package, not engine_reference/, so a
 future `pip install -U kaggle-environments` that changes behavior fails this suite loudly
-(plan.md §2.2 — version-bump detector). engine_reference/kaggriculture.py is the read-only
-reference copy the line numbers below point at.
+(version-bump detector). engine_reference/kaggriculture.py is the read-only reference copy
+the line numbers below point at.
 
 Tier A tests call engine functions directly on hand-built farm/private dicts.
 Tier B tests drive `env.step()` through kaggle_environments' public interpreter loop.
@@ -87,7 +87,7 @@ def test_market_price_table(item):
 
 
 def test_market_price_known_examples():
-    """Literal cross-check against MASTERPLAN/plan.md worked examples."""
+    """Literal cross-check against MASTERPLAN worked examples."""
     I0 = k.MARKET_I0
     assert k.market_price("WHEAT", I0 - 400) == 45
     assert k.market_price("WHEAT", I0 + 400) == 20
@@ -492,7 +492,7 @@ def test_determinism_cross_process_hashseed():
     same-process check can only catch nondeterminism the *engine* introduces; PYTHONHASHSEED
     is fixed for the lifetime of a process, so it can never expose set/dict-iteration
     nondeterminism (the one a future rule-based *agent* is likely to introduce, e.g.
-    `for pos in weed_tiles:` over a set — plan.md Υ3, review.md H4). Two fresh OS processes
+    `for pos in weed_tiles:` over a set — Υ3, review.md H4). Two fresh OS processes
     with different PYTHONHASHSEED, same seed + scripted actions, must still agree."""
     snippet = (
         "import json\n"
@@ -549,7 +549,7 @@ def test_configuration_default_remaining_overage_time():
 
 def test_engine_constants_frozen():
     """review.md H2 — LAND_ORDER/LAND_PRICES/SHOPS/PRICE_FLOOR/MARKET_I0 are hardcoded
-    assumptions baked into plan.md's agent design (constants.py vendoring, Υ6); pin them so a
+    assumptions baked into the agent design (constants.py vendoring, Υ6); pin them so a
     future engine version that changes one fails loudly here instead of silently."""
     assert k.LAND_ORDER == ["NE", "SW", "SE"]
     assert k.LAND_PRICES == [1000, 2000, 4000]
@@ -566,7 +566,7 @@ def test_engine_constants_frozen():
 
 def test_engine_reference_matches_installed():
     """review.md M10 — engine_reference/kaggriculture.py is a read-only copy that every line
-    reference in plan.md/MASTERPLAN/this file's docstrings points at. It is not imported by
+    reference in MASTERPLAN/this file's docstrings points at. It is not imported by
     any code (verified separately), so nothing else would notice `pip install -U
     kaggle-environments` leaving it stale — every one of those line references would silently
     go wrong. Byte-identity with the installed package is the cheapest possible tripwire."""
@@ -574,7 +574,7 @@ def test_engine_reference_matches_installed():
     reference = REPO_ROOT / "engine_reference" / "kaggriculture.py"
     assert installed.read_bytes() == reference.read_bytes(), (
         "engine_reference/kaggriculture.py is stale — re-copy from the installed package and "
-        "re-check every line reference that points at it (plan.md, MASTERPLAN, docstrings here)."
+        "re-check every line reference that points at it (MASTERPLAN, docstrings here)."
     )
 
     installed_json = installed.with_suffix(".json")

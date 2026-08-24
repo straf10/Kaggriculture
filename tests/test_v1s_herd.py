@@ -1,6 +1,6 @@
 """v1s — ROADMAP §4.3 S3 step 2 guards: the herd-13 slot assignment and the day-gated ramp.
 
-Two separable pieces of the herd-13 increment, pinned in isolation (prompt.md §7 deliverable 5):
+Two separable pieces of the herd-13 increment, pinned in isolation:
 
   * the 13-slot PASTURE assignment — flipping `animals.targets` reassigns which COW/SHEEP holds
     which tile, in `targets` dict order (agent.animal_slots.animal_slot_ranges). §0.2 of the brief

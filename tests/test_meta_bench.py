@@ -1,4 +1,4 @@
-"""Tests for clean-room meta-bench opponents (current_phase.md §Β.2)."""
+"""Tests for clean-room meta-bench opponents (§Β.2)."""
 import json
 import os
 import subprocess

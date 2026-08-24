@@ -1,6 +1,6 @@
 """Derived metric: how many units per day the town actually absorbs, per product.
 
-current_phase.md §v1g.2 (β). This is a *reimplementation of the engine's own consumption
+v1g.2 (β). This is a *reimplementation of the engine's own consumption
 rule*, not an estimate: `_town_consume` (engine_reference/kaggriculture.py:714-736) is fully
 deterministic given `town["unlocked_shops"]`, the day, and three configuration intervals — all
 three of which the agent can observe. The only thing that is genuinely random is *which* shops
@@ -11,7 +11,7 @@ only thing that pulls inventory back down, and the glut side of the price curve 
 convex for exactly the products animals produce (WOOL `sq`/3.20, MILK `linear`/1.60). Selling
 into a product whose buyer never unlocked is therefore not merely low-yield, it permanently
 depresses every later sale of that product — and in 34.4% of post-balance-change episodes some
-product's shop simply will not exist (current_phase.md §0bis.1).
+product's shop simply will not exist.
 """
 from .constants import SHOPS, TOWN_CENTER_PRODUCTS
 
@@ -120,7 +120,7 @@ def npc_step_demand(unlocked_shops, step: int, env_config=None) -> dict[str, int
     """Units of each product the town removes **at engine step `step`**.
 
     `npc_daily_demand` answers "how much can the town absorb today", which is the right
-    quantity for sizing a floor. current_phase.md §v1i needs the other one: the engine calls
+    quantity for sizing a floor. v1i needs the other one: the engine calls
     `_town_consume(env, state, step)` once per turn (kaggriculture.py:714-736), so isolating
     the opponent's sales out of an observed inventory move needs the drain for *that one
     turn*, not a daily average. Same rule, same intervals, evaluated at a single step —
@@ -149,7 +149,7 @@ def shop_buyer_counts(unlocked_shops) -> dict[str, int]:
 
     The town centre buys everything but FERTILIZER at a low, fixed rate, so total demand alone
     can never answer "does this product have a real buyer in this town?" — which is the actual
-    shop-adaptive question (current_phase.md §v1g.2). A product with at least one shop gets
+    shop-adaptive question. A product with at least one shop gets
     6 units/day of shop demand (12 for a single-product shop) on top of the centre's **1**, and
     that is enough for the market to work off anything a 5x5 farm can produce; a product with
     none is living on the centre alone. Since 1.32.6 that gap is a factor of 6-12, not 3-6:

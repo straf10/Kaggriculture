@@ -19,7 +19,9 @@ def expected_transition(unit_index: int, action: list, pos: tuple[int, int],
     kind = action[0]
     turns_per_day = config["runtime"]["turns_per_day"]
     x, y = pos
-    tile = snapshot.my_tiles[y][x] if 0 <= y < len(snapshot.my_tiles) else None
+    tile = (snapshot.my_tiles[y][x]
+            if 0 <= y < len(snapshot.my_tiles) and 0 <= x < len(snapshot.my_tiles[y])
+            else None)
 
     if kind == "WATER":
         # A WATER committed on the day's last hour is only visible as `watered_today` for the

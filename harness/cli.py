@@ -1,4 +1,4 @@
-"""Thin CLI wrapper (plan.md §2.4):
+"""Thin CLI wrapper:
 
     python -m harness.cli play main.py starter --seed 17 --record
     python -m harness.cli compare main.py starter --seeds 0-23 --out runs/<name>
@@ -6,7 +6,7 @@
     python -m harness.cli profile main.py --seed 17
     python -m harness.cli report runs/<name>/seed17_seat0-main.py_seat1-starter.json.gz
 
-Set KAGGRI_DEBUG=1 before `play`/`compare` (plan.md §1.5.4) to capture G11 receipts alongside
+Set KAGGRI_DEBUG=1 before `play`/`compare` to capture G11 receipts alongside
 the replay, so `report` can compute `unexplained_noops` instead of reporting "not measured".
 """
 import argparse
@@ -166,7 +166,7 @@ def _results_json_dict(result) -> dict:
 def _parse_metric_mechanisms(pairs) -> dict:
     """`--metric-mechanism shed_overflow_burnt=<why>` -> {metric: explanation}.
 
-    current_phase.md §1 Απόφαση Α: a priced counter may only be non-zero if the run says, in
+    Απόφαση Α: a priced counter may only be non-zero if the run says, in
     writing and in the tracked results.json, why it is non-zero.
     """
     mechanisms = {}
@@ -228,7 +228,7 @@ def _cmd_compare(args):
               f"{result.sales_count_a} "
               f"unexplained_noops_a={result.unexplained_noops_a} "
               f"market_sim_aborted_a={result.market_sim_aborted_a}")
-        # current_phase.md §1 Απόφαση Δ: both arms' raw priced counters, then the differenced
+        # Απόφαση Δ: both arms' raw priced counters, then the differenced
         # criterion the acceptance decision is actually made on.
         print(f"arm_b_counters: animals_escaped_b={result.animals_escaped_b} "
               f"shed_overflow_burnt_b={result.shed_overflow_burnt_b} "
@@ -395,7 +395,7 @@ def main(argv=None):
     p_play.add_argument("--out")
     p_play.add_argument("--render-html", action="store_true",
                          help="also write the engine's bundled offline visualizer "
-                              "(implies --record; plan.md §1.5.4)")
+                              "(implies --record)")
     p_play.set_defaults(func=_cmd_play)
 
     p_compare = sub.add_parser("compare")
@@ -424,11 +424,11 @@ def main(argv=None):
     p_compare.add_argument("--metric-mechanism", action="append", metavar="METRIC=WHY",
                             help="declare why a priced loss counter is non-zero, e.g. "
                                  "--metric-mechanism shed_overflow_burnt='peak-production days'. "
-                                 "current_phase.md §1 Απόφαση Α: any non-zero priced counter "
+                                 "Απόφαση Α: any non-zero priced counter "
                                  "without one fails the metric gate (repeatable)")
     p_compare.add_argument("--arm-role", choices=ARM_ROLES, default="acceptance",
-                            help="which question this comparison asks (current_phase.md §1 "
-                                 "Απόφαση Δ): acceptance = vs the meta bench, the arm that "
+                            help="which question this comparison asks (Απόφαση Δ): "
+                                 "acceptance = vs the meta bench, the arm that "
                                  "decides whether an increment is taken, priced leg applies to "
                                  "priced_loss_a-priced_loss_b | regression = mirror vs our own "
                                  "baseline, a regression detector where only the $-verdict and "
@@ -458,7 +458,7 @@ def main(argv=None):
                                  "evidence a gate ran (review.md H5)")
     p_compare.add_argument("--town-pin", choices=PIN_MODES, default=None,
                             help="pin which shops the town unlocks so both arms play the same "
-                                 "town per seed (current_phase.md §Β.0′): schedule=permutation "
+                                 "town per seed (§Β.0′): schedule=permutation "
                                  "of the 8 types (today's engine) | basket=draw with "
                                  "replacement (announced balance change) | no_shops=town centre "
                                  "only. Required for occupancy knobs (crew, planting, BUY_LAND, "

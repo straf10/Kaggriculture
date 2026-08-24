@@ -311,7 +311,7 @@ class TapeOverlay:
         return {
             "farmer": farmer_a,
             "hands": hands_a,
-            "market": combined,
+            "market": combined[:10],
         }
 
 

@@ -95,7 +95,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             and snapshot.my_tiles[y][x].get("planted_day") == snapshot.day
         )
     )
-    # plan.md §5 v1c: read from plan (not config directly) — planner.py grows this alongside
+    # v1c: read from plan (not config directly) — planner.py grows this alongside
     # plant_targets once NE is unlocked, so CARROT's newly-doubled tile count can't starve
     # STRAWBERRY of its share of a budget that never grew to match.
     max_new_plants = int(plan.max_new_plants)
@@ -115,7 +115,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
             age = snapshot.day - tile["planted_day"]
             # review_89d99f0_2026-08-05.md L7: v1b watered CARROT on `age >= 2` unconditionally, including past
             # the engine's yield window (ages 2-3) — a rare, small unit-turn waste, not
-            # present in plan.md's ablation table but needed for the all-off self-test to
+            # present in the ablation table but needed for the all-off self-test to
             # reproduce v1b exactly (criterion #1).
             water_window = _WATER_WINDOWS.get(crop)
             in_yield_window = water_window is not None and water_window[0] <= age <= water_window[1]
@@ -202,7 +202,7 @@ def build_tasks(snapshot: Snapshot, plan: DayPlan, config: dict) -> list[Task]:
         # review_89d99f0_2026-08-05.md M1: one DROP task per loaded unit, restricted to that unit, instead of a
         # single global task an empty-inventory unit can monopolize with silent no-ops.
         access = (4, 4)  # the only initially unlocked shed-access tile
-        # plan.md §5 v1e: WHEAT excluded from "cargo to dump" — it's productive input a unit
+        # v1e: WHEAT excluded from "cargo to dump" — it's productive input a unit
         # just PICKUP'd to carry to a FEED task, not sellable crop yield. Counting it here (as
         # v1d did) meant a unit carrying WHEAT toward an animal got handed a same-position DROP
         # task before it could walk away, dumping the wheat straight back into the shed; next
@@ -269,7 +269,7 @@ def _build_animal_tasks(
     snapshot: Snapshot, plan: DayPlan, config: dict,
     unit_positions: tuple, day_deadline: int,
 ) -> list["Task"]:
-    """plan.md §5.1 v1d: structures (BUILD_PASTURE) → BUY_ANIMAL (executor, lands in shed) →
+    """v1d: structures (BUILD_PASTURE) → BUY_ANIMAL (executor, lands in shed) →
     PICKUP → PLACE, then the daily FEED/CARE/COLLECT_FERTILIZER/HARVEST loop for whatever's
     already placed. Gated entirely by config["animals"]["enabled"] — no ablation flag, unlike
     §1.5.2's closed regression-debug flags, since this is new feature surface, not a
@@ -710,7 +710,7 @@ def assign(
     zones = _zone_partition(tasks, snapshot, config, committed)
 
     def _carries_cargo(unit_index: int) -> bool:
-        # plan.md §5.1 v1d / plan.md G5: unlike PLANT's seeds (a shared private-state pool
+        # v1d / G5: unlike PLANT's seeds (a shared private-state pool
         # any co-located unit can draw from), FEED's wheat and PLACE's animal are cargo a
         # specific unit already carried there via an earlier PICKUP — a unit with none of it
         # can never complete the action regardless of distance, so it must not be eligible at
@@ -760,7 +760,7 @@ def assign(
                 for unit_index in eligible_units
             )
             # v1b's pre-C1 sort key used raw task.deadline_step (not slack, and not 0) as its
-            # second field — "pure nearest-pair-first" in plan.md's table means no *slack*
+            # second field — "pure nearest-pair-first" means no *slack*
             # term, but v1b still broke ties by absolute deadline before distance.
             #
             # ablation §1.5.2 fix: among tasks sharing priority+deadline_step (the common

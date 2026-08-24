@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """v1r Phase 0 — pin the feed-cash-reserve undercount arithmetic (ROADMAP §4.3 S3 step 1e,
-prompt.md §3.2).
+ROADMAP §4.3 S3 step 1e).
 
 Step 1d established the *downstream* chain (zero shed WHEAT => no feed => escape at the day
 1->2 boundary) and located the *upstream* cause not in the HIRE settlement (there is none —
@@ -22,7 +22,7 @@ For each turn of days 0-2, on BOTH agents, this prints from the ALREADY-RECORDED
   reserve_code      = (placed + bought)             * wheat_price * FEED_RESERVE_DAYS  (the bug)
   reserve_liability = (placed + in_flight + bought) * wheat_price * FEED_RESERVE_DAYS  (correct)
 
-GATE (prompt.md §3.2): reserve_code must be visibly < reserve_liability on the turns the
+GATE: reserve_code must be visibly < reserve_liability on the turns the
 candidate buys (in_flight > 0), and the two must converge when nothing is in flight. If they do
 not diverge as described, §2's located defect is wrong — stop and say so.
 
@@ -208,7 +208,7 @@ def print_target13(rows):
 
 def run_target13(package_main, seeds, targets, slot_ranges, wheat_default, out_dir):
     """Record a fresh play of the target-13 package vs v1q_base (basket-pinned) and trace the
-    candidate's reserve arithmetic over days 0-12. prompt.md §2 gate."""
+    candidate's reserve arithmetic over days 0-12."""
     from harness.play import play  # noqa: E402
     from harness.town_pin import pinned_town, schedule_for_mode  # noqa: E402
     base = str(REPO / "checkpoints/v1q_base/main.py")
@@ -225,7 +225,7 @@ def run_target13(package_main, seeds, targets, slot_ranges, wheat_default, out_d
             steps = json.load(handle)["steps"]
         rows = trace_target13(steps, 0, targets, slot_ranges, wheat_default,
                               min(max_step, len(steps) - 1))
-        # The pathology the gate guards against (prompt.md §2) is "passing an escape criterion by
+        # The pathology the gate guards against is "passing an escape criterion by
         # never OWNING the animals" — so "the herd reaches 13" = owned (placed + in_flight), not
         # placed-on-tiles. Placement lags ownership by unit-turns to walk each animal to its tile,
         # which is a logistics question (arm H1), not a cash/reserve one.
@@ -259,7 +259,7 @@ def main():
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--days", type=int, default=2, help="trace days 0..N inclusive")
     parser.add_argument("--run-target13", help="path to a target-13 package main.py; runs fresh "
-                        "plays and traces the C2 reserve over days 0-12 (prompt.md §2)")
+                        "plays and traces the C2 reserve over days 0-12")
     parser.add_argument("--target-total", type=int, default=13)
     parser.add_argument("--out", default="gates/v1s_phase0")
     args = parser.parse_args()

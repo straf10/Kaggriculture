@@ -1,4 +1,4 @@
-"""current_phase.md §v1i (Η2) — the c68 opponent-supply controller, prediction only.
+"""v1i (Η2) — the c68 opponent-supply controller, prediction only.
 
 What it predicts, and why that is the *only* actionable prediction here
 ---------------------------------------------------------------------
@@ -17,7 +17,7 @@ So the controller replaces that constant with a measurement. It is two-sided by 
 a quiet opponent lowers it and we realize units the constant refused, a selling opponent
 raises it above 4 and we are protected better than the constant ever was.
 
-Three sources, none of them a hardcoded calendar (current_phase.md §v1i)
+Three sources, none of them a hardcoded calendar (v1i)
 -----------------------------------------------------------------------
 (i)   The meta sell calendar is **deliberately absent**. §v1i's own warning — the calendar
       moved milk 8->10 and strawberry 16->18 inside a single ladder day — makes an empty

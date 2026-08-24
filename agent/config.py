@@ -9,7 +9,7 @@ CONFIG = {
         # fully allocated (see strawberry_tiles comment below), and CARROT was the cheaper give
         # -up: its price crashes fastest under real opponent competition (ne_carrot_tiles
         # comment below), so it was the first place cut when 11 more PASTURE tiles were needed
-        # for the v1g animal-mass increment (current_phase.md v1g). NE's carrot mirror tiles
+        # for the v1g animal-mass increment. NE's carrot mirror tiles
         # (ne_carrot_tiles) are untouched.
         #
         # ⛔ v1p.1 (ROADMAP §4.3 S3 step 1c, herd compaction — arm A) STOPPED at SMOKE, kept at 3.
@@ -67,7 +67,7 @@ CONFIG = {
         # itself. Checkpoints `checkpoints/v1p1b_armA1` / `checkpoints/v1p1b_armB`. See ROADMAP
         # §3.3 and memory.md 2026-08-13.
         "carrot_tiles": 3,
-        # plan.md §5 v1e: reduced from 16 to 15 to free tile (3, 0) for GOOSE's COOP structure
+        # v1e: reduced from 16 to 15 to free tile (3, 0) for GOOSE's COOP structure
         # — all 25 NW tiles were already fully allocated (7 CARROT + 16 STRAWBERRY + 2 PASTURE),
         # so adding a third animal kind requires reclaiming one. (3, 0) was the lowest-priority
         # NW STRAWBERRY tile (last in target_tiles' tuple order, so the capacity gate already
@@ -78,7 +78,7 @@ CONFIG = {
         # v1g: reduced from 15 to 8 — the 7 lowest-priority NW STRAWBERRY tiles (already last
         # in target_tiles' tuple order, i.e. already first to be trimmed under any capacity
         # pressure) were reclaimed for PASTURE alongside the 4 CARROT tiles above, together
-        # freeing the 11 new PASTURE slots current_phase.md's v1g asks for (2 existing + 11 new
+        # freeing the 11 new PASTURE slots v1g asks for (2 existing + 11 new
         # = 13, matching the elite ceiling of 8 COW + 5 SHEEP). NW is fully allocated either way
         # (3 CARROT + 8 STRAWBERRY + 13 PASTURE + 1 COOP = 25); this is a targeted reclaim to
         # fit the new structures, not the full crop/animal portfolio rebalance MASTERPLAN
@@ -144,7 +144,7 @@ CONFIG = {
         # v1h': the crew size once SW is actually owned. v1f's h6-beats-h8 result is not
         # contradicted, it is *conditioned*: it measured 6/8/10/12 hands against a fixed 41-tile
         # crop ceiling and 3 animals, and its own conclusion was "no further crew scaling
-        # without first growing the real workload" (current_phase.md §0 ⚠️β). SW is that
+        # without first growing the real workload". SW is that
         # workload. The capacity gate below is already binding at 6 hands with NE unlocked —
         # _capacity_limited_targets trims STRAWBERRY from 24 to 21 — so buying a third quadrant
         # without also raising the crew buys tiles nobody can water, which is the same dead
@@ -211,7 +211,7 @@ CONFIG = {
         # knob because that is now a *measured* answer rather than an assumption.
         "endgame_hands_target": 6,
         "capacity_safety_factor": 0.8,
-        # plan.md §5 v1c: added to carrot_tiles/strawberry_tiles once "NE" is in
+        # v1c: added to carrot_tiles/strawberry_tiles once "NE" is in
         # snapshot.my_quadrants (the NE-mirrored tiles appended to target_tiles below). NOT a
         # 1:1 mirror of NW counts, unlike ne_strawberry_tiles: a holdout-confirm gate against
         # checkpoints/v1d with the naive 1:1 mirror (7) landed INCONCLUSIVE, narrowly missing
@@ -223,7 +223,7 @@ CONFIG = {
         # NON_INFERIOR — a properly volume-aware seller belongs in v1e, not here.
         "ne_carrot_tiles": 3,
         "ne_strawberry_tiles": 16,
-        # plan.md §5 v1c: without this, CARROT and STRAWBERRY compete for the SAME shared
+        # v1c: without this, CARROT and STRAWBERRY compete for the SAME shared
         # max_new_plants_per_day budget (scheduler.py build_tasks) in CARROT-first order —
         # doubling carrot_target's tile count alone let CARROT's many newly-empty NE tiles
         # eat the whole day's planting budget every day, starving STRAWBERRY of any planting
@@ -231,7 +231,7 @@ CONFIG = {
         # pre-v1c). Doubling the daily budget alongside the tile counts keeps both crops
         # actually plantable.
         "ne_max_new_plants_per_day": 5,
-        # v1h' (current_phase.md §v1h'): SW is planted with WHEAT and nothing else.
+        # v1h': SW is planted with WHEAT and nothing else.
         #
         # Why WHEAT and not a mirror of NW/NE: (a) it is the only product we cannot saturate —
         # 5 of the 8 shops buy it (P(no buyer) = 0.04%) and its cliff is >2000 units against
@@ -446,7 +446,7 @@ CONFIG = {
             # comment above. Left at their original 3 NW positions.
             "CARROT": (
                 (4, 4), (3, 4), (4, 3),
-                # plan.md §5 v1c: NE mirror (x' = 9 - x) of the original 7 NW tiles, appended
+                # v1c: NE mirror (x' = 9 - x) of the original 7 NW tiles, appended
                 # so target_index 3+ only ever produce PLANT tasks once plan.plant_targets
                 # grows past 3 — which planner.py only does once "NE" is actually unlocked
                 # (still LOCKED tiles fall through build_tasks' `tile is None` check as a
@@ -456,7 +456,7 @@ CONFIG = {
                 (5, 3), (7, 4), (7, 3),
                 (5, 0),
             ),
-            # plan.md §5.1: (4, 2) and (3, 2) were reassigned from STRAWBERRY targets to
+            # v1d: (4, 2) and (3, 2) were reassigned from STRAWBERRY targets to
             # animal_structure_tiles below to make room for the two PASTURE slots (COW +
             # SHEEP) without expanding onto not-yet-owned land (v1d runs before v1c's land
             # purchase). v1g: the 7 lowest-priority (last-in-tuple, already-first-trimmed)
@@ -469,7 +469,7 @@ CONFIG = {
                 (4, 1),
                 # (3, 0) reassigned to animal_structure_tiles["COOP"] in v1e (see
                 # strawberry_tiles comment above).
-                # plan.md §5 v1c: NE mirror (x' = 9 - x) of the original 16 NW tiles, same
+                # v1c: NE mirror (x' = 9 - x) of the original 16 NW tiles, same
                 # unlock-gated growth story as CARROT above. Left at its original 16
                 # positions/count — only NW's own tile count shrank, not NE's.
                 (7, 2),
@@ -497,13 +497,13 @@ CONFIG = {
                 (0, 6), (1, 7), (2, 8), (3, 9),
             ),
         },
-        # plan.md §5.1 v1d / v1g: reserved structure tiles for animal placement, carved up
+        # v1d / v1g: reserved structure tiles for animal placement, carved up
         # per-name by agent.animal_slots.animal_slot_ranges in config["animals"]["targets"]
         # dict order — the first `targets["COW"]` PASTURE tiles below are COW's, the next
         # `targets["SHEEP"]` are SHEEP's. Current targets are COW=4, SHEEP=6, GOOSE=0:
         # only the first 10 of 13 PASTURE slots are claimed; the final 3 stay unused, as does
         # the COOP slot below. All structure slots are NW (owned from day 0):
-        # current_phase.md v1g deliberately never places a structure on not-yet-purchased
+        # v1g deliberately never places a structure on not-yet-purchased
         # land — BUY_LAND's gate (executor.py) requires every planned animal already placed,
         # so a structure sitting on NE-locked land would deadlock it (the same reasoning that
         # already put GOOSE's COOP on NW in v1e — see its comment below). Ordered nearest-
@@ -535,7 +535,7 @@ CONFIG = {
                 # Unclaimed PASTURE capacity (3): distances 7,7,8.
                 (0, 1), (1, 0), (0, 0),
             ),
-            # plan.md §5 v1e: GOOSE's COOP, placed on the reclaimed NW STRAWBERRY tile (3, 0)
+            # v1e: GOOSE's COOP, placed on the reclaimed NW STRAWBERRY tile (3, 0)
             # rather than NE — see strawberry_tiles comment in config["planner"] for why NE
             # would deadlock BUY_LAND's animal_placed gate.
             "COOP": ((3, 0),),  # GOOSE=0: listed capacity, never built.
@@ -588,7 +588,7 @@ CONFIG = {
         # why a floor and a rate cap are the same object here.
         #
         # ⚠️ OFF — MEASURED NEGATIVE, HYPOTHESIS FALSIFIED (2026-08-07, DEV_SEEDS 0-7 vs
-        # checkpoints/v1g_1). The premise of current_phase.md §v1g.2 (γ) — "near-zero NPC demand
+        # checkpoints/v1g_1). The premise of v1g.2 (γ) — "near-zero NPC demand
         # makes aggressive selling self-destructive" — does not hold in this engine, because the
         # agent is production-constrained, never glut-constrained: our ~2 wool/day sell rate is
         # below NPC absorption even with town-centre demand alone, so market inventory stays
@@ -604,12 +604,12 @@ CONFIG = {
         # Left in place, disabled, as the artifact those numbers refer to. Turning it on is a
         # measured regression, not a tuning opportunity — the missing-shop risk is production-
         # side (a wool-less town costs $12,077/ep by itself) and sell-side adaptation cannot
-        # reach it. See memory.md 2026-08-07 and current_phase.md §v1g.2.
+        # reach it. See memory.md 2026-08-07.
         "dynamic_sell_floor": False,
         # How many days' worth of NPC demand of glut to tolerate before refusing to sell. Higher
         # = weaker throttle (3.0 already leaves STRAWBERRY's floor below its static 8 with a full
         # town, i.e. inactive, while binding on CARROT/MILK/WOOL). A BBO sweep knob
-        # (current_phase.md §BBO); 3.0 is the value the v1g.2 gate was run at.
+        # 3.0 is the value the v1g.2 gate was run at.
         "sell_headroom_days": 3.0,
         # How many shops must have unlocked before "no shop buys this" is evidence about the
         # town rather than about the calendar. Shops appear one per townShopUnlockInterval (3)
@@ -640,8 +640,8 @@ CONFIG = {
         # arm C1: count in-flight animals in the reserved liability (6f208cd located defect)
         "feed_reserve_counts_in_flight": True,
         "feed_reserve_horizon": "in_flight",  # "in_flight" | "target"
-        # current_phase.md §v1i — the two remaining sell-ahead levers, each independently
-        # switchable so the §v1i KILL clause ("try the other one alone before dropping both")
+        # v1i — the two remaining sell-ahead levers, each independently
+        # switchable so the KILL clause ("try the other one alone before dropping both")
         # costs a config edit, not a patch.
         "sell_ahead": {
             # Η1: judge a SELL batch by the average it will realize (Σ p(s+i) / n) instead of
@@ -663,7 +663,7 @@ CONFIG = {
         },
     },
     "land": {
-        # plan.md §5 v1c / MASTERPLAN §3.2#7: buy NE as soon as money allows AND a workforce
+        # v1c / MASTERPLAN §3.2#7: buy NE as soon as money allows AND a workforce
         # actually exists to work it (buying land before hands_target hands are hired would
         # be dead capital).
         "enabled": True,
@@ -681,20 +681,20 @@ CONFIG = {
         # animals were affordable) left the bank near $0 for days afterward, with no buffer to
         # absorb a real opponent crashing crop prices via shared market competition — starving
         # hires and cascading into G1/G5 capacity failures (weeds, decay, animal escapes) that
-        # never showed up against a passive opponent. plan.md's own top-decile data targets
+        # never showed up against a passive opponent. The top-decile data targets
         # 2nd-quadrant unlock around day ~9, not day 0 — this reserve requirement (rather than
         # a hardcoded day) makes the trigger self-regulating: land waits until the shed has
         # genuine surplus cash beyond survival needs, however many days that actually takes.
         "min_reserve": 1000,
     },
     "animals": {
-        # plan.md §5.1: v1d shipped COW (85% top-team adoption, median day 0) and SHEEP (56%,
+        # v1d shipped COW (85% top-team adoption, median day 0) and SHEEP (56%,
         # median day 5). GOOSE (15% adoption) added in v1e, now that COOP has a home (see
         # scheduler.animal_structure_tiles).
         #
         # v1g: targets is now name -> count (was one slot per unique name) — see
         # agent/animal_slots.py. Dict order still fixes which tiles within a shared structure
-        # kind (COW/SHEEP both PASTURE) each name claims first. current_phase.md's elite
+        # kind (COW/SHEEP both PASTURE) each name claims first. The elite
         # ceiling (topfarms-19, 8 COW + 5 SHEEP) does NOT clear the metric gate at this
         # hands_target: feed logistics (one WHEAT-carrying trip per animal per day, spread
         # across up to 13 tiles at distance <=8) breaks down at that mass regardless of the
@@ -726,7 +726,7 @@ CONFIG = {
         "liquidation_day": 26,
     },
     "guards": {
-        # plan.md §1.5.4: the agent runs in a separate, freshly-imported process from
+        # The agent runs in a separate, freshly-imported process from
         # whatever invoked it (harness CLI, a ProcessPoolExecutor worker), so this must be
         # steered by an env var read once at import, never by mutating CONFIG after the fact.
         "debug": os.environ.get("KAGGRI_DEBUG", "0") == "1",

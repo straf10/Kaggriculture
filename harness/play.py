@@ -1,6 +1,6 @@
 """play(): run one kaggriculture episode with recording and optional per-turn timing.
 
-plan.md §2.4. Uses the installed kaggle-environments package's public `make`/`env.run` API
+Uses the installed kaggle-environments package's public `make`/`env.run` API
 (Υ2) — the same entrypoint the Kaggle server uses, so a passing local `play()` is a faithful
 stand-in for a real episode.
 
@@ -170,7 +170,7 @@ def play(agent_a, agent_b, seed: int, *,
     `clean`/`health`/`agent_errors` on the result instead of raising.
     metrics=False skips extract_metrics() (two full 720-float bank curves per seat) — use it
     for bulk runs like compare() that only need `rewards` (review.md L5).
-    render_html=True (plan.md §1.5.4, requires record=True) additionally writes the engine's
+    render_html=True (requires record=True) additionally writes the engine's
     own bundled offline visualizer (`env.render(mode="html")`, ~14.7MB, no CDN) to `<run_dir>/
     episode_seed<N>_seat0-<a>_seat1-<b>.html`. Diagnostics (KAGGRI_RECEIPT records — only
     non-empty when the agent process had `CONFIG["guards"]["debug"]` on via `KAGGRI_DEBUG=1`,

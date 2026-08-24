@@ -5,7 +5,7 @@
 copy — silently, because `ImportError` on a from-import gives no clue which name was missing.
 That is exactly what the 1.32.6 bump produced: the engine removed `TOWN_CENTER_DEMAND_SCHEDULE`,
 so `MARKET_PARAMS`, `market_price` and everything else quietly stopped tracking the installed
-engine (v1h.1, `current_phase.md`). Resolving each name on its own keeps a future deletion
+engine (v1h.1). Resolving each name on its own keeps a future deletion
 confined to the one constant it actually affects.
 
 `_vendored` remains the source of truth **only** when the engine is unavailable — the submission

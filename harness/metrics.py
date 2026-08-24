@@ -235,7 +235,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
 
     weeds_lost = 0
     unexpected_weeds_lost = 0
-    # current_phase.md §v1h.2: an ongoing crop that was harvested to zero yield is retired by
+    # v1h.2: an ongoing crop that was harvested to zero yield is retired by
     # the engine as a PLANT->WEED transition, and that is a success, not a loss. The engine
     # does not retire it in the same turn as the harvest: it retires it at the next
     # max_lifespan_step decay tick, which is measured 17-24 steps later (seed 1: harvests at
@@ -256,7 +256,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     worker_turns_working = 0
     worker_turns_idle = 0
     configuration = env_json.get("configuration", {})
-    # harness/report.py (plan.md §1.5.4) needs a per-day breakdown to plot losses/utilization
+    # harness/report.py needs a per-day breakdown to plot losses/utilization
     # over the episode instead of one flat total; keyed by day index, densified below so a day
     # with zero transitions still appears as a zero row instead of a gap.
     daily_by_day: dict = {}
@@ -383,7 +383,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
                         current_observation.get("day") != previous_observation.get("day")
                         and not harvested_here
                     ):
-                        # plan.md G8: engine.py:805 clips `yield_units + base + bonus` to
+                        # G8: engine.py:805 clips `yield_units + base + bonus` to
                         # `max_held` on every scheduled production tick — if the tile was
                         # already sitting at max_held going into a due tick, that tick's whole
                         # production was silently discarded for lack of a HARVEST. We can't see
@@ -443,7 +443,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         item: statistics.mean(prices)
         for item, prices in prices_by_item.items()
     }
-    # current_phase.md §v1k: occupancy is an acceptance dimension, not just a replay-profile
+    # v1k: occupancy is an acceptance dimension, not just a replay-profile
     # visualization. Match analysis.replay_profile's end-of-day definition exactly so the
     # local gate is directly comparable with the ladder baseline (415 crop tile-days/ep).
     turns_per_day = int(configuration.get("turnsPerDay", 24))
@@ -457,7 +457,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             for tile in row
             if isinstance(tile, dict) and tile.get("kind") == "PLANT"
         )
-    # current_phase.md §v1l: gross market revenue from plant products only (not animals /
+    # v1l: gross market revenue from plant products only (not animals /
     # fertilizer). Acceptance requires this to move positively when the crop mix changes.
     _CROP_REVENUE_ITEMS = ("WHEAT", "CARROT", "STRAWBERRY", "TOMATO", "MELON")
     crop_revenue = sum(
@@ -465,13 +465,13 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         for sale in sales
         if sale.get("item") in _CROP_REVENUE_ITEMS
     )
-    # Β.0 (current_phase.md): per-product avg realized price alone doesn't say whether the
+    # §Β.0: per-product avg realized price alone doesn't say whether the
     # elite-ceiling herd size actually saturates a product's cliff — need units sold alongside it.
     units_sold_by_product = {
         item: len(prices)
         for item, prices in prices_by_item.items()
     }
-    # current_phase.md §v1m: realized $/u per product (crop_revenue is only the sum). Same
+    # v1m: realized $/u per product (crop_revenue is only the sum). Same
     # sale stream as average_sell_price; revenue_by_product makes the gate's MELON $/u
     # = revenue/units checkable without re-scanning market_sales.
     revenue_by_product = {

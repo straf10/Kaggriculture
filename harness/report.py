@@ -1,4 +1,4 @@
-"""harness/report.py (plan.md §1.5.4): turn one recorded replay (+ optional G11 receipts)
+"""harness/report.py: turn one recorded replay (+ optional G11 receipts)
 into a single self-contained, offline HTML report — no CDN, no external files. On an engine
 that never raises (review_89d99f0_2026-08-05.md H4), this is what turns "we lost $8k" into "the WATER at (7,2)
 on step 341 didn't do what we expected": bank curves for both seats, per-day loss/utilization

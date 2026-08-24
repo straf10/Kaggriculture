@@ -1,4 +1,4 @@
-"""Per-turn timing. plan.md §2.4.
+"""Per-turn timing.
 
 Budget context: actTimeout is 1s/turn + 60s overage total (MASTERPLAN §1); the submission
 runtime is a modest 1.6 vCPU (competition_info.md:528), slower than a dev machine. Local

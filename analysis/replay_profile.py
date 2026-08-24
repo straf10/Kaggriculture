@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""plan.md §1.5.5 — gap analysis from top-decile ladder replays (MASTERPLAN §3.4).
+"""Gap analysis from top-decile ladder replays (MASTERPLAN §3.4).
 
 Offline data work, deliberately separate from harness/ (not agent/benchmark code).
 
@@ -252,7 +252,7 @@ def write_markdown(result: dict, agg: pd.DataFrame, v1b_bank_curve: list[float] 
     bd = result["bank_at_day"]
 
     lines = []
-    lines.append("# Top-decile replay profile vs v1b (plan.md §1.5.5)\n")
+    lines.append("# Top-decile replay profile vs v1b\n")
     lines.append(
         f"Top-decile teams: **{result['n_top_teams']}** (winrate n>=8, Wilson lower bound, "
         f"top 10%). Extracted from **{result['n_episode_seats']}** (episode, seat) rows.\n"
@@ -282,7 +282,7 @@ def write_markdown(result: dict, agg: pd.DataFrame, v1b_bank_curve: list[float] 
         first_animal_any is not None and first_extra_quadrant is not None
         and first_animal_any < first_extra_quadrant
     )
-    lines.append("## plan.md §5.1 decision: land vs animals first\n")
+    lines.append("## Decision: land vs animals first\n")
     lines.append(
         f"Median day of 1st animal (any species): **{first_animal_any}** "
         f"(n={len(result['first_animal_any_days'])}). "

@@ -171,7 +171,7 @@ def _sell_batch_size(
     """How many units of `product` to put in this turn's SELL order.
 
     The pre-v1i rule is the `average_rule=False` branch: stop at the first unit whose quoted
-    price falls to `floor`. current_phase.md §v1i (1) points out that this judges the batch by
+    price falls to `floor`. v1i (1) points out that this judges the batch by
     its **marginal** unit while the engine actually pays `Σ p(inventory + i)` — the batch's
     realized average is strictly above the unit the loop tests, so the check is conservative
     and leaves revenue behind.
@@ -182,13 +182,13 @@ def _sell_batch_size(
 
     * `hard_floor` (`liquidation_floor_price`) is a per-unit veto that the average can never
       override, so the rule structurally cannot manufacture the <=$5 sales the structural
-      metric gate hard-zeroes (current_phase.md §1 Απόφαση Α).
+      metric gate hard-zeroes.
     * whenever `floor <= hard_floor` — every product during liquidation, and CARROT/EGG always
       — the two branches are identical by construction, so this cannot move the endgame.
 
     `safety_units` stays in the quoted index in both branches, unchanged: it models the
     opponent's simultaneous SELL at the same per-unit lockstep index, which is a different
-    correction from the marginal/average one and current_phase.md §v1i is explicit that both
+    correction from the marginal/average one and both
     are needed together.
     """
     sell_units = 0
@@ -213,7 +213,7 @@ def _safety_units(
     product: str,
     supply_tracker=None,
 ) -> int:
-    """Units of opponent supply to assume at our own quoted index (current_phase.md §v1i Η2).
+    """Units of opponent supply to assume at our own quoted index (v1i Η2).
 
     Falls back to the configured constant whenever the controller is off or has no evidence
     yet — which is the whole of day 0 and every product the opponent has not touched, i.e.
@@ -248,13 +248,13 @@ def market_orders(
     orders = []
     available_money = ledger.money
     average_rule = bool(executor_config.get("sell_ahead", {}).get("average_rule", False))
-    # plan.md §5.1 v1d: animal products (EGG/MILK/WOOL) and byproduct FERTILIZER sell through
+    # v1d: animal products (EGG/MILK/WOOL) and byproduct FERTILIZER sell through
     # the same conservative marginal-price loop as the two crops — v1e is where a real
-    # per-product marginal-threshold allocator belongs (plan.md §5), this just keeps v1d from
+    # per-product marginal-threshold allocator belongs, this just keeps v1d from
     # letting its own harvests pile up unsold in the shed.
     sell_products = ("STRAWBERRY", "CARROT", "EGG", "MILK", "WOOL", "FERTILIZER")
     if plan.force_liquidation:
-        # plan.md G14: WHEAT is bought (not grown) purely as animal feed and is normally kept
+        # G14: WHEAT is bought (not grown) purely as animal feed and is normally kept
         # at ~0 in the shed by the daily PICKUP->FEED loop, so it's excluded from the day-to-day
         # sell loop above (selling it there would just buy-high-sell-low against the agent's
         # own feed pipeline for no gain). But it IS a real, sellable market product — once
@@ -394,7 +394,7 @@ def market_orders(
         # comment's stated intent.
         #
         # Wheat is bought for every animal already placed (not yet-to-be-placed ones) — this
-        # is the "≥1 turn earlier" plan.md §5.1 asks for: buying as soon as a shortfall shows
+        # is the "≥1 turn earlier" buying as soon as a shortfall shows
         # up leaves the rest of the day's slack for PICKUP -> FEED instead of racing FEED's
         # zero-slack `consecutive_unfed` deadline. Unlike BUY_ANIMAL/new seeds, this must NOT
         # be gated on force_liquidation: planner.py's make_day_plan deliberately keeps
@@ -462,7 +462,7 @@ def market_orders(
                 available_money -= seeds_to_buy * CROPS[crop]["seed"]
 
     if config.get("animals", {}).get("enabled", False) and not plan.force_liquidation:
-        # plan.md §5.1 v1d / v1g: only buy up to as many empty, already-built structure slots
+        # v1d / v1g: only buy up to as many empty, already-built structure slots
         # as `name` actually has waiting — buying more would just have the surplus sit in the
         # shed as dead capital (the same MASTERPLAN §3.2#7 lesson land-without-hands teaches,
         # generalized from "never buy a second one" to "never buy past open homes" now that a
@@ -552,7 +552,7 @@ def market_orders(
         and len(snapshot.hand_positions) >= plan.hands_target
         and all(animal_placed(snapshot, name) for name in plan.animal_purchases)
     ):
-        # plan.md §5 v1c / MASTERPLAN §3.2#7: only buy once hands_target hands are already
+        # v1c / MASTERPLAN §3.2#7: only buy once hands_target hands are already
         # observed hired — land bought before a workforce exists to work it is dead capital.
         # The animal_placed check is load-bearing, not decorative: BUY_LAND's own hands_target
         # gate is satisfiable as early as day 0 hour ~2, well before COW/SHEEP are bought
@@ -642,7 +642,7 @@ def market_orders(
             "dropped": sorted(orders, key=_order_tier)[max_orders:],
         })
         kept = sorted(orders, key=_order_tier)[:max_orders]
-        # current_phase.md §v1m Δ2 / §v1m.2 Ε1: *which* orders survive the cut is still decided
+        # v1m Δ2 / v1m.2 Ε1: *which* orders survive the cut is still decided
         # by tier (HIRE first, SELL last) — H8 above is unchanged. What changes is the order the
         # survivors are *emitted* in. The engine executes a turn's market orders in emission
         # order, so a kept SELL sitting at index 6-9 prices against inventory that the same

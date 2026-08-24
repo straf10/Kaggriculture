@@ -1,4 +1,4 @@
-"""compare(): paired-seed A-vs-B comparison. plan.md §2.4, methodology from MASTERPLAN §6
+"""compare(): paired-seed A-vs-B comparison. Methodology from MASTERPLAN §6
 (viz cells 46-50) — same seeds for both agents.
 
 Go/no-go needs directional confidence and a practical margin:
@@ -40,13 +40,13 @@ from harness.town_pin import PIN_MODES, pinned_town, schedule_for_mode
 # avoids a hard scipy dependency for what is a small, well-known table (review.md M5).
 MIN_N_FOR_NON_INFERIOR = 12  # review_89d99f0_2026-08-05.md M3
 
-# plan.md §1.5.3 / review_89d99f0_2026-08-05.md §5 check #5: a $-verdict alone can hide a regression that just
+# review_89d99f0_2026-08-05.md §5 check #5: a $-verdict alone can hide a regression that just
 # happens to net positive (e.g. more aggressive selling offsetting worse water discipline).
 # stage tags which decision a report may be used for: dev-screen (tuning) reports must never
 # be read as a GO by themselves — only holdout-confirm, checked exactly once, can be.
 VALID_STAGES = ("dev-screen", "holdout-confirm")
 
-# current_phase.md §1 Απόφαση Δ (2026-08-10): which question a comparison is being asked.
+# Απόφαση Δ (2026-08-10): which question a comparison is being asked.
 #   "acceptance"  — vs the §Β.2 meta bench: the arm that decides whether an increment is taken.
 #                   The priced leg applies here, on the *difference* between the two sides.
 #   "regression"  — vs our own baseline (mirror): a regression detector under Απόφαση Β. The
@@ -60,7 +60,7 @@ ARM_ROLES = ("acceptance", "regression")
 GATES_DIR = Path("gates")
 DEFAULT_CONFIRM_LEDGER = GATES_DIR / "confirm_log.jsonl"
 
-# current_phase.md §1 Απόφαση Α (2026-08-10): the hard-zero gate is split in two.
+# Απόφαση Α (2026-08-10): the hard-zero gate is split in two.
 #
 # Counters that indicate a *logic fault* stay hard zero — there is no price at which a clipped
 # production tick or an unexplained no-op is acceptable, because it means the agent did
@@ -68,7 +68,7 @@ DEFAULT_CONFIRM_LEDGER = GATES_DIR / "confirm_log.jsonl"
 # number of dollars and has to be compared against the dollars the change earns. The old
 # all-hard-zero gate rejected +$3,019.3/ep for 84 burnt units and 34 lost tiles across 96
 # episodes (memory.md 2026-08-09 (ε)) — that is a $237/ep objection to a $3,019/ep gain, and
-# three sessions were spent on it while the ladder rating stood still (current_phase.md §0).
+# three sessions were spent on it while the ladder rating stood still.
 #
 # Prices are deliberately conservative (they over-state the loss, so the gate errs towards
 # rejecting):
@@ -130,7 +130,7 @@ def priced_loss_budget(mean_diff: float) -> float:
 
 
 def priced_loss_delta(loss_a: float, loss_b: float) -> float:
-    """current_phase.md §1 Απόφαση Δ: what the candidate *introduces*, not what it inherits.
+    """Απόφαση Δ: what the candidate *introduces*, not what it inherits.
 
     Clamped at zero — a candidate that breaks *less* than the arm it is measured against does
     not earn a negative loss it can spend on breaking something else.
@@ -277,12 +277,12 @@ def _has_prior_dev_screen(root: Path, candidate_fingerprint: str) -> bool:
 
 def _play_orientation(agent_first, agent_second, seed, steps, run_dir, record, strict, metrics,
                       town_pin=None, town_schedule=None):
-    """Module-level (picklable) unit of work for the ProcessPoolExecutor path (plan.md
-    §1.5.1): exactly one `play()` call, returning the raw (bank_first, bank_second) rewards
+    """Module-level (picklable) unit of work for the ProcessPoolExecutor path:
+    exactly one `play()` call, returning the raw (bank_first, bank_second) rewards
     plus the per-seat metrics dict a single orientation needs. Kept at module scope — a
     nested closure isn't picklable and would silently break the Windows spawn start method.
 
-    current_phase.md §Β.0′: the town pin is applied **here**, inside the worker, from the
+    §Β.0′: the town pin is applied **here**, inside the worker, from the
     picklable `(town_pin, town_schedule)` pair — a context manager cannot cross a process
     boundary, and under the spawn start method the parent's monkeypatch does not exist in the
     child at all. Both orientations of a seed get the same pair, so both arms of a comparison
@@ -303,7 +303,7 @@ _V1K_REPORT_METRICS = (
     # analysis/v1o3_visit_efficiency.py had to recover it per episode with its own separate
     # play() calls because of this gap.
     "worker_turns_moving",
-    # R17 (ROADMAP §1.1, prompt.md 2026-08-14 S3 step 1d race): v1p1b arm A1 hit 46,0%
+    # R17 (ROADMAP §1.1, S3 step 1d race): v1p1b arm A1 hit 46,0%
     # worker_turns_moving — the largest commute cut ever measured here — by doing *fewer*
     # working turns than baseline and shedding 30% of crop_tile_days into idle. A ratio
     # threshold on worker_turns_moving alone is satisfiable by shrinking the farm; the
@@ -313,7 +313,7 @@ _V1K_REPORT_METRICS = (
     "crop_revenue",
 )
 
-# R20 (ROADMAP §6, prompt.md 2026-08-15 S3 step 2): per-product units + realised revenue in
+# R20 (ROADMAP §6, S3 step 2): per-product units + realised revenue in
 # every gate artefact. v1m emitted only the MELON pair; every herd-13 economic risk (§0.2 of the
 # step-2 brief) is a MILK/WOOL realised-price question (§4.1), and that number could not be read
 # from a gate artefact at all. Generalised over this tuple, emitting `{product.lower()}_units_{arm}`
@@ -344,7 +344,7 @@ def _attach_v1k_diagnostics(
             orientation[f"{key}_revenue_{arm}"] = int(revenue.get(product, 0))
 
 
-# current_phase.md §1 Απόφαση Δ point 4: the raw counters of *both* arms are reported. Δ changes
+# Απόφαση Δ point 4: the raw counters of *both* arms are reported. Δ changes
 # the criterion, not the transparency — so every counter that gets priced on agent_a's side is
 # also read off agent_b's seat, plus the raw `weeds_lost` diagnostic for symmetry.
 _ARM_B_COUNTER_METRICS = (*PRICED_SOURCE_METRICS, "weeds_lost")
@@ -354,7 +354,7 @@ def _attach_metric_fields(orientation: dict, metrics_by_seat: dict, *, a_seat: i
     """Copy every gate counter and diagnostic out of one episode's per-seat metrics.
 
     agent_a occupies seat 0 in the "A@0/B@1" orientation and seat 1 in the swapped one, so
-    which seat is read has to follow the arm, not a constant (plan.md §1.5.3). Kept in one
+    which seat is read has to follow the arm, not a constant. Kept in one
     place because it is applied at four call sites (two orientations x sequential/parallel);
     the four inline copies it replaced were where a new counter got forgotten.
     """
@@ -408,8 +408,8 @@ class CompareResult:
     verdict: str = "INCONCLUSIVE"
     incomplete: bool = False  # True if any seed errored or was otherwise skipped
     code_fingerprints: tuple = ("", "")
-    stage: Optional[str] = None  # "dev-screen" | "holdout-confirm" | None (plan.md §1.5.3)
-    # current_phase.md §Β.0′: which town-pin regime both arms played under (None = the engine's
+    stage: Optional[str] = None  # "dev-screen" | "holdout-confirm" | None
+    # §Β.0′: which town-pin regime both arms played under (None = the engine's
     # own draw), and the exact per-seed schedule that produced it — a pinned verdict is only
     # valid for the towns actually pinned, so the towns are part of the result, not a setting.
     town_pin: Optional[str] = None
@@ -417,8 +417,8 @@ class CompareResult:
     metrics_checked: bool = False  # whether the metrics param was on for this run
     water_weeds_lost_a: Optional[int] = None  # None unless metrics_checked (review.md C3)
     plant_decay_units_lost_a: Optional[int] = None
-    animals_escaped_a: Optional[int] = None  # plan.md G5/v1d
-    clipped_production_ticks_a: Optional[int] = None  # plan.md G8/v1d
+    animals_escaped_a: Optional[int] = None  # G5/v1d
+    clipped_production_ticks_a: Optional[int] = None  # G8/v1d
     # review.md M1: four more signals extract_metrics() already computes but the gate ignored.
     shed_overflow_burnt_a: Optional[int] = None  # hard gate, same as the four above
     weeds_lost_a: Optional[int] = None  # raw diagnostic; includes successful retirement
@@ -427,7 +427,7 @@ class CompareResult:
     sales_count_a: Optional[int] = None  # denominator for the units_sold_at_or_below_5_a budget
     unexplained_noops_a: Optional[int] = None  # None unless diagnostics were collected (KAGGRI_DEBUG)
     market_sim_aborted_a: Optional[bool] = None  # review.md M11: True fails the gate
-    # current_phase.md §v1k: mandatory per-gate diagnostics, totals across all raw episodes.
+    # v1k: mandatory per-gate diagnostics, totals across all raw episodes.
     crop_tile_days_a: Optional[int] = None
     crop_tile_days_b: Optional[int] = None
     worker_turns_idle_a: Optional[int] = None
@@ -442,7 +442,7 @@ class CompareResult:
     animals_underfed_days_b: Optional[int] = None
     crop_revenue_a: Optional[int] = None
     crop_revenue_b: Optional[int] = None
-    # current_phase.md §v1m: MELON race reporting (totals across raw episodes).
+    # v1m: MELON race reporting (totals across raw episodes).
     melon_units_a: Optional[int] = None
     melon_units_b: Optional[int] = None
     melon_revenue_a: Optional[int] = None
@@ -458,14 +458,14 @@ class CompareResult:
     wool_units_b: Optional[int] = None
     wool_revenue_a: Optional[int] = None
     wool_revenue_b: Optional[int] = None
-    # current_phase.md §1 Απόφαση Δ: the same four priced counters, read off agent_b's seat.
+    # Απόφαση Δ: the same four priced counters, read off agent_b's seat.
     # Reported unconditionally (Δ point 4) — the criterion changed, the transparency did not.
     animals_escaped_b: Optional[int] = None
     shed_overflow_burnt_b: Optional[int] = None
     unexpected_weeds_lost_b: Optional[int] = None
     water_weeds_lost_b: Optional[int] = None
     weeds_lost_b: Optional[int] = None  # raw diagnostic, same status as weeds_lost_a
-    # current_phase.md §1 Απόφαση Α/Δ: what the surviving losses cost per episode on each side,
+    # Απόφαση Α/Δ: what the surviving losses cost per episode on each side,
     # what the *difference* was allowed to cost, and the written mechanism for each non-zero
     # candidate counter. `priced_loss_per_episode` is agent_a's absolute loss and keeps its name
     # for compatibility with every gate artefact written before Δ; it is also emitted as
@@ -538,8 +538,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     default drifts as bank_b grows. Directional verdicts are: IMPROVED, NON_INFERIOR,
     WITHIN_MARGIN, REGRESSED, INCONCLUSIVE, or INCOMPLETE.
 
-    workers>1 runs one (seed, orientation) play() per ProcessPoolExecutor job (plan.md
-    §1.5.1); per-seed diffs are identical to workers=1 for the same seeds/agents — only
+    workers>1 runs one (seed, orientation) play() per ProcessPoolExecutor job;
+    per-seed diffs are identical to workers=1 for the same seeds/agents — only
     wall time changes. A non-picklable agent_a/agent_b (e.g. a lambda) falls back to
     workers=1 with a warning instead of raising. Results are persisted (when run_dir is
     given) as soon as each seed's orientation(s) all land, not only after the whole pool
@@ -554,7 +554,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     default — extract_metrics() is not free. When metrics=False gate fields are None, not 0:
     absence of measurement is not proof of zero loss.
 
-    The metric gate itself is current_phase.md §1 Απόφαση Α as amended by Απόφαση Δ
+    The metric gate itself is Απόφαση Α as amended by Απόφαση Δ
     (2026-08-10), in three parts:
       - structural faults stay hard zero, on agent_a's counters, in *both* arm roles:
         plant_decay_units_lost, clipped_production_ticks, unexplained no-ops,
@@ -575,11 +575,11 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     Απόφαση Β is a regression detector: the $-verdict and the structural/mechanism legs apply,
     the priced budget never does. Under Α the mirror was held to 10% of a mean_diff that a
     correct market-only fix drives to ~0 — a $6.49 budget no candidate could ever meet
-    (current_phase.md §1 Δ, memory.md 2026-08-10 (ι)). Both arms' raw counters are reported
+    (memory.md 2026-08-10 (ι)). Both arms' raw counters are reported
     either way; Δ changed the criterion, not the transparency.
 
     Two points where the written rule needed an interpretation, recorded here and in
-    current_phase.md §1 Απόφαση Δ:
+    Απόφαση Δ interpretation:
       - `priced_loss_b` is the loss of *this comparison's arm B*. In an acceptance run that is
         the bench opponent, not our own previous baseline — the rule is written per-arm
         ("follow the crop_tile_days_a/_b pattern"), so that is what it measures.
@@ -599,7 +599,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     environment, and warns if KAGGRI_DEBUG is (review.md H7) — both are recorded either way
     in the `env` field.
 
-    town_pin (current_phase.md §Β.0′, harness.town_pin) pins which shops the town unlocks, so
+    town_pin (§Β.0′, harness.town_pin) pins which shops the town unlocks, so
     both arms of an *occupancy* comparison play the same town on a given seed. Shop unlock and
     weed spawning share one per-day RNG stream (MASTERPLAN §2 #7), so any change to how many
     tiles are occupied at night — crew size, planting, BUY_LAND, animal placement — re-rolls the
@@ -619,14 +619,14 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     the metric gate passed, an unpinned town distribution, and no sign-test-confirmed
     regression (review.md H2: wins_b > wins_a at p<0.01 blocks go unless
     accept_within_margin=True) — a $-verdict computed without metrics never counts as a GO
-    (plan.md §1.5.3).
+    .
     """
     if stage is not None and stage not in VALID_STAGES:
         raise ValueError(f"compare(): stage must be one of {VALID_STAGES} or None, got {stage!r}")
     if arm_role not in ARM_ROLES:
         raise ValueError(
             f"compare(): arm_role must be one of {ARM_ROLES}, got {arm_role!r} "
-            "(current_phase.md §1 Απόφαση Δ)"
+            "(Απόφαση Δ)"
         )
     if town_pin is not None and town_pin not in PIN_MODES:
         raise ValueError(
@@ -762,7 +762,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 f"compare(): stage='holdout-confirm' already has {repeat_confirm_index} "
                 f"recorded confirm(s) for agent_b fingerprint {code_fingerprints[1][:12]}... "
                 f"on seed set {seed_set_name!r} in {ledger_path} — a confirm set is checked "
-                "exactly once per question (plan.md §1.5.3 / review.md C1). Pass "
+                "exactly once per question (review.md C1). Pass "
                 "allow_repeat_confirm=True only if this repeat is deliberate; it will be "
                 "recorded as repeat_confirm_index in the ledger and the result."
             )
@@ -827,7 +827,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     f"town_pin={recorded_town_pin!r}, but this call passes town_pin="
                     f"{town_pin!r} — delete {jsonl_path} or use a different run_dir instead of "
                     "mixing pinned and unpinned towns (or two different pin modes) into one "
-                    "verdict (current_phase.md §Β.0′)"
+                    "verdict (§Β.0′)"
                 )
             recorded_town_schedules = meta.get("town_schedules", {})
             current_town_schedules = meta_row["town_schedules"]
@@ -878,7 +878,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         bank_b = statistics.mean(o["bank_b"] for o in orientations)
         diff = bank_a - bank_b
         winner = "a" if diff > 0 else ("b" if diff < 0 else "tie")
-        # plan.md §1.5.3: summed (not averaged) over every orientation played this seed — a
+        # Summed (not averaged) over every orientation played this seed — a
         # defect that shows up in one orientation but not the other must still fail the gate,
         # not get diluted into a mean. review.md C3: None (not 0) when metrics wasn't on for
         # this run — a metric that was never measured must never read as "measured, zero".
@@ -962,7 +962,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
 
     # review_89d99f0_2026-08-05.md M2 / review.md M6 fields above already guard resume; a callable agent_spec (lambda,
     # nested function) can't cross a spawned worker process, so workers>1 degrades to
-    # sequential rather than raising (plan.md §1.5.1 (a)).
+    # sequential rather than raising.
     effective_workers = workers
     if workers > 1 and not (_is_picklable(agent_a) and _is_picklable(agent_b)):
         _warn(
@@ -977,7 +977,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
     pending_seeds = [seed for seed in seeds if seed not in done]
 
     if effective_workers > 1 and pending_seeds:
-        # plan.md §1.5.1 (β): one ProcessPoolExecutor job per (seed, orientation) — the
+        # One ProcessPoolExecutor job per (seed, orientation) — the
         # parent is the only writer of results.jsonl/computed, futures never touch it.
         jobs = []
         for seed in pending_seeds:
@@ -1097,7 +1097,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 computed[seed] = err_row
                 _persist(err_row)
 
-    # Sorted by seed regardless of completion order (plan.md §1.5.1): future completion
+    # Sorted by seed regardless of completion order: future completion
     # order must not change the output, or criterion (i) — identical workers=1 vs
     # workers=N per-seed diffs — becomes flaky by design.
     per_seed = []
@@ -1231,7 +1231,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         units_sold_budget_ok = (
             sales_count_a == 0 or (units_sold_at_or_below_5_a / sales_count_a) <= 0.02
         )
-        # current_phase.md §1 Απόφαση Α. Structural faults first — no price applies to these.
+        # Απόφαση Α. Structural faults first — no price applies to these.
         structural_ok = (
             plant_decay_units_lost_a == 0
             and clipped_production_ticks_a == 0
@@ -1265,7 +1265,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         }
         # Deliberately agent_a's counters only, and deliberately *not* relaxed by Δ: pricing —
         # differenced or absolute — buys tolerance for understood loss, never for unexplained
-        # loss. This is what still rejects v1m Δ3's 28 escapes (current_phase.md §1 Δ point 2).
+        # loss. This is what still rejects v1m Δ3's 28 escapes (Απόφαση Δ point 2).
         unexplained_metrics = tuple(
             metric for metric, count in sorted(priced_counts.items())
             if (count or 0) > 0 and metric not in declared
@@ -1305,7 +1305,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 v1k_diagnostics[f"{key}_units_{arm}"] = None
                 v1k_diagnostics[f"{key}_revenue_{arm}"] = None
 
-    # plan.md §1.5.3: a GO is only real from stage="holdout-confirm", with a directional
+    # A GO is only real from stage="holdout-confirm", with a directional
     # verdict, AND the metric gate having actually run and passed — an unmeasured metric
     # gate must never silently count as passed. review.md H2: WITHIN_MARGIN (a confirmed
     # regression under the margin) only counts toward go with an explicit override, same as

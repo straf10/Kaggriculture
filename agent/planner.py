@@ -116,7 +116,7 @@ def _capacity_limited_targets(snapshot: Snapshot, config: dict, raw_targets: dic
 def _dynamic_sell_floors(
     snapshot: Snapshot, config: dict, env_config, static_floors: dict[str, int]
 ) -> dict[str, int]:
-    """current_phase.md §v1g.2 (γ): raise each product's sell floor to the price implied by the
+    """v1g.2 (γ): raise each product's sell floor to the price implied by the
     glut the town can actually work off, and never lower it below the configured static floor.
 
     The mechanism, in one line: **a price floor and a sell-rate cap are the same object.**
@@ -131,7 +131,7 @@ def _dynamic_sell_floors(
        already contains both players' supply and the town's consumption. A units/day budget on
        our own sales would happily keep trickling into a market the opponent has already
        crashed.
-    3. It cannot create a single extra market order (current_phase.md §v1g.2 «10-order cap»):
+    3. It cannot create a single extra market order (v1g.2 «10-order cap»):
        it only ever shrinks `sell_units` inside orders the executor was already going to emit,
        and an order shrunk to 0 disappears. Both fertilizer attempts died to order crowd-out;
        this increment structurally cannot repeat that failure.
@@ -250,7 +250,7 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
         if phase != "LIQUIDATE" and snapshot.day <= planner_config["strawberry_last_plant_day"]
         else 0
     )
-    # plan.md §5 v1c: once NE is actually unlocked, grow the same targets by the NE-mirrored
+    # v1c: once NE is actually unlocked, grow the same targets by the NE-mirrored
     # tile counts appended to target_tiles — never before unlock (those tiles are still
     # "LOCKED", not None, so counting them into plant_targets would only make the capacity
     # gate below model demand for tiles that can't be walked to yet).
@@ -260,7 +260,7 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
             carrot_target += int(planner_config.get("ne_carrot_tiles", 0))
         if strawberry_target:
             strawberry_target += int(planner_config.get("ne_strawberry_tiles", 0))
-    # v1h' (current_phase.md §v1h'): SW's WHEAT, gated on three things beyond the unlock.
+    # v1h': SW's WHEAT, gated on three things beyond the unlock.
     # `wheat_first_plant_day` is the load-bearing one: _capacity_limited_targets trims whichever
     # crop currently has the *largest* target, so a WHEAT target that appeared while STRAWBERRY
     # was still being planted would be trimmed out of STRAWBERRY's budget instead of its own
@@ -304,7 +304,7 @@ def make_day_plan(snapshot: Snapshot, config: dict, env_config=None) -> DayPlan:
         # WHEAT needs its own share every ~5 days as tiles are harvested empty and replanted.
         max_new_plants += int(planner_config.get("sw_max_new_plants_per_day", 0))
 
-    # plan.md §5.1 v1d / v1g: target counts (not one-each) drive both how many of each animal
+    # v1d / v1g: target counts (not one-each) drive both how many of each animal
     # to buy and how many structure tiles of each kind to build. LIQUIDATE doesn't touch this:
     # animals aren't sold off early like ongoing crops, they keep producing until the episode
     # ends. A target count of 0 (e.g. GOOSE screened out) simply builds nothing for that

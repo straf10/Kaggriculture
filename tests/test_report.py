@@ -1,4 +1,4 @@
-"""harness/report.py (plan.md §1.5.4): self-contained HTML episode report."""
+"""harness/report.py: self-contained HTML episode report."""
 import json
 
 from kaggle_environments import make

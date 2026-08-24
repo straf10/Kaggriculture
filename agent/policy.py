@@ -26,7 +26,7 @@ class RuntimeContext:
     last_hand_count: int = 0
     committed_tasks: dict = field(default_factory=dict)
     pending_receipts: list = field(default_factory=list)
-    # current_phase.md §v1i Η2. Lives here, not module-global, for the same reason the rest of
+    # v1i Η2. Lives here, not module-global, for the same reason the rest of
     # RuntimeContext does: the tracker is seat-local and must reset at an episode boundary,
     # or a second episode in the same process would start with the first one's history (G13).
     supply_tracker: OpponentSupplyTracker = field(default_factory=_new_supply_tracker)
@@ -46,7 +46,7 @@ def reset_or_get_runtime(snapshot: Snapshot) -> RuntimeContext:
 
 
 def _needs_replan(runtime: RuntimeContext, snapshot: Snapshot) -> bool:
-    """review_89d99f0_2026-08-05.md M4: plan.md §3.1 calls for a replan on the day boundary *or* when observed
+    """review_89d99f0_2026-08-05.md M4: replan on the day boundary *or* when observed
     state diverges from the plan (e.g. a land purchase actually landing) — only the per-day
     trigger existed. `my_quadrants` changing mid-day is one such event v1b can already
     observe (BUY_LAND/animal purchases aren't wired into the executor yet). Hand count is
@@ -85,7 +85,7 @@ def agent(obs, configuration=None):
         # v1g.2: `configuration` also carries the town's sell intervals, which is what lets
         # agent.demand compute NPC demand exactly instead of assuming the 1.32.5 defaults —
         # and, in particular, what makes the sell floors follow the announced
-        # townCenterSellInterval 12 -> 24 change on their own (current_phase.md §0bis).
+        # townCenterSellInterval 12 -> 24 change on their own.
         runtime.plan = make_day_plan(snapshot, CONFIG, configuration)
         runtime.planned_day = snapshot.day
     runtime.last_quadrants = snapshot.my_quadrants

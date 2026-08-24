@@ -1,5 +1,5 @@
 """Tests for the harness itself (review.md M7). The harness is the instrument every v1a-v1e
-go/no-go decision (plan.md §3.3) will be read off of; before this file it had zero coverage.
+go/no-go decision will be read off of; before this file it had zero coverage.
 Fast fake/tiny agents throughout (steps<=6) so this suite stays quick.
 """
 import json
@@ -178,7 +178,7 @@ def test_play_collects_structured_agent_diagnostics():
 
 
 def test_play_render_html_writes_bundled_visualizer(tmp_path):
-    """plan.md §1.5.4 — render_html=True writes the engine's own bundled offline visualizer,
+    """render_html=True writes the engine's own bundled offline visualizer,
     not just a placeholder/empty file."""
     result = play("starter", "pass", seed=0, steps=4, run_dir=tmp_path, record=True, render_html=True)
     assert result.html_path is not None
@@ -192,7 +192,7 @@ def test_play_render_html_off_by_default_leaves_html_path_none(tmp_path):
 
 
 def test_play_persists_receipts_only_when_diagnostics_nonempty(tmp_path):
-    """plan.md §1.5.4 — receipts are written next to the replay only when there's something
+    """Receipts are written next to the replay only when there's something
     to write; an agent with guards.debug off (the default) produces no receipts_path at all,
     so harness/report.py can tell 'not measured' apart from 'measured, found nothing'."""
     def receipt_agent(obs):
@@ -635,7 +635,7 @@ def test_compare_records_provenance_fields():
 
 @pytestmark_small_seed_warning
 def test_compare_workers_matches_sequential_per_seed_diffs():
-    """plan.md §1.5.1 criterion (i): workers=1 (sequential) and workers>1 (ProcessPoolExecutor,
+    """Criterion (i): workers=1 (sequential) and workers>1 (ProcessPoolExecutor,
     one job per (seed, orientation)) must produce identical per-seed diffs for the same
     seeds/agents — only wall time may differ. Real episodes (not mocked play()), since the
     thing under test is process-boundary/pickling behavior, not compare()'s arithmetic."""
@@ -669,7 +669,7 @@ def test_compare_parallel_persists_meta_and_each_completed_seed(tmp_path):
 
 @pytestmark_small_seed_warning
 def test_compare_workers_falls_back_to_sequential_for_unpicklable_callable():
-    """plan.md §1.5.1 (a): a callable agent_spec that can't cross a spawned worker process
+    """A callable agent_spec that can't cross a spawned worker process
     (a local/nested function, unlike a top-level function or a file path) must degrade to
     workers=1 with a warning, not raise."""
     def local_agent(obs):
@@ -729,7 +729,7 @@ def test_compare_metrics_off_by_default_leaves_gate_fields_unset():
 
 @pytestmark_small_seed_warning
 def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
-    """plan.md §1.5.3 — agent_a occupies seat 0 in the 'A@0/B@1' orientation but seat 1 in
+    """agent_a occupies seat 0 in the 'A@0/B@1' orientation but seat 1 in
     the swapped 'B@0/A@1' orientation; the metric gate must follow agent_a's seat, not
     always read seat 0 (which would silently score the opponent's water discipline instead)."""
     def fake_play(a, b, seed, **kwargs):
@@ -793,14 +793,14 @@ def test_compare_metrics_reads_agent_a_seat_in_each_orientation():
     # gate artefact could report the commute share the S3 step 1c work is judged on.
     assert result.worker_turns_moving_a == 60 + 61
     assert result.worker_turns_moving_b == 55 + 56
-    # R17 (ROADMAP §1.1, prompt.md 2026-08-14 S3 step 1d race): worker_turns_working must be
+    # R17 (ROADMAP §1.1, S3 step 1d race): worker_turns_working must be
     # aggregated the same way — a ratio on worker_turns_moving alone is satisfiable by
     # shrinking the farm (v1p1b arm A1 hit 46,0% moving by doing less work), so the absolute
     # working-turn count has to be in every gate artefact too.
     assert result.worker_turns_working_a == 30 + 29
     assert result.worker_turns_working_b == 25 + 24
     assert result.animals_underfed_days_a == 2 + 5
-    # R20 (ROADMAP §6, prompt.md 2026-08-15 S3 step 2): per-product units + revenue follow
+    # R20 (ROADMAP §6, S3 step 2): per-product units + revenue follow
     # agent_a's seat the same way, generalised over _V1K_REPORT_PRODUCTS. MELON stays pinned as a
     # regression guard on the byte-for-byte-preserved keys; MILK + WOOL are the new pair. agent_a
     # is seat 0 in the first orientation and seat 1 in the swapped one.
@@ -853,7 +853,7 @@ def test_v1h2d_compare_gates_unexpected_not_raw_weeds():
     assert unexpected.metric_gate_passed is False
 
 
-# --------------------------------------- current_phase.md §1 Απόφαση Α + Δ (priced gate)
+# --------------------------------------- Απόφαση Α + Δ (priced gate)
 
 def _gate_counts(gate_name, arm="a"):
     """Real measured counters from a tracked gate artifact — the whole point of pinning the
@@ -912,7 +912,7 @@ def test_v1h2d_priced_gate_decides_the_three_measured_arms(gate_name, accepted, 
 
 
 def test_decision_d_prices_the_difference_not_the_inherited_loss():
-    """current_phase.md §1 Απόφαση Δ, the measurement that forced it: the same candidate code
+    """Απόφαση Δ, the measurement that forced it: the same candidate code
     measured 112 burnt units vs the meta bench and 754 vs the mirror, so the counter describes
     market conditions, not candidate quality. Whatever an arm's own opponent also burns is not
     something the increment introduced, and the clamp stops a tidier candidate from banking the
@@ -1026,7 +1026,7 @@ def _fake_play_with_counters(counters_a, counters_b, *, bank_a, bank_b):
 
 @pytestmark_small_seed_warning
 def test_decision_d_still_rejects_v1m_d3_unexplained_escapes():
-    """current_phase.md §1 Απόφαση Δ is explicitly not a loosening. v1m Δ3 won the melon race
+    """Απόφαση Δ is explicitly not a loosening. v1m Δ3 won the melon race
     economically (+$3,421/ep, W/L 11-1) and was stopped because `animals_escaped` went 0 -> 28
     with no written mechanism. Under Δ the opponent burns far more than the candidate, so the
     priced delta is 0 and the priced leg is satisfied — and the run must *still* fail, on the
@@ -1168,7 +1168,7 @@ def test_compare_metrics_off_leaves_arm_b_counters_unmeasured():
 
 @pytestmark_small_seed_warning
 def test_compare_go_requires_holdout_confirm_stage_metrics_and_clean_gate(tmp_path):
-    """plan.md §1.5.3 acceptance criterion — a GO must never be readable off a dev-screen
+    """Acceptance criterion — a GO must never be readable off a dev-screen
     report, nor off a holdout report where the metric gate didn't run, nor when the metric
     gate itself failed, regardless of how clean the $-verdict looks."""
     def fake_play(a, b, seed, **kwargs):

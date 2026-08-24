@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""current_phase.md §v1i (Η0) — measure-before-code diagnostic for the two remaining
+"""v1i (Η0) — measure-before-code diagnostic for the two remaining
 sell-ahead levers, in the L1/L2/§v1n-Ρ1 pattern: aggregate-only, **no `agent/` changes**.
 
 Two questions, both answered from replays rather than from a hypothesis:

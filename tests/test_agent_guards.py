@@ -377,7 +377,7 @@ def test_v1o2_hires_are_capped_by_the_engines_order_budget_not_by_hands_target()
 
 
 def test_e1_market_truncation_emits_kept_sells_first():
-    """current_phase.md §v1m.2 Ε1 — the two halves of truncation are separate decisions.
+    """v1m.2 Ε1 — the two halves of truncation are separate decisions.
     *Which* orders survive is still tier order (H8: HIRE outranks SELL). *In what order the
     survivors are emitted* is not: the engine fills a turn's market orders in emission order,
     so a kept SELL at index 6-9 prices against inventory the same turn's earlier orders already
@@ -638,7 +638,7 @@ def test_h4_debug_receipts_emit_and_reconcile(capsys):
 
 
 def test_g5_feed_never_assigned_to_a_unit_without_wheat():
-    """plan.md G5 — FEED's wheat is per-unit cargo from an earlier PICKUP (unlike PLANT's
+    """G5 — FEED's wheat is per-unit cargo from an earlier PICKUP (unlike PLANT's
     shared seed pool draw), so a unit carrying none of it must never be routed to FEED, even
     standing right on the animal's tile — assigning it would be a silent no-op the engine
     swallows without error (review_89d99f0_2026-08-05.md H4's G11 failure mode), and the animal would go right on
@@ -683,7 +683,7 @@ def test_v1h2d_feed_pickup_reserves_delivery_slack_and_inherits_escape_risk():
 
 
 def test_g8_harvest_offered_every_turn_product_is_held_not_just_at_cap():
-    """plan.md G8 — `animals_needing`/`_build_animal_tasks` must offer HARVEST as soon as
+    """G8 — `animals_needing`/`_build_animal_tasks` must offer HARVEST as soon as
     `yield_units > 0`, every turn, not only once a tile has already reached `max_held` — engine
     :805 clips a due production tick's output to `max_held` with no carry-over, so waiting
     until the cap is hit to start harvesting would already be one tick too late."""
@@ -696,7 +696,7 @@ def test_g8_harvest_offered_every_turn_product_is_held_not_just_at_cap():
 
 
 def test_v1c_buy_land_triggers_replan_and_grows_targets():
-    """plan.md §5 v1c acceptance: observed BUY_LAND success (my_quadrants growing to include
+    """v1c acceptance: observed BUY_LAND success (my_quadrants growing to include
     "NE") must cause a correct same-day replan, not wait for tomorrow's day boundary —
     otherwise a day's plan keeps plant_targets frozen at the pre-purchase NW-only baseline
     until the next day, wasting the newly-unlocked tiles for the rest of today. policy.py's
@@ -754,7 +754,7 @@ def test_v1c_land_purchase_waits_for_animals_to_be_placed_first():
 
 
 def test_v1e_liquidation_drop_excludes_carried_wheat():
-    """plan.md §5 v1e: found via a smoke test once GOOSE's extra daily upkeep pushed the
+    """v1e: found via a smoke test once GOOSE's extra daily upkeep pushed the
     farmer into fetching WHEAT during liquidation (day >= endgame.liquidation_day) — the
     liquidation-phase DROP task used to treat ANY carried inventory as "cargo to dump",
     including WHEAT a unit had just PICKUP'd to carry to a FEED task. That handed the unit a
@@ -779,7 +779,7 @@ def test_v1e_liquidation_drop_excludes_carried_wheat():
 
 
 def test_v1e_endgame_liquidation_sells_stranded_wheat():
-    """plan.md G14: WHEAT is bought purely as animal feed and normally excluded from the
+    """G14: WHEAT is bought purely as animal feed and normally excluded from the
     day-to-day marginal-price sell loop (selling it there would just buy-high-sell-low against
     the agent's own feed pipeline, since the daily PICKUP->FEED loop keeps shed WHEAT near 0
     anyway) — but once liquidation starts, any WHEAT still sitting in the shed (rounding
@@ -1313,7 +1313,7 @@ def test_v1h_wheat_tiles_are_all_sw_and_avoid_the_shed_doorway():
 
 
 def test_v1h_no_animal_structure_sits_on_bought_land():
-    """The BUY_LAND deadlock trap (current_phase.md §v1h): the purchase gate requires every
+    """The BUY_LAND deadlock trap (v1h): the purchase gate requires every
     planned animal to already be placed, so a PASTURE/COOP on a not-yet-bought quadrant can
     never be built, its animal can never be placed, and the land can never be bought. Already
     avoided twice by hand (COOP in v1e, PASTURE in v1g); this makes it a test."""
@@ -1979,7 +1979,7 @@ def test_v1h_wheat_is_watered_inside_its_yield_window_not_only_every_other_day()
 
 
 def test_v1i_h1_average_rule_releases_units_the_marginal_rule_refuses():
-    """current_phase.md §v1i (1) — the sell loop tested the batch's *marginal* unit against
+    """v1i (1) — the sell loop tested the batch's *marginal* unit against
     the floor while the engine pays `Σ p(inventory + i)`. The batch-average rule judges what
     the batch actually realizes, so it takes strictly more units — but never a unit at or
     below `liquidation_floor_price`, which is what keeps the structural <=$5 gate intact."""

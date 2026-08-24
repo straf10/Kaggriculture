@@ -15,7 +15,7 @@ class Snapshot:
     # opponent_tiles is kept despite also having no current reader — it's reserved for a
     # Phase 2 opponent-aware selling policy (undercutting/matching the opponent's own sell
     # behavior), not dead in the same sense.
-    # v1g.2 (current_phase.md §v1g.2 α): `unlocked_shops` is back, and now has a real reader —
+    # v1g.2: `unlocked_shops` is back, and now has a real reader —
     # agent.demand.npc_daily_demand, which turns it into the exact per-day NPC absorption rate
     # the sell floors are sized against. Kept as a tuple (not a list) so the frozen dataclass
     # stays hashable-by-value and, more importantly, so no downstream reader can mutate the

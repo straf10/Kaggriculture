@@ -69,7 +69,7 @@ def test_metrics_detect_plant_loss_and_animal_escape():
 
 
 def test_metrics_detect_clipped_animal_production():
-    """plan.md G8 — engine.py:805 clips `yield_units + base + bonus` to `max_held` on every
+    """G8 — engine.py:805 clips `yield_units + base + bonus` to `max_held` on every
     due production tick with no carry-over; a tile already sitting at `max_held` going into a
     due tick has that whole tick's production silently discarded for lack of a HARVEST."""
     env = make(
@@ -89,7 +89,7 @@ def test_metrics_detect_clipped_animal_production():
 
 
 def test_metrics_unexplained_noops_none_without_diagnostics():
-    """plan.md §1.5.4 — absence of receipts must read as 'not measured' (None), not a false 0."""
+    """Absence of receipts must read as 'not measured' (None), not a false 0."""
     env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 4})
     replay = _finish(env)
     metrics = extract_metrics(replay, 0)
@@ -152,7 +152,7 @@ def test_v1k_metrics_report_crop_tile_days_and_total_worker_turns():
 
 
 def test_v1m_metrics_report_realized_price_per_unit_by_product():
-    """current_phase.md §v1m — crop_revenue is a sum; gate needs realized $/u per product."""
+    """v1m — crop_revenue is a sum; gate needs realized $/u per product."""
     env = make(
         "kaggriculture",
         configuration={"seed": 0, "episodeSteps": 2, "turnsPerDay": 2, "weedSpawnChance": 0},

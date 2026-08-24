@@ -1,4 +1,4 @@
-"""Clean-room meta-bench opponents (current_phase.md §Β.2 / MASTERPLAN §3.2ter).
+"""Clean-room meta-bench opponents (§Β.2 / MASTERPLAN §3.2ter).
 
 Two deterministic profiles built from **published statistics only** — never from
 competitor trajectories or notebook blobs (Ανοιχτό #11):

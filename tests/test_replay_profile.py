@@ -1,4 +1,4 @@
-"""analysis/replay_profile.py (plan.md §1.5.5): team selection + per-day profile extraction."""
+"""analysis/replay_profile.py: team selection + per-day profile extraction."""
 import pandas as pd
 
 from analysis.replay_profile import (

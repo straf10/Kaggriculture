@@ -1,4 +1,4 @@
-"""Path-loadable sheep-first meta bench (current_phase.md §Β.2).
+"""Path-loadable sheep-first meta bench (§Β.2).
 
 ``get_last_callable`` selects the last callable in this file, so compare()/play()
 can take this path string as the sheep-first opponent.
