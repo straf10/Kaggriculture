@@ -20,7 +20,7 @@
 | **«Ποια είναι η στρατηγική, τι φτιάχνουμε τώρα, και γιατί;»** | [ROADMAP.md](ROADMAP.md) ← **ένα αρχείο, από 2026-08-11** |
 | **«Πώς μετράμε — τι είναι έγκυρο gate;»** | [ROADMAP.md §2](ROADMAP.md) |
 | **«Τι κάνει η κορυφή της ladder;»** | [ROADMAP.md §4](ROADMAP.md) + [meta/ladder_snapshots.md](docs/meta/ladder_snapshots.md) |
-| **«Τι έγινε στις προηγούμενες συνεδρίες;»** | [memory.md](memory.md) |
+| **«Τι έγινε στις προηγούμενες συνεδρίες;»** | [journal/memory.md](journal/memory.md) |
 | **«Τι βρήκε το τελευταίο code review;»** | [reviews/](docs/reviews) |
 | **«Τι λέει *ακριβώς* η επίσημη σελίδα;»** | [source/](docs/source) |
 
