@@ -3,7 +3,7 @@
 > **The plan, not the diary.** This file holds *what we are doing next, what decides it, and what
 > must not be re-run*. It is technical and forward-looking by construction.
 >
-> **Where the rest lives:** per-pass narrative → [memory.md](memory.md) · per-pass measurements →
+> **Where the rest lives:** per-pass narrative → [memory.md](docs/journal/memory.md) · per-pass measurements →
 > `baselines/<date>/*.md` · engine deviations → [docs/reference/engine_deltas.md](docs/reference/engine_deltas.md)
 > · full history → git. **A pass touches this file only to change the plan, a gate, or a standing
 > rule.** It does not add a session entry here.

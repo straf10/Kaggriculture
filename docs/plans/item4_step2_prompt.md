@@ -136,7 +136,7 @@ planner is **refuted** — which makes the tape (§4.2) the only production rout
 ## 7. Out of scope
 
 - **Any `agent/` change.** Steps 3-5 do that, each gated separately. The oracle lives in `analysis/`.
-- **The tape (T1)** — primary path, lives in [prompt.md](../../prompt.md), independent of this pass.
+- **The tape (T1)** — primary path, lived in the rolling `prompt.md` (retired — see [RETIRED_DOCS](../journal/RETIRED_DOCS.md)), independent of this pass.
 - **The D28 carrot opportunity** — separate pass with its own Phase 0.
 - **Herd/crew/land retries** — except the single `v1s_H2R`-under-oracle probe in §4, which is a
   measurement, not an increment.

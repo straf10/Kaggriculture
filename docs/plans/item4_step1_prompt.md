@@ -9,7 +9,7 @@
 >    is not), §1 (invariants **G-1…G-8**), §2 step 1, §3 (the step table). This is the spec.
 > 2. [ROADMAP.md](../../ROADMAP.md) §2 + §2.1 (method: both seats, classify the knob), **§3.3**
 >    (the measured STOPs), **§3.4** (standing lessons).
-> 3. [memory.md](../../memory.md) — the top two entries.
+> 3. [memory.md](../journal/memory.md) — the top two entries.
 >
 > **§3.4 contains the single most load-bearing sentence for this pass:** *"A ratio is a
 > diagnostic, never a target."* v1p1b arm A1 achieved the largest commute reduction ever measured
@@ -152,8 +152,9 @@ which makes the tape (§4.2, now the chosen path) the production route rather th
 
 - **Any change to `agent/`, `main.py`, or `submission.tar.gz`.** Step 1 is measurement only.
 - **Implementing the matching in the agent.** That is steps 3-5, and each is gated separately.
-- **The tape work (T1).** It is the primary path and it lives in [prompt.md](../../prompt.md); it is
-  independent of this pass and the two can run in parallel. Ignore `prompt.md` this pass.
+- **The tape work (T1).** It is the primary path and it lived in `prompt.md` (a rolling brief, now
+  retired — see [RETIRED_DOCS](../journal/RETIRED_DOCS.md)); it is independent of this pass and the two
+  can run in parallel. Ignore the tape work this pass.
 - **The D28 carrot opportunity.** Real (18% of episodes drain CARROT past the knee, 54% for TOMATO)
   and it is the first-ever candidate for §3.3's standing v1k re-test trigger — but it is a separate
   pass with its own Phase 0.
