@@ -152,8 +152,9 @@ which makes the tape (§4.2, now the chosen path) the production route rather th
 
 - **Any change to `agent/`, `main.py`, or `submission.tar.gz`.** Step 1 is measurement only.
 - **Implementing the matching in the agent.** That is steps 3-5, and each is gated separately.
-- **The tape work (T1).** It is the primary path and it lives in [prompt.md](../../prompt.md); it is
-  independent of this pass and the two can run in parallel. Ignore `prompt.md` this pass.
+- **The tape work (T1).** It is the primary path and it lived in `prompt.md` (a rolling brief, now
+  retired — see [RETIRED_DOCS](../journal/RETIRED_DOCS.md)); it is independent of this pass and the two
+  can run in parallel. Ignore the tape work this pass.
 - **The D28 carrot opportunity.** Real (18% of episodes drain CARROT past the knee, 54% for TOMATO)
   and it is the first-ever candidate for §3.3's standing v1k re-test trigger — but it is a separate
   pass with its own Phase 0.

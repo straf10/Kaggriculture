@@ -120,4 +120,4 @@ print([(i, s["reward"]) for i, s in enumerate(env.steps[-1])])
 (επαληθευμένο: `test_determinism_same_seed`, `test_determinism_cross_process_hashseed`).
 Άρα η σύγκριση δύο εκδόσεων πρέπει να γίνεται **paired πάνω στα ίδια seeds** — αλλιώς το θόρυβο
 του seed θάβει το σήμα (μετρημένα **42,8× πλατύτερο** standard error με fresh seeds, viz cell 50).
-Το πρωτόκολλο μέτρησης του repo ζει στο [plan.md §1.5.3](plan.md).
+Το πρωτόκολλο μέτρησης του repo ζει στο [ROADMAP.md §2–§3](../../ROADMAP.md) (`plan.md` retired — δες [RETIRED_DOCS](../journal/RETIRED_DOCS.md)).

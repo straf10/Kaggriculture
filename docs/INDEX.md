@@ -11,18 +11,19 @@
 
 | Ερώτημα | Αρχείο |
 |---|---|
-| **«Επιτρέπεται αυτή η κίνηση; Τι σχήμα έχει το observation;»** | [reference/api_cheatsheet.md](docs/reference/api_cheatsheet.md) |
-| **«Τα docs λένε X — ισχύει;»** | [reference/engine_deltas.md](docs/reference/engine_deltas.md) ← **πάντα πριν γράψεις λογική** |
-| **«Τι αποδίδει το melon / το sheep / ένα quadrant / ένα hand;»** | [reference/economics.md](docs/reference/economics.md) |
-| **«Πόσο θα πέσει η τιμή αν πουλήσω 100;» / «Τι ζητά η πόλη;»** | [reference/market.md](docs/reference/market.md) |
-| **«Τι κάνουν αυτοί που κερδίζουν;»** | [meta/ladder_snapshots.md](docs/meta/ladder_snapshots.md) |
-| **«Τι νέο ανακοινώθηκε; Τι διορθώθηκε;»** | [meta/competition_updates.md](docs/meta/competition_updates.md) |
-| **«Ποια είναι η στρατηγική, τι φτιάχνουμε τώρα, και γιατί;»** | [ROADMAP.md](ROADMAP.md) ← **ένα αρχείο, από 2026-08-11** |
-| **«Πώς μετράμε — τι είναι έγκυρο gate;»** | [ROADMAP.md §2](ROADMAP.md) |
-| **«Τι κάνει η κορυφή της ladder;»** | [ROADMAP.md §4](ROADMAP.md) + [meta/ladder_snapshots.md](docs/meta/ladder_snapshots.md) |
+| **«Επιτρέπεται αυτή η κίνηση; Τι σχήμα έχει το observation;»** | [reference/api_cheatsheet.md](reference/api_cheatsheet.md) |
+| **«Τα docs λένε X — ισχύει;»** | [reference/engine_deltas.md](reference/engine_deltas.md) ← **πάντα πριν γράψεις λογική** |
+| **«Τι αποδίδει το melon / το sheep / ένα quadrant / ένα hand;»** | [reference/economics.md](reference/economics.md) |
+| **«Πόσο θα πέσει η τιμή αν πουλήσω 100;» / «Τι ζητά η πόλη;»** | [reference/market.md](reference/market.md) |
+| **«Τι κάνουν αυτοί που κερδίζουν;»** | [meta/ladder_snapshots.md](meta/ladder_snapshots.md) |
+| **«Τι νέο ανακοινώθηκε; Τι διορθώθηκε;»** | [meta/competition_updates.md](meta/competition_updates.md) |
+| **«Ποια είναι η στρατηγική, τι φτιάχνουμε τώρα, και γιατί;»** | [ROADMAP.md](../ROADMAP.md) ← **ένα αρχείο, από 2026-08-11** |
+| **«Πώς μετράμε — τι είναι έγκυρο gate;»** | [ROADMAP.md §2](../ROADMAP.md) |
+| **«Τι κάνει η κορυφή της ladder;»** | [ROADMAP.md §4](../ROADMAP.md) + [meta/ladder_snapshots.md](meta/ladder_snapshots.md) |
 | **«Τι έγινε στις προηγούμενες συνεδρίες;»** | [journal/memory.md](journal/memory.md) |
-| **«Τι βρήκε το τελευταίο code review;»** | [reviews/](docs/reviews) |
-| **«Τι λέει *ακριβώς* η επίσημη σελίδα;»** | [source/](docs/source) |
+| **«Τι σημαίνει ένα `plan.md §…` / `current_phase.md §…` σε σχόλιο;»** | [journal/RETIRED_DOCS.md](journal/RETIRED_DOCS.md) |
+| **«Τι βρήκε το τελευταίο code review;»** | [reviews/](reviews) |
+| **«Τι λέει *ακριβώς* η επίσημη σελίδα;»** | [source/](source) |
 
 ## Τα τρία επίπεδα, και ποιος γράφει πού
 
