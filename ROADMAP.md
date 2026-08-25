@@ -606,6 +606,16 @@ unexplained no-ops, declared mechanisms, `priced_loss_delta`) stays absolute and
 5. **Freeze both slots for the final week** and leave a full day to confirm each runs cleanly. An
    erroring agent plays nothing — including in the final tournament.
 
+**Deadline checklist (S10 P5.3, 2026-09-30 lockdown, real cutoff ~09-23):**
+1. Both slots hold **strong, error-free** agents by 2026-09-23; no upload in the last **48 hours**.
+2. `python -m harness.cli play main.py <opponent> --steps 720` runs `clean=True` on both slots.
+3. Archive SHA-256 reproduces under **two output filenames** for both slots (§9 above, still binding).
+4. Leave a **full day of margin** between the last upload and 2026-09-30 UTC.  The Bradley-Terry
+   fit runs on the ~2 weeks of episodes *after* the deadline (§2 rule 4); the live score at
+   09-30 08:00 UTC is not what decides the final rank — only the two agents that survive to that
+   moment do.  A last-minute repair burns ~1.000 live points, does not change the final BT, and
+   only exists to protect against unnoticed breakage.
+
 ---
 
 ## 10. Risks
@@ -634,6 +644,16 @@ unexplained no-ops, declared mechanisms, `priced_loss_delta`) stays absolute and
 6. **Licensing at the prize stage.** Replays are game data and using them is permitted; the exposure
    is the "own original work" warranty and winner licensing, and it lands only if we finish top-10.
    Recorded, decided, not re-opened.
+7. **Dropped SELLs (~14% of ordered units) — measured 2026-08-25, documented acceptance (S10 P5.2).**
+   On 97 replays of `55726984`: overall SELL fill **0,863** (matches the memory's "~0,89"), dropping
+   **$24.420/ep** in unrealised revenue.  Distribution by product: WOOL 0,66 / MILK 0,74 / FERTILIZER
+   0,82 / MELON 0,92 / WHEAT 0,97 / STRAWBERRY 0,98.  **Loss-side $25.465/ep vs win-side $23.588/ep,
+   Δ = $1.877** — a large dollar leak with a small W/L discriminator (below the memory's typical
+   "flippable" margin).  A repair overlay in the shape of `agent/tape_overlay.py` (or the s7 tile-
+   recovery pattern) would attack the $ number but not the *rank* number, and the incremental W/L
+   headroom is in the MELON early-liquidation lever (`s9-live-read-55726984`: +$4.924/ep, 13/38
+   loss flips), out of scope for this pass.  **Decision: accept and do not build a repair overlay
+   in this pass.**  See `data/derived/s10_dropped_sells.json`.
 
 ---
 
