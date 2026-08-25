@@ -510,6 +510,17 @@ belongs to, or it is not a cut), and give the reconstruction its first BT rung.
 Every arm is scored against a bench that **retains earlier meta generations**, not only the current
 top-30, and reports its record against **each** opponent — never a pooled number.
 
+**S10 addition (2026-08-25) — `analysis/s10_replay_bench.py` is Instrument A.**  It replays every
+recorded ladder episode with our seat's action stream substituted for a candidate agent, opponent
+seat held as a tape.  α-control (both sides tape) reproduces 509/509 recorded episodes bit-exactly.
+H2 calibration reproduces the frozen S9 result on 412 confirm-set episodes (`232-180 → 255-157`,
+McNemar `c=23 b=0 p=2,38·10⁻⁷`), bit-identical to the s9-phase2-gate memory.  **Screen = `55726984`
+(97 eps)**; **confirm = `55586926` + `55675634` (412 eps)** — never mix.  Every bench "look" writes
+one line to `gates/s10_bench_ledger.jsonl` (same semantics as `gates/confirm_log.jsonl`).  Live
+seeds do NOT enter `harness/seeds.py::NAMED_SEED_SETS`.  Reports are per-seat and per-submission-
+generation; opponents whose sign flipped are listed by name.  See
+`docs/plans/s10_instrument_rebuild.md` §P1 / §P3 and `data/derived/s10_bench_h2_calibration_report.json`.
+
 - **A1 — reference tiers 0-5** ($3.000 → $46.211, byte-identical scheduler, MIT). Cheap regression
   opponents that fail **loudly and differently from each other**. *Ceiling acknowledged:* they top
   out well below our route, so they catch catastrophic breaks — they do not spar.

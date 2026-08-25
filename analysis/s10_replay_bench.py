@@ -60,6 +60,16 @@ DERIVED = ROOT / "data" / "derived"
 DERIVED.mkdir(parents=True, exist_ok=True)
 DEFAULT_WORKERS = int(os.environ.get("S10_BENCH_WORKERS", "4"))
 
+# P3.3: same semantics as gates/confirm_log.jsonl — one line per bench "look" so
+# repeated tuning-driven readings of the confirm set are visible in git.
+BENCH_LEDGER = ROOT / "gates" / "s10_bench_ledger.jsonl"
+
+
+def _append_bench_ledger(entry: dict) -> None:
+    BENCH_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    with BENCH_LEDGER.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+
 # H2 frozen parameters — must match agent/tape_overlay.py defaults exactly.
 H2_PARAMS = dict(mode="liquidate", liq_floor_price=25, liq_first_day=22,
                  liq_h_max=12, liq_d_days=4, liq_force_step=686)
@@ -299,6 +309,53 @@ def _write(path: Path, obj: dict):
     print(f"wrote {path} ({obj.get('verdict', '')})", flush=True)
 
 
+# ---------------------------------------------------------------------------
+# P3.2 reporter — W/L by seat / generation / opponent
+# ---------------------------------------------------------------------------
+def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
+    d = json.loads(path.read_text())
+    rows = d["rows"]
+    by_seat = {0: [0, 0, 0, 0], 1: [0, 0, 0, 0]}   # [base_w, base_l, new_w, new_l]
+    by_gen = {}
+    flipped = {"c_win": [], "b_loss": []}
+    for r in rows:
+        s = r["seat"]
+        by_seat[s][0] += 1 if r["base_win"] else 0
+        by_seat[s][1] += 0 if r["base_win"] else 1
+        by_seat[s][2] += 1 if r["new_win"] else 0
+        by_seat[s][3] += 0 if r["new_win"] else 1
+        by_gen.setdefault(r["submission"], [0, 0, 0, 0])
+        by_gen[r["submission"]][0] += 1 if r["base_win"] else 0
+        by_gen[r["submission"]][1] += 0 if r["base_win"] else 1
+        by_gen[r["submission"]][2] += 1 if r["new_win"] else 0
+        by_gen[r["submission"]][3] += 0 if r["new_win"] else 1
+        if (not r["base_win"]) and r["new_win"]:
+            flipped["c_win"].append({"episode_id": r["episode_id"],
+                                     "opponent": r["opponent"], "seat": s,
+                                     "submission": r["submission"]})
+        elif r["base_win"] and (not r["new_win"]):
+            flipped["b_loss"].append({"episode_id": r["episode_id"],
+                                      "opponent": r["opponent"], "seat": s,
+                                      "submission": r["submission"]})
+    report = {
+        "verdict": d["verdict"],
+        "n": d["n"],
+        "mcnemar": {"c": d["mcnemar_c"], "b": d["mcnemar_b"], "p": d["mcnemar_p"]},
+        # Note: rating_zone breakdown is deliberately absent — the manifest carries
+        # zone=null (no live board-score join in this pass, plan §P1.3).  This
+        # report is by seat and by submission-generation only, matching what the
+        # bench actually knows.
+        "by_seat": {str(k): {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
+                    for k, v in by_seat.items()},
+        "by_generation": {k: {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
+                          for k, v in by_gen.items()},
+        "flipped": flipped,
+    }
+    out = DERIVED / "s10_bench_h2_calibration_report.json"
+    _write(out, report)
+    return report
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -316,12 +373,30 @@ def main():
         subs = tuple(rest) or tuple(SUBMISSIONS.keys())
         out = run_alpha(subs)
         _write(DERIVED / "s10_bench_alpha.json", out)
+        _append_bench_ledger({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "mode": "alpha", "submissions": list(subs),
+            "dataset": "confirm" if any(s in CONFIRM_SUBS for s in subs) else "screen",
+            "n": out["n"], "n_bit_exact": out["n_bit_exact"],
+            "share_bit_exact": out["share_bit_exact"], "verdict": out["verdict"],
+        })
         return
 
     if mode == "h2_calibration":
         limit = int(rest[0]) if rest else None
         out = run_h2_calibration(limit=limit)
         _write(DERIVED / "s10_bench_h2_calibration.json", out)
+        _append_bench_ledger({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "mode": "h2_calibration",
+            "dataset": "confirm", "submissions": list(CONFIRM_SUBS),
+            "n": out["n"], "c": out["mcnemar_c"], "b": out["mcnemar_b"],
+            "p": out["mcnemar_p"], "verdict": out["verdict"],
+        })
+        return
+
+    if mode == "report_h2":
+        report_h2()
         return
 
     print(f"unknown mode: {mode}")
