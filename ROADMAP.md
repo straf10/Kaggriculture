@@ -211,6 +211,21 @@ document.
    `worker_turns_working` with `crop_tile_days` held flat (±3%)**.
 11. **Report the unflattering panel.** A blind post-freeze panel is published unchanged, even when it
     ties or loses (§5.3(c) does exactly this).
+12. **A fill criterion names its own denominator.** *(S10 P2, corrected 2026-08-25.)* «Fill» is not
+    one number. Measured on the 92-episode snapshot of `55726984`:
+    **sell-order fill = committed/ordered = 0,863**, but **floor fill = floor_committed/floor_ordered
+    = 0,725**. They are different quantities and the second is *mechanically* the lower of the two —
+    floor units sit at the tail of a bulk dump, which is exactly where an empty shed bites first.
+    The S10 P2 gate demanded «committed within 15% of ordered» **of the floor counter** while
+    deriving the 15% from the memory's **sell** fill (~0,89). That criterion was internally
+    inconsistent; it is retired, not failed.
+    🔴 **The committed counter is not suspect.** `harness/metrics.py::_simulate_market` was checked
+    against recorded ground truth on **4.314 transitions across 6 episodes: simulated farm money
+    equals recorded money in 4.314 of 4.314, worst difference $0,00.** Since the engine mutates
+    money in exactly six places and all six sit inside the market walk, this proves every commit
+    **and every rejection** is reproduced exactly. `floor_units` is a fact.
+    **Rule going forward:** any fill gate states which numerator and which denominator, and a
+    threshold imported from one fill is never applied to another.
 
 ### 3.2 Data handling
 

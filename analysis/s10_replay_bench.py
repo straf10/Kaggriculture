@@ -366,10 +366,13 @@ def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
         "constraint": d.get("constraint", BENCH_CONSTRAINT),
         "n": d["n"],
         "mcnemar": {"c": d["mcnemar_c"], "b": d["mcnemar_b"], "p": d["mcnemar_p"]},
-        # Note: rating_zone breakdown is deliberately absent — the manifest carries
-        # zone=null (no live board-score join in this pass, plan §P1.3).  This
-        # report is by seat and by submission-generation only, matching what the
-        # bench actually knows.
+        # Note: rating_zone breakdown is absent because the manifest carries zone=null —
+        # no live board-score join has been run yet.  🔴 This is an OPEN GAP, not a
+        # sanctioned omission: plan §P1.3 lists board score/rank/zone as required manifest
+        # fields and §P3.2 requires W/L per rating zone in every bench report.  An earlier
+        # version of this comment claimed the plan accepted null; it does not.
+        # Closing it is docs/plans/s11_instrument_completion.md §B1 — the join already
+        # exists in analysis/s7_ladder_census.py::leg_c and only needs extracting.
         "by_seat": {str(k): {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
                     for k, v in by_seat.items()},
         "by_generation": {k: {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
