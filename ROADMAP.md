@@ -518,7 +518,9 @@ McNemar `c=23 b=0 p=2,38·10⁻⁷`), bit-identical to the s9-phase2-gate memory
 (97 eps)**; **confirm = `55586926` + `55675634` (412 eps)** — never mix.  Every bench "look" writes
 one line to `gates/s10_bench_ledger.jsonl` (same semantics as `gates/confirm_log.jsonl`).  Live
 seeds do NOT enter `harness/seeds.py::NAMED_SEED_SETS`.  Reports are per-seat and per-submission-
-generation; opponents whose sign flipped are listed by name.  See
+generation; opponents whose sign flipped are listed by name.  **Every** bench output and every
+ledger line carries the P1.5 constraint as a `constraint` field: tape opponents do not react, so a
+timing change is priced to **first order only** — sufficient to screen a candidate, never a proof.  See
 `docs/plans/s10_instrument_rebuild.md` §P1 / §P3 and `data/derived/s10_bench_h2_calibration_report.json`.
 
 - **A1 — reference tiers 0-5** ($3.000 → $46.211, byte-identical scheduler, MIT). Cheap regression
@@ -654,6 +656,10 @@ unexplained no-ops, declared mechanisms, `priced_loss_delta`) stays absolute and
    headroom is in the MELON early-liquidation lever (`s9-live-read-55726984`: +$4.924/ep, 13/38
    loss flips), out of scope for this pass.  **Decision: accept and do not build a repair overlay
    in this pass.**  See `data/derived/s10_dropped_sells.json`.
+   *Day axis (added 2026-08-25):* fill is **0,98 through day 9** and falls to **0,87 from day 20
+   on**; worst slots are day 10 (0,626) and day 29 (0,770, **47,1 units/ep** — the largest
+   single-day leak).  The drops are not uniform: they concentrate in the late liquidation window,
+   the same window the H2 overlay operates in.  Any future repair overlay should be aimed there.
 
 ---
 

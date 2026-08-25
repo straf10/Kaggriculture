@@ -146,7 +146,12 @@ def per_step_estimates(replay, our_seat_idx):
             our_action, pre["market"]["inventory"])
         opp_non, opp_buy, opp_fl = _walk_seat_sells_buys(
             opp_action, pre["market"]["inventory"])
-        consume = _town_consume_delta(town.get("unlocked_shops"), t,
+        # The engine runs _town_consume(env, state, step) with the PRE-transition step
+        # value, i.e. obs["step"] as recorded at steps[t-1] — which is t-1, not t. Passing
+        # `t` shifted every consumption tick by one step and left a permanent residual on
+        # products with no fill drift; with t-1 the ΔM identity closes exactly for CARROT,
+        # TOMATO and EGG.
+        consume = _town_consume_delta(town.get("unlocked_shops"), t - 1,
                                       shop_interval, center_interval)
 
         for p in PRODUCTS:
@@ -194,14 +199,11 @@ def _dump_events(replay, opp_seat, product, unit_threshold=DUMP_UNITS,
                     and order[0] == "SELL" and order[1] == product):
                 sells_at[t] += int(order[2])
     labels = [False] * n
-    running = 0
     for t in range(n):
-        if t + horizon < n:
-            end = t + horizon
-        else:
-            end = n
-        running = sum(sells_at[t + 1: end])
-        labels[t] = running >= unit_threshold
+        # The window is the next `horizon` turns AFTER t: [t+1, t+horizon] inclusive.
+        # `sells_at[t + 1: t + 1 + horizon]` is exactly that; the previous slice stopped at
+        # t + horizon and so covered only horizon − 1 turns.
+        labels[t] = sum(sells_at[t + 1: t + 1 + horizon]) >= unit_threshold
     return labels
 
 
@@ -231,7 +233,6 @@ def validate(sub="55726984", n_replays=10):
         # non-floor sells in the last 3 days AND the horizon has any product left
         # (opp_true > 0).  Naive but concrete — the study reports whether it hits
         # the ≥0,70 bar or not.
-        last_cum_non = {p: 0 for p in PREMIUM}
         cum_history = defaultdict(list)
         for reading in per_step_estimates(replay, seat):
             n_boundaries += 1
@@ -250,7 +251,6 @@ def validate(sub="55726984", n_replays=10):
                     fp[p] += 1
                 elif not predicted and actual:
                     fn[p] += 1
-                last_cum_non[p] = reading["cum_opp_sell_nonfloor"][p]
         n_used += 1
 
     precision = {}

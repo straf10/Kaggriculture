@@ -56,6 +56,17 @@ from analysis.tape_agent import make_tape_agent  # noqa: E402
 from harness.play import play  # noqa: E402
 
 PASS = {"farmer": ["PASS"], "hands": [], "market": []}
+
+# P1.5 — the constraint every bench report must carry, in the report itself and not only
+# in this file. Tape opponents replay a fixed action stream: they do not react. For a timing
+# change the price coupling is therefore reproduced to FIRST ORDER only (their orders stay
+# fixed, the prices those orders meet do move). That is enough to screen a candidate; it is
+# not proof.
+BENCH_CONSTRAINT = (
+    "Tape opponents do not react. Their action streams are fixed, so a timing change is "
+    "priced to FIRST ORDER only: their orders stay put and only the prices those orders "
+    "meet move. Sufficient for a screen; NOT a proof."
+)
 DERIVED = ROOT / "data" / "derived"
 DERIVED.mkdir(parents=True, exist_ok=True)
 DEFAULT_WORKERS = int(os.environ.get("S10_BENCH_WORKERS", "4"))
@@ -95,7 +106,7 @@ def _extract_streams(steps):
 # The full 55586926+55675634+55726984 corpus is ~500 replays x 5-30 MB.  Building
 # a list of `(steps=...)` jobs pickles ~2-3 GB into worker queues and stalls the
 # pool.  Workers load their replay from disk instead — jobs are just paths.
-def _enum_jobs(submissions, seat_required=False, limit=None):
+def _enum_jobs(submissions, limit=None):
     n = 0
     for sub in submissions:
         for p in replay_paths(sub):
@@ -158,6 +169,7 @@ def run_alpha(submissions, workers=DEFAULT_WORKERS, limit=None):
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "verdict": f"alpha {verdict}: {exact}/{n} bit-exact ({share:.4f})",
+        "constraint": BENCH_CONSTRAINT,
         "workers": workers,
         "n": n,
         "n_bit_exact": exact,
@@ -241,13 +253,23 @@ def run_h2_calibration(workers=DEFAULT_WORKERS, limit=None):
     p = _mcnemar_binomial_p(b, c)
     # Same-direction check: recorded 232-180 → 255-157 in the s9-phase2-gate memory.
     same_direction = (c > 0) and (b == 0)
-    verdict_txt = ("PASSED" if same_direction and p < 0.001
-                   else "DEATH" if (b > c or not (c > 0 and b == 0))
-                   else "WARN")
+    # Plan §P1.4 draws two separate lines and they must not be collapsed:
+    #   acceptance = c > 0 AND b == 0 AND p < 0,001
+    #   death      = b > c  OR  not significant
+    # A result like b=1, c=30, p≈1e-8 fails acceptance but is nowhere near death — calling
+    # that DEATH would retire a working bench on a good reading.
+    significant = p < 0.001
+    if same_direction and significant:
+        verdict_txt = "PASSED"
+    elif b > c or not significant:
+        verdict_txt = "DEATH"
+    else:
+        verdict_txt = "WARN"
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "verdict": (f"h2_calibration {verdict_txt}: base {base_w}-{base_l} "
                     f"→ new {new_w}-{new_l}; McNemar c={c} b={b} p={p:.2e}"),
+        "constraint": BENCH_CONSTRAINT,
         "workers": workers,
         "n": len(rows),
         "confirm_subs": list(CONFIRM_SUBS),
@@ -299,6 +321,7 @@ def build_manifest(submissions):
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "verdict": f"manifest {len(rows)} rows across {list(submissions)}",
+        "constraint": BENCH_CONSTRAINT,
         "n": len(rows),
         "rows": rows,
     }
@@ -339,6 +362,8 @@ def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
                                       "submission": r["submission"]})
     report = {
         "verdict": d["verdict"],
+        # P1.5: the caveat travels with the report, not only with the run that made it.
+        "constraint": d.get("constraint", BENCH_CONSTRAINT),
         "n": d["n"],
         "mcnemar": {"c": d["mcnemar_c"], "b": d["mcnemar_b"], "p": d["mcnemar_p"]},
         # Note: rating_zone breakdown is deliberately absent — the manifest carries
@@ -359,7 +384,8 @@ def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
 def main():
     args = sys.argv[1:]
     if not args:
-        print("usage: python analysis/s10_replay_bench.py {manifest|alpha|h2_calibration} [args]")
+        print("usage: python analysis/s10_replay_bench.py "
+              "{manifest|alpha|h2_calibration|report_h2} [args]")
         sys.exit(2)
     mode, rest = args[0], args[1:]
 
@@ -379,6 +405,7 @@ def main():
             "dataset": "confirm" if any(s in CONFIRM_SUBS for s in subs) else "screen",
             "n": out["n"], "n_bit_exact": out["n_bit_exact"],
             "share_bit_exact": out["share_bit_exact"], "verdict": out["verdict"],
+            "constraint": BENCH_CONSTRAINT,
         })
         return
 
@@ -392,6 +419,7 @@ def main():
             "dataset": "confirm", "submissions": list(CONFIRM_SUBS),
             "n": out["n"], "c": out["mcnemar_c"], "b": out["mcnemar_b"],
             "p": out["mcnemar_p"], "verdict": out["verdict"],
+            "constraint": BENCH_CONSTRAINT,
         })
         return
 

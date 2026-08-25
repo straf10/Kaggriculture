@@ -56,6 +56,11 @@ def analyse(sub="55726984"):
     agg_committed = defaultdict(int)
     agg_dropped_units = defaultdict(int)
     agg_dropped_dollars = defaultdict(float)
+    # P5.1 asks *which days* the drops land on, not only which products. The per-day
+    # counters come from harness/metrics.py so the day key is the engine's own day index,
+    # identical to the one `market_sales` is tagged with.
+    agg_ordered_by_day = defaultdict(int)
+    agg_committed_by_day = defaultdict(int)
     win_dropped = []
     loss_dropped = []
     n = 0
@@ -68,6 +73,10 @@ def analyse(sub="55726984"):
         us_bank = float(m["rewards"][seat])
         opp_bank = float(m["rewards"][1 - seat])
         won = us_bank > opp_bank
+        for d, q in met["sell_units_ordered_by_day"].items():
+            agg_ordered_by_day[int(d)] += int(q)
+        for d, q in met["sell_units_committed_by_day"].items():
+            agg_committed_by_day[int(d)] += int(q)
         ordered_by_p = met["sell_units_ordered_by_product"]
         # Reconstruct committed by product from realized_units_by_product (this is a
         # count).  metrics.realized_units_by_product == units_sold_by_product.
@@ -108,6 +117,21 @@ def analyse(sub="55726984"):
     }
     overall_fill = (sum(agg_committed.values()) / sum(agg_ordered.values())
                     if sum(agg_ordered.values()) else None)
+    days = sorted(set(agg_ordered_by_day) | set(agg_committed_by_day))
+    dropped_units_by_day_per_ep = {
+        str(d): round(max(0, agg_ordered_by_day[d] - agg_committed_by_day[d]) / max(n, 1), 1)
+        for d in days
+    }
+    fill_by_day = {
+        str(d): (agg_committed_by_day[d] / agg_ordered_by_day[d]) if agg_ordered_by_day[d]
+        else None
+        for d in days
+    }
+    # The single most useful summary of the day axis: where the worst fill sits.
+    scored = [(d, fill_by_day[str(d)]) for d in days if fill_by_day[str(d)] is not None]
+    worst_days = [{"day": d, "fill": round(f, 3),
+                   "dropped_units_per_ep": dropped_units_by_day_per_ep[str(d)]}
+                  for d, f in sorted(scored, key=lambda kv: kv[1])[:5]]
     mean_win_drop = (sum(win_dropped) / len(win_dropped)) if win_dropped else 0.0
     mean_loss_drop = (sum(loss_dropped) / len(loss_dropped)) if loss_dropped else 0.0
     # Δ$/ep of dropped-sell burden by W/L side — the memo signal for P5.2.
@@ -129,6 +153,9 @@ def analyse(sub="55726984"):
         "dropped_dollars_by_product_per_ep": {
             p: round(v / max(n, 1)) for p, v in agg_dropped_dollars.items()
         },
+        "fill_by_day": fill_by_day,
+        "dropped_units_by_day_per_ep": dropped_units_by_day_per_ep,
+        "worst_fill_days": worst_days,
         "dropped_dollars_win_side_per_ep_mean": round(mean_win_drop),
         "dropped_dollars_loss_side_per_ep_mean": round(mean_loss_drop),
         "dropped_dollars_delta_loss_minus_win": round(diff),
