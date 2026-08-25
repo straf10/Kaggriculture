@@ -182,6 +182,83 @@ def _simulate_market(farms, privates, market, actions, configuration):
     return sales, aborted
 
 
+# S10 P2.1: order-side sell counters.  `_simulate_market` returns COMMITTED sales only; a
+# `_commit_unit` rejection (empty shed) breaks the inner walk early, so its counters cannot
+# see units the engine never reached.  The two counters below read the raw action queue:
+#
+#   `_sell_units_ordered_by_product`  — raw SELL quantities in the action, one dict per seat.
+#       This is the denominator for fill (committed / ordered).
+#   `_sell_units_ordered_at_floor`    — the same per-unit lockstep walk that
+#       analysis/s9_market_ledger.py performs, but only counting units that would price at
+#       PRICE_FLOOR ($1).  A $1 sale does not add to inventory (`_commit_unit`), so the
+#       price walk stays at $1 for the rest of that batch; the count is an UPPER BOUND on
+#       destroyed units in the episode (the acceptance target: ~182,7/ep on 55726984).
+def _sell_units_ordered_by_product(actions):
+    out = [{}, {}]
+    for seat in (0, 1):
+        for order in actions[seat].get("market") or []:
+            if isinstance(order, list) and len(order) >= 3 and order[0] == "SELL":
+                item = order[1]
+                # Match engine._process_market: a SELL of a non-PRODUCT item (e.g. an animal)
+                # is silently dropped, not quoted — do not count it as an ordered unit.
+                if item not in engine.PRODUCTS:
+                    continue
+                try:
+                    q = int(order[2])
+                except (TypeError, ValueError):
+                    continue
+                if q > 0:
+                    out[seat][item] = out[seat].get(item, 0) + q
+    return out
+
+
+def _sell_units_ordered_at_floor(actions, market):
+    """Per-seat per-product count of SELL units that would price at PRICE_FLOOR if every
+    unit committed.  Interleaves the two seats' units in engine order (matching
+    engine._process_market's per-unit round-robin), so the walk-down of a shared item is
+    simulated correctly."""
+    inv = dict(market["inventory"])
+    params = market.get("params")
+    queues = [
+        [(o[1], int(o[2])) for o in (actions[s].get("market") or [])
+         if isinstance(o, list) and len(o) >= 3 and o[0] == "SELL"
+         and o[1] in engine.PRODUCTS and int(o[2]) > 0]
+        for s in (0, 1)
+    ]
+    remaining = [list(q) for q in queues]
+    at_floor = [{}, {}]
+    # Mirror _process_market: for each order slot i, quote one unit for BOTH seats at the
+    # SAME inventory, then commit both (updating inv only for non-floor units).  Seats do
+    # not see each other's within-round advance — that is what makes bulk-dump pricing
+    # correct.  Advance to the next unit for both seats and repeat until both are exhausted.
+    max_slots = max(len(remaining[0]), len(remaining[1]))
+    for i in range(max_slots):
+        while True:
+            quoted = [None, None]
+            for seat in (0, 1):
+                if i >= len(remaining[seat]):
+                    continue
+                item, left = remaining[seat][i]
+                if left <= 0:
+                    continue
+                quoted[seat] = (item, engine.market_price(item, inv[item], params))
+            if quoted[0] is None and quoted[1] is None:
+                break
+            # Commit both units at once — the engine's per-unit lockstep only advances the
+            # shared inventory after both seats have quoted and committed at the SAME inv.
+            for seat, q in enumerate(quoted):
+                if q is None:
+                    continue
+                item, price = q
+                if price == engine.PRICE_FLOOR:
+                    at_floor[seat][item] = at_floor[seat].get(item, 0) + 1
+                else:
+                    inv[item] += 1
+                left = remaining[seat][i][1] - 1
+                remaining[seat][i] = (item, left)
+    return at_floor
+
+
 def _transition_events(previous_step, current_step, configuration):
     farms = copy.deepcopy(previous_step[0]["observation"]["farms"])
     market = copy.deepcopy(previous_step[0]["observation"]["market"])
@@ -195,6 +272,10 @@ def _transition_events(previous_step, current_step, configuration):
     overflow, successful_ongoing_harvests = _apply_unit_actions(
         farms, privates, actions, configuration, previous_day
     )
+    # S10 P2.1: order-side counters BEFORE simulating commits — a `_commit_unit` rejection
+    # breaks _simulate_market's inner walk early and hides the tail.
+    ordered_by_product = _sell_units_ordered_by_product(actions)
+    ordered_at_floor = _sell_units_ordered_at_floor(actions, market)
     sales, market_sim_aborted = _simulate_market(farms, privates, market, actions, configuration)
 
     current_day = int(current_step[0]["observation"].get("day", previous_day))
@@ -204,7 +285,8 @@ def _transition_events(previous_step, current_step, configuration):
             incoming = sum(sum(inventory.values()) for inventory in privates[seat]["inventories"])
             room = max(0, shed_capacity - sum(privates[seat]["shed"].values()))
             overflow[seat] += max(0, incoming - room)
-    return actions, overflow, sales, market_sim_aborted, successful_ongoing_harvests
+    return (actions, overflow, sales, market_sim_aborted, successful_ongoing_harvests,
+            ordered_by_product, ordered_at_floor)
 
 
 def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) -> dict:
@@ -255,6 +337,12 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     worker_turns_moving = 0
     worker_turns_working = 0
     worker_turns_idle = 0
+    # S10 P2.1: differential fill/floor-sink counters.
+    sell_units_ordered = 0
+    sell_units_ordered_by_product: dict = {}
+    floor_units_ordered = 0
+    floor_units_ordered_by_product: dict = {}
+    shed_peak = 0
     configuration = env_json.get("configuration", {})
     # harness/report.py needs a per-day breakdown to plot losses/utilization
     # over the episode instead of one flat total; keyed by day index, densified below so a day
@@ -287,6 +375,8 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             transition_sales,
             transition_aborted,
             successful_ongoing_harvests,
+            transition_ordered,
+            transition_ordered_at_floor,
         ) = _transition_events(
             previous_step,
             current_step,
@@ -299,6 +389,17 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             sale["day"] = sale_day
         sales.extend(transition_sales[seat])
         market_sim_aborted = market_sim_aborted or transition_aborted
+        # S10 P2.1: accumulate order-side counters for this seat only.
+        for item, q in transition_ordered[seat].items():
+            sell_units_ordered += q
+            sell_units_ordered_by_product[item] = sell_units_ordered_by_product.get(item, 0) + q
+        for item, q in transition_ordered_at_floor[seat].items():
+            floor_units_ordered += q
+            floor_units_ordered_by_product[item] = floor_units_ordered_by_product.get(item, 0) + q
+        # shed_peak: max over the previous observation (this seat's private).
+        shed_sum = sum(previous_observation["private"]["shed"].values())
+        if shed_sum > shed_peak:
+            shed_peak = shed_sum
 
         farm = previous_observation["farms"][seat]
         unit_actions = [actions[seat].get("farmer", ["PASS"]), *actions[seat].get("hands", [])]
@@ -482,6 +583,28 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         item: (revenue_by_product[item] / units_sold_by_product[item])
         for item in revenue_by_product
     }
+    # S10 P2.1: committed floor units — a SELL at PRICE_FLOOR pays $1 and does NOT add to
+    # market inventory (`_commit_unit` in the engine), so the unit is destroyed, not traded.
+    # This is the pair to `floor_units_ordered` above (walk-based upper bound).
+    floor_units = 0
+    floor_units_by_product: dict = {}
+    for sale in sales:
+        if int(sale["price"]) <= engine.PRICE_FLOOR:
+            floor_units += 1
+            floor_units_by_product[sale["item"]] = floor_units_by_product.get(sale["item"], 0) + 1
+    sell_units_committed = len(sales)
+    # S10 P2.1: tail_share_by_product — share of a product's revenue that arrived on day >= 20.
+    # A change that shifts revenue into the tail without changing the total still shows here.
+    tail_revenue = {}
+    for sale in sales:
+        if int(sale.get("day", 0)) >= 20:
+            item = sale["item"]
+            tail_revenue[item] = tail_revenue.get(item, 0) + int(sale["price"])
+    tail_share_by_product = {
+        item: (tail_revenue.get(item, 0) / revenue_by_product[item])
+        for item in revenue_by_product
+        if revenue_by_product[item] > 0
+    }
 
     if diagnostics is None:
         unexplained_noops = None
@@ -521,7 +644,18 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "average_sell_price": average_sell_price,
         "units_sold_by_product": units_sold_by_product,
         "revenue_by_product": revenue_by_product,
+        "realized_units_by_product": units_sold_by_product,
+        "realized_revenue_by_product": revenue_by_product,
         "realized_price_per_unit": realized_price_per_unit,
+        "floor_units": floor_units,
+        "floor_units_by_product": floor_units_by_product,
+        "floor_units_ordered": floor_units_ordered,
+        "floor_units_ordered_by_product": floor_units_ordered_by_product,
+        "sell_units_ordered": sell_units_ordered,
+        "sell_units_ordered_by_product": sell_units_ordered_by_product,
+        "sell_units_committed": sell_units_committed,
+        "shed_peak": shed_peak,
+        "tail_share_by_product": tail_share_by_product,
         "market_sales": sales,
         "worker_turns_moving": worker_turns_moving,
         "worker_turns_working": worker_turns_working,

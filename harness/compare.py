@@ -350,6 +350,19 @@ def _attach_v1k_diagnostics(
 _ARM_B_COUNTER_METRICS = (*PRICED_SOURCE_METRICS, "weeds_lost")
 
 
+# S10 P2.1/P2.3: differential market counters that must be reported as Δ (A−B), not only
+# as absolutes. An overlay that cuts our floor units by the same amount it cuts the
+# opponent's is common-mode (K5) and does not move W/L (see the price-floor liquidation-
+# sink memory). Every counter here is emitted as `<name>_a`, `<name>_b`, and `<name>_delta`.
+_S10_DIFFERENTIAL_METRICS = (
+    "floor_units",
+    "floor_units_ordered",
+    "sell_units_ordered",
+    "sell_units_committed",
+    "shed_peak",
+)
+
+
 def _attach_metric_fields(orientation: dict, metrics_by_seat: dict, *, a_seat: int, b_seat: int) -> None:
     """Copy every gate counter and diagnostic out of one episode's per-seat metrics.
 
@@ -374,6 +387,14 @@ def _attach_metric_fields(orientation: dict, metrics_by_seat: dict, *, a_seat: i
     seat_b = metrics_by_seat.get(b_seat, {}) or {}
     for metric in _ARM_B_COUNTER_METRICS:
         orientation[f"{metric}_b"] = seat_b.get(metric, 0)
+
+    # S10 P2.3: floor/fill counters as Δ (A−B). Common-mode reductions do not move W/L.
+    for metric in _S10_DIFFERENTIAL_METRICS:
+        va = int(seat_a.get(metric, 0))
+        vb = int(seat_b.get(metric, 0))
+        orientation[f"{metric}_a"] = va
+        orientation[f"{metric}_b"] = vb
+        orientation[f"{metric}_delta"] = va - vb
 
     _attach_v1k_diagnostics(orientation, metrics_by_seat, a_seat=a_seat, b_seat=b_seat)
 
@@ -465,6 +486,24 @@ class CompareResult:
     unexpected_weeds_lost_b: Optional[int] = None
     water_weeds_lost_b: Optional[int] = None
     weeds_lost_b: Optional[int] = None  # raw diagnostic, same status as weeds_lost_a
+    # S10 P2.3: differential market counters reported as A/B/Δ. None unless metrics_checked.
+    # An overlay that cuts *our* floor_units by the same amount as the opponent's is common-
+    # mode and does not move W/L — read the Δ, not the absolute.
+    floor_units_a: Optional[int] = None
+    floor_units_b: Optional[int] = None
+    floor_units_delta: Optional[int] = None
+    floor_units_ordered_a: Optional[int] = None
+    floor_units_ordered_b: Optional[int] = None
+    floor_units_ordered_delta: Optional[int] = None
+    sell_units_ordered_a: Optional[int] = None
+    sell_units_ordered_b: Optional[int] = None
+    sell_units_ordered_delta: Optional[int] = None
+    sell_units_committed_a: Optional[int] = None
+    sell_units_committed_b: Optional[int] = None
+    sell_units_committed_delta: Optional[int] = None
+    shed_peak_a: Optional[int] = None
+    shed_peak_b: Optional[int] = None
+    shed_peak_delta: Optional[int] = None
     # Απόφαση Α/Δ: what the surviving losses cost per episode on each side,
     # what the *difference* was allowed to cost, and the written mechanism for each non-zero
     # candidate counter. `priced_loss_per_episode` is agent_a's absolute loss and keeps its name
@@ -919,6 +958,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 f"{metric}_b": sum(o.get(f"{metric}_b", 0) for o in orientations)
                 for metric in _ARM_B_COUNTER_METRICS
             }
+            # S10 P2.3: sum each of the three variants for the seed.
+            s10_diff_counters = {}
+            for metric in _S10_DIFFERENTIAL_METRICS:
+                for suf in ("a", "b", "delta"):
+                    s10_diff_counters[f"{metric}_{suf}"] = sum(
+                        o.get(f"{metric}_{suf}", 0) for o in orientations
+                    )
         else:
             water_weeds_lost_a = plant_decay_units_lost_a = None
             animals_escaped_a = clipped_production_ticks_a = None
@@ -937,6 +983,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                     v1k_diagnostics[f"{key}_units_{arm}"] = None
                     v1k_diagnostics[f"{key}_revenue_{arm}"] = None
             arm_b_counters = {f"{metric}_b": None for metric in _ARM_B_COUNTER_METRICS}
+            s10_diff_counters = {
+                f"{metric}_{suf}": None
+                for metric in _S10_DIFFERENTIAL_METRICS for suf in ("a", "b", "delta")
+            }
         return {
             "seed": seed,
             "seat_layout": [o["layout"] for o in orientations],
@@ -957,6 +1007,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             "unexplained_noops_a": unexplained_noops_a,
             "market_sim_aborted_a": market_sim_aborted_a,
             **arm_b_counters,
+            **s10_diff_counters,
             **v1k_diagnostics,
         }
 
@@ -1228,6 +1279,13 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             f"{metric}_b": sum(row.get(f"{metric}_b", 0) or 0 for row in per_seed)
             for metric in _ARM_B_COUNTER_METRICS
         }
+        # S10 P2.3: sum a/b/delta across seeds, same pattern.
+        s10_diff_counters = {}
+        for metric in _S10_DIFFERENTIAL_METRICS:
+            for suf in ("a", "b", "delta"):
+                s10_diff_counters[f"{metric}_{suf}"] = sum(
+                    row.get(f"{metric}_{suf}", 0) or 0 for row in per_seed
+                )
         units_sold_budget_ok = (
             sales_count_a == 0 or (units_sold_at_or_below_5_a / sales_count_a) <= 0.02
         )
@@ -1294,6 +1352,10 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         unexplained_metrics = ()
         metric_gate_passed = None
         arm_b_counters = {f"{metric}_b": None for metric in _ARM_B_COUNTER_METRICS}
+        s10_diff_counters = {
+            f"{metric}_{suf}": None
+            for metric in _S10_DIFFERENTIAL_METRICS for suf in ("a", "b", "delta")
+        }
         v1k_diagnostics = {
             f"{metric}_{arm}": None
             for metric in _V1K_REPORT_METRICS
@@ -1381,6 +1443,7 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
         unexplained_noops_a=unexplained_noops_a,
         market_sim_aborted_a=market_sim_aborted_a,
         **arm_b_counters,
+        **s10_diff_counters,
         **v1k_diagnostics,
         priced_loss_per_episode=priced_loss_per_episode,
         priced_loss_b=priced_loss_b_value,
