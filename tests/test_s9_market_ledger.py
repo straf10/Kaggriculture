@@ -12,6 +12,9 @@ implementation trips a failing test rather than silently changing measured reven
       so the market that prices step t is the one recorded at t-1.  If the ledger
       switches to `steps[t]` as pre-state, cash conservation for a sampled step
       collapses.  This test breaks the moment that changes.
+
+(1) and (2) need the gitignored live replays; they skip on a public checkout. (3) is a
+source-level guard and always runs.
 """
 from __future__ import annotations
 
@@ -32,6 +35,12 @@ from engine_reference.kaggriculture import market_price  # noqa: E402
 PRIMARY_SUB = "55586926"
 FAST_SUB = "55726984"
 
+_replays_present = bool(replay_paths(PRIMARY_SUB)) and bool(replay_paths(FAST_SUB))
+
+requires_live = pytest.mark.skipif(
+    not _replays_present,
+    reason="gitignored live replays absent (§2.4b)")
+
 
 def _first_n(sub: str, n: int):
     out = []
@@ -42,6 +51,7 @@ def _first_n(sub: str, n: int):
     return out
 
 
+@requires_live
 @pytest.mark.parametrize("sub,n", [(PRIMARY_SUB, 10)])
 def test_cash_conservation_within_1_5pct(sub, n):
     """Σrevenue − Σspend reconstructs Σ(reward − starting_money) across ≥10 replays to <1,5%.
@@ -66,6 +76,7 @@ def test_cash_conservation_within_1_5pct(sub, n):
     assert rel < 0.015, f"aggregate |ledger − recorded| / recorded = {rel:.4f}"
 
 
+@requires_live
 def test_market_price_matches_recorded_quote_zero_diffs():
     """`market_price(item, obs.inventory[item]) == obs.market.prices[item]` on ≥500 samples."""
     samples = 0

@@ -12,18 +12,26 @@ The tolerance is small because both use the same engine `market_price`, the same
 per-unit walk, and both settle to the recorded cash flow — the residual is only the
 step-scale rounding of `episode_ledger` (bounded by the 1,5% aggregate residual pinned
 in `test_s9_market_ledger.py`).
+
+Needs the gitignored live replays; skips on a public checkout.
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from analysis.s8_replay_io import ladder_episodes, our_seat  # noqa: E402
+from analysis.s8_replay_io import ladder_episodes, our_seat, replay_paths  # noqa: E402
 from analysis.s9_market_ledger import episode_ledger  # noqa: E402
 from harness.metrics import extract_metrics  # noqa: E402
+
+requires_live = pytest.mark.skipif(
+    not replay_paths("55586926"),
+    reason="gitignored live replays absent (§2.4b)")
 
 
 def _first_n_env_jsons(sub: str, n: int):
@@ -39,6 +47,7 @@ def _first_n_env_jsons(sub: str, n: int):
     return out
 
 
+@requires_live
 def test_two_parsers_agree_on_realized_revenue():
     eps = _first_n_env_jsons("55586926", 5)
     assert len(eps) >= 5
