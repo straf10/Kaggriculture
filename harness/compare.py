@@ -362,6 +362,30 @@ _S10_DIFFERENTIAL_METRICS = (
     "shed_peak",
 )
 
+# `shed_peak` is an episode MAXIMUM, not a count. Summing it across orientations and seeds
+# produces a "total of peaks", which is not a peak of anything and reads as a much larger
+# shed than any episode ever held. Aggregate these with max(), and recompute the delta from
+# the aggregated sides rather than summing per-episode deltas.
+_S10_MAX_METRICS = frozenset({"shed_peak"})
+
+
+def _aggregate_s10_counters(rows) -> dict:
+    """Fold per-episode/per-seed rows into one {metric}_{a,b,delta} block.
+
+    Counts fold with sum; peaks fold with max. `delta` is always recomputed as a − b of the
+    folded sides, so it stays consistent with the two sides it is reported next to.
+    """
+    rows = list(rows)
+    out: dict = {}
+    for metric in _S10_DIFFERENTIAL_METRICS:
+        fold = max if metric in _S10_MAX_METRICS else sum
+        va = fold((row.get(f"{metric}_a", 0) or 0) for row in rows) if rows else 0
+        vb = fold((row.get(f"{metric}_b", 0) or 0) for row in rows) if rows else 0
+        out[f"{metric}_a"] = va
+        out[f"{metric}_b"] = vb
+        out[f"{metric}_delta"] = va - vb
+    return out
+
 
 def _attach_metric_fields(orientation: dict, metrics_by_seat: dict, *, a_seat: int, b_seat: int) -> None:
     """Copy every gate counter and diagnostic out of one episode's per-seat metrics.
@@ -489,6 +513,8 @@ class CompareResult:
     # S10 P2.3: differential market counters reported as A/B/Δ. None unless metrics_checked.
     # An overlay that cuts *our* floor_units by the same amount as the opponent's is common-
     # mode and does not move W/L — read the Δ, not the absolute.
+    # Counts are summed over episodes; `shed_peak` is folded with max (see
+    # _aggregate_s10_counters) because a sum of per-episode peaks is not a peak.
     floor_units_a: Optional[int] = None
     floor_units_b: Optional[int] = None
     floor_units_delta: Optional[int] = None
@@ -958,13 +984,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
                 f"{metric}_b": sum(o.get(f"{metric}_b", 0) for o in orientations)
                 for metric in _ARM_B_COUNTER_METRICS
             }
-            # S10 P2.3: sum each of the three variants for the seed.
-            s10_diff_counters = {}
-            for metric in _S10_DIFFERENTIAL_METRICS:
-                for suf in ("a", "b", "delta"):
-                    s10_diff_counters[f"{metric}_{suf}"] = sum(
-                        o.get(f"{metric}_{suf}", 0) for o in orientations
-                    )
+            # S10 P2.3: fold the orientations for this seed (counts sum, peaks max).
+            s10_diff_counters = _aggregate_s10_counters(orientations)
         else:
             water_weeds_lost_a = plant_decay_units_lost_a = None
             animals_escaped_a = clipped_production_ticks_a = None
@@ -1279,13 +1300,8 @@ def compare(agent_a, agent_b, seeds: Sequence[int], *,
             f"{metric}_b": sum(row.get(f"{metric}_b", 0) or 0 for row in per_seed)
             for metric in _ARM_B_COUNTER_METRICS
         }
-        # S10 P2.3: sum a/b/delta across seeds, same pattern.
-        s10_diff_counters = {}
-        for metric in _S10_DIFFERENTIAL_METRICS:
-            for suf in ("a", "b", "delta"):
-                s10_diff_counters[f"{metric}_{suf}"] = sum(
-                    row.get(f"{metric}_{suf}", 0) or 0 for row in per_seed
-                )
+        # S10 P2.3: fold across seeds, same rule (counts sum, peaks max).
+        s10_diff_counters = _aggregate_s10_counters(per_seed)
         units_sold_budget_ok = (
             sales_count_a == 0 or (units_sold_at_or_below_5_a / sales_count_a) <= 0.02
         )

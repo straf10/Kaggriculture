@@ -328,7 +328,7 @@ def _realised_premium(steps: list, cfg: dict) -> tuple[dict, dict, list, list]:
     units = [dd(int), dd(int)]
     sell_steps = [set(), set()]
     for i in range(1, len(steps)):
-        _a, _o, sales, _ab, _h = _transition_events(steps[i - 1], steps[i], cfg)
+        _a, _o, sales, _ab, _h, *_counters = _transition_events(steps[i - 1], steps[i], cfg)
         for seat in (0, 1):
             for s in sales[seat]:
                 if s["item"] in PREMIUM:

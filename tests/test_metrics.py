@@ -3,7 +3,7 @@ import pytest
 from kaggle_environments import make
 from kaggle_environments.envs.kaggriculture import kaggriculture as engine
 
-from harness.metrics import extract_metrics
+from harness.metrics import _transition_events, extract_metrics
 
 PASS = {"farmer": ["PASS"], "hands": [], "market": []}
 
@@ -277,3 +277,149 @@ def test_v1h2d_unharvested_decay_remains_unexpected_and_hard_loss():
     assert metrics["weeds_lost"] == 1
     assert metrics["unexpected_weeds_lost"] == 1
     assert metrics["plant_decay_units_lost"] == 1
+
+
+# ---------------------------------------------------------------------------
+# S10 P2.1 — the differential floor/fill counters.
+#
+# These were added for the S10 gate but shipped with no coverage at all: the only
+# test touching them was a live-replay parity test, which skips on any checkout
+# without the gitignored corpus (i.e. always, in CI). Everything below runs on a
+# synthetic `make("kaggriculture")` episode, so it runs everywhere.
+# ---------------------------------------------------------------------------
+def _run(env, action_for_step, other=PASS):
+    """Step the env to completion, choosing seat 0's action per step index."""
+    i = 0
+    while not env.done:
+        env.step([action_for_step(i), other])
+        i += 1
+    return env.toJSON()
+
+
+def _sell(item, qty):
+    return {"farmer": ["PASS"], "hands": [], "market": [["SELL", item, qty]]}
+
+
+def test_s10_floor_counters_count_dollar_one_sales():
+    """A bulk dump walks the price to $1; those units are destroyed, not traded."""
+    env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 4})
+    env.state[0].observation.private["shed"]["MELON"] = 200
+    replay = _finish(env, _sell("MELON", 200))
+    m = extract_metrics(replay, 0)
+
+    floor_sales = [s for s in m["market_sales"] if s["price"] == 1]
+    assert m["floor_units"] == len(floor_sales) > 0
+    assert m["floor_units_by_product"]["MELON"] == m["floor_units"]
+    # The ordered walk assumes every unit commits, so it can only be an upper bound.
+    assert m["floor_units_ordered"] >= m["floor_units"]
+
+
+def test_s10_sell_fill_is_committed_over_ordered():
+    """Ordering more than the shed holds is the open-loop desync P5.1 quantifies."""
+    env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 4})
+    env.state[0].observation.private["shed"]["MELON"] = 10
+    replay = _finish(env, _sell("MELON", 50))
+    m = extract_metrics(replay, 0)
+
+    assert m["sell_units_ordered"] == 50
+    assert m["sell_units_committed"] == 10          # the shed ran out
+    assert m["sell_units_committed"] == len(m["market_sales"])
+    assert m["realized_units_by_product"]["MELON"] == 10
+
+
+def test_s10_ordered_counters_honour_the_engine_order_cap():
+    """🔴 Regression: the engine truncates the queue to maxMarketOrdersPerTurn BEFORE
+    quoting (kaggriculture._process_market), and so does _simulate_market. An ordered
+    counter that reads the untruncated action counts units the engine never sees and
+    silently depresses fill below 1,0 on an episode where every unit committed."""
+    env = make("kaggriculture",
+               configuration={"seed": 0, "episodeSteps": 4, "maxMarketOrdersPerTurn": 3})
+    env.state[0].observation.private["shed"]["MELON"] = 50
+    over_cap = {"farmer": ["PASS"], "hands": [],
+                "market": [["SELL", "MELON", 1] for _ in range(9)]}
+    replay = _finish(env, over_cap)
+    m = extract_metrics(replay, 0)
+
+    assert m["sell_units_ordered"] == 3, "orders past the cap must not be counted"
+    assert m["sell_units_committed"] == 3
+    assert m["sell_units_ordered"] == m["sell_units_committed"]   # fill is exactly 1,0
+
+
+def test_s10_shed_peak_sees_the_final_observation():
+    """🔴 Regression: shed_peak sampled only `previous_observation`, so the last step of
+    the episode was never looked at. Here the shed grows monotonically (bought goods land
+    in the shed), so the true peak IS the final observation."""
+    env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 6})
+    env.state[0].observation.farms[0]["money"] = 100000
+    buy = {"farmer": ["PASS"], "hands": [], "market": [["BUY_PRODUCT", "WHEAT", 3]]}
+    replay = _run(env, lambda i: buy)          # buy on EVERY step, so the shed only grows
+    m = extract_metrics(replay, 0)
+
+    sheds = [sum(step[0]["observation"]["private"]["shed"].values())
+             for step in replay["steps"]]
+    assert sheds[-1] > sheds[-2], "fixture must still be growing on the last step"
+    assert m["shed_peak"] == max(sheds) == sheds[-1]
+
+
+def test_s10_per_day_counters_sum_to_the_episode_totals():
+    """P5.1's day axis must be a partition of the same units, not a second measurement."""
+    env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 6, "turnsPerDay": 2})
+    env.state[0].observation.private["shed"]["MELON"] = 40
+    replay = _run(env, lambda i: _sell("MELON", 4))
+    m = extract_metrics(replay, 0)
+
+    assert sum(m["sell_units_ordered_by_day"].values()) == m["sell_units_ordered"]
+    assert sum(m["sell_units_committed_by_day"].values()) == m["sell_units_committed"]
+    assert set(m["sell_units_committed_by_day"]) <= set(m["sell_units_ordered_by_day"])
+
+
+def test_s10_tail_share_by_product_is_the_day_20_plus_revenue_share():
+    """A change that moves revenue into the tail without changing the total shows here."""
+    env = make("kaggriculture",
+               configuration={"seed": 0, "episodeSteps": 24, "turnsPerDay": 1,
+                              "weedSpawnChance": 0})
+    env.state[0].observation.private["shed"]["MELON"] = 40
+    # Sell MELON only from day 20 onwards; every MELON dollar is tail revenue.
+    replay = _run(env, lambda i: _sell("MELON", 2) if i >= 20 else PASS)
+    m = extract_metrics(replay, 0)
+
+    assert m["revenue_by_product"].get("MELON", 0) > 0
+    assert m["tail_share_by_product"]["MELON"] == pytest.approx(1.0)
+    for item, share in m["tail_share_by_product"].items():
+        assert 0.0 <= share <= 1.0
+
+
+def test_s10_realized_aliases_track_their_sources():
+    """`realized_*_by_product` are the plan's names for the existing dicts — if they ever
+    stop being the same object/value, the P2.2 parity test is comparing the wrong thing."""
+    env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 4})
+    env.state[0].observation.private["shed"]["MELON"] = 20
+    replay = _finish(env, _sell("MELON", 20))
+    m = extract_metrics(replay, 0)
+
+    assert m["realized_units_by_product"] == m["units_sold_by_product"]
+    assert m["realized_revenue_by_product"] == m["revenue_by_product"]
+
+
+def test_s10_transition_events_consumers_survive_the_widened_tuple():
+    """🔴 Regression: `_transition_events` returns a 7-tuple since S10 P2, but three
+    analysis/ callers unpacked exactly 5. They kept importing cleanly and failed only when
+    called — so an import check could not see it, and `s6_step2b_phase05` swallowed the
+    ValueError into its `skipped_transitions` counter, turning a hard break into a silently
+    empty result. Pin the contract from the consumer side, where it actually broke."""
+    env = make("kaggriculture", configuration={"seed": 0, "episodeSteps": 4})
+    env.state[0].observation.private["shed"]["MELON"] = 20
+    replay = _finish(env, _sell("MELON", 20))
+    steps, cfg = replay["steps"], replay["configuration"]
+
+    # The producer may grow further; consumers must not pin its arity.
+    assert len(_transition_events(steps[0], steps[1], cfg)) >= 5
+
+    from analysis.s6_step0_leg1 import _realised_both_seats
+    from analysis.s6_step1_phase0 import _realised_premium
+
+    # The assertion that matters is "does not raise ValueError: too many values to unpack".
+    rev, units = _realised_both_seats(replay)
+    assert rev is not None and units is not None
+
+    assert len(_realised_premium(steps, cfg)) == 4

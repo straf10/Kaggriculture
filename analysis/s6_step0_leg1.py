@@ -53,7 +53,9 @@ def _realised_both_seats(env_json: dict) -> tuple[dict, dict]:
     rev = [defaultdict(float), defaultdict(float)]
     units = [defaultdict(int), defaultdict(int)]
     for i in range(1, len(steps)):
-        _actions, _overflow, sales, _aborted, _harv = _transition_events(
+        # S10 P2 widened this tuple with the order-side counters; this caller only needs
+        # `sales`, so absorb the tail rather than pinning an arity.
+        _actions, _overflow, sales, _aborted, _harv, *_counters = _transition_events(
             steps[i - 1], steps[i], configuration)
         for seat in (0, 1):
             for sale in sales[seat]:

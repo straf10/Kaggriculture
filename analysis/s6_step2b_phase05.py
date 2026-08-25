@@ -233,7 +233,8 @@ def live() -> dict:
         for i in range(1, len(steps)):
             total_transitions += 1
             try:
-                _a, _o, sales, _ab, _h = _transition_events(steps[i - 1], steps[i], cfg)
+                _a, _o, sales, _ab, _h, *_counters = _transition_events(
+                    steps[i - 1], steps[i], cfg)
             except Exception as exc:  # noqa: BLE001
                 skipped_transitions += 1
                 last_skip_exc = exc

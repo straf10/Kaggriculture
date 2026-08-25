@@ -193,10 +193,14 @@ def _simulate_market(farms, privates, market, actions, configuration):
 #       PRICE_FLOOR ($1).  A $1 sale does not add to inventory (`_commit_unit`), so the
 #       price walk stays at $1 for the rest of that batch; the count is an UPPER BOUND on
 #       destroyed units in the episode (the acceptance target: ~182,7/ep on 55726984).
-def _sell_units_ordered_by_product(actions):
+def _sell_units_ordered_by_product(actions, max_orders):
     out = [{}, {}]
     for seat in (0, 1):
-        for order in actions[seat].get("market") or []:
+        # The engine truncates the raw queue to maxMarketOrdersPerTurn BEFORE parsing
+        # (kaggriculture._process_market), and so does _simulate_market. Orders past the
+        # cap are never quoted, so they are not "ordered units" — counting them would
+        # silently depress fill (committed/ordered).
+        for order in (actions[seat].get("market") or [])[:max_orders]:
             if isinstance(order, list) and len(order) >= 3 and order[0] == "SELL":
                 item = order[1]
                 # Match engine._process_market: a SELL of a non-PRODUCT item (e.g. an animal)
@@ -212,15 +216,17 @@ def _sell_units_ordered_by_product(actions):
     return out
 
 
-def _sell_units_ordered_at_floor(actions, market):
+def _sell_units_ordered_at_floor(actions, market, max_orders):
     """Per-seat per-product count of SELL units that would price at PRICE_FLOOR if every
     unit committed.  Interleaves the two seats' units in engine order (matching
     engine._process_market's per-unit round-robin), so the walk-down of a shared item is
     simulated correctly."""
     inv = dict(market["inventory"])
     params = market.get("params")
+    # Truncate to the engine's order cap first, then filter — same order of operations
+    # as _process_market / _simulate_market.
     queues = [
-        [(o[1], int(o[2])) for o in (actions[s].get("market") or [])
+        [(o[1], int(o[2])) for o in (actions[s].get("market") or [])[:max_orders]
          if isinstance(o, list) and len(o) >= 3 and o[0] == "SELL"
          and o[1] in engine.PRODUCTS and int(o[2]) > 0]
         for s in (0, 1)
@@ -274,8 +280,9 @@ def _transition_events(previous_step, current_step, configuration):
     )
     # S10 P2.1: order-side counters BEFORE simulating commits — a `_commit_unit` rejection
     # breaks _simulate_market's inner walk early and hides the tail.
-    ordered_by_product = _sell_units_ordered_by_product(actions)
-    ordered_at_floor = _sell_units_ordered_at_floor(actions, market)
+    max_orders = max(1, int(configuration.get("maxMarketOrdersPerTurn", 10)))
+    ordered_by_product = _sell_units_ordered_by_product(actions, max_orders)
+    ordered_at_floor = _sell_units_ordered_at_floor(actions, market, max_orders)
     sales, market_sim_aborted = _simulate_market(farms, privates, market, actions, configuration)
 
     current_day = int(current_step[0]["observation"].get("day", previous_day))
@@ -342,6 +349,7 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
     sell_units_ordered_by_product: dict = {}
     floor_units_ordered = 0
     floor_units_ordered_by_product: dict = {}
+    sell_units_ordered_by_day: dict = {}
     shed_peak = 0
     configuration = env_json.get("configuration", {})
     # harness/report.py needs a per-day breakdown to plot losses/utilization
@@ -393,13 +401,18 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         for item, q in transition_ordered[seat].items():
             sell_units_ordered += q
             sell_units_ordered_by_product[item] = sell_units_ordered_by_product.get(item, 0) + q
+            # P5.1: same units keyed by day, so a dropped SELL can be attributed to a day.
+            sell_units_ordered_by_day[sale_day] = sell_units_ordered_by_day.get(sale_day, 0) + q
         for item, q in transition_ordered_at_floor[seat].items():
             floor_units_ordered += q
             floor_units_ordered_by_product[item] = floor_units_ordered_by_product.get(item, 0) + q
-        # shed_peak: max over the previous observation (this seat's private).
-        shed_sum = sum(previous_observation["private"]["shed"].values())
-        if shed_sum > shed_peak:
-            shed_peak = shed_sum
+        # shed_peak: max over EVERY observation this seat sees. Sampling only
+        # `previous_observation` would never look at steps[-1], so a peak reached on the
+        # final step (or an end-of-episode liquidation stall) went unrecorded.
+        for obs in (previous_observation, current_observation):
+            shed_sum = sum((obs.get("private") or {}).get("shed", {}).values())
+            if shed_sum > shed_peak:
+                shed_peak = shed_sum
 
         farm = previous_observation["farms"][seat]
         unit_actions = [actions[seat].get("farmer", ["PASS"]), *actions[seat].get("hands", [])]
@@ -593,6 +606,11 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
             floor_units += 1
             floor_units_by_product[sale["item"]] = floor_units_by_product.get(sale["item"], 0) + 1
     sell_units_committed = len(sales)
+    # P5.1: the committed side of the same per-day split. dropped(day) = ordered − committed.
+    sell_units_committed_by_day: dict = {}
+    for sale in sales:
+        d = int(sale.get("day", 0))
+        sell_units_committed_by_day[d] = sell_units_committed_by_day.get(d, 0) + 1
     # S10 P2.1: tail_share_by_product — share of a product's revenue that arrived on day >= 20.
     # A change that shifts revenue into the tail without changing the total still shows here.
     tail_revenue = {}
@@ -654,6 +672,8 @@ def extract_metrics(env_json: dict, seat: int, diagnostics: list | None = None) 
         "sell_units_ordered": sell_units_ordered,
         "sell_units_ordered_by_product": sell_units_ordered_by_product,
         "sell_units_committed": sell_units_committed,
+        "sell_units_ordered_by_day": sell_units_ordered_by_day,
+        "sell_units_committed_by_day": sell_units_committed_by_day,
         "shed_peak": shed_peak,
         "tail_share_by_product": tail_share_by_product,
         "market_sales": sales,
