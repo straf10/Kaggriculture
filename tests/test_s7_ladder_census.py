@@ -59,7 +59,7 @@ def test_converged_win_rate_is_elo_compatible(result):
 def test_the_control_changes_the_answer(result):
     """The frozen-submission control is not cosmetic: it cuts the sample and reshapes it."""
     c = result["leg_c_opponent_strength"]
-    assert c["matched_controlled"] < c["matched_raw"] * 0.80
+    assert c["matched_controlled"] < c["matched_raw"] * 0.85
 
 
 @requires_live

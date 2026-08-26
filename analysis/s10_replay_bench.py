@@ -285,44 +285,50 @@ def run_h2_calibration(workers=DEFAULT_WORKERS, limit=None):
 # ---------------------------------------------------------------------------
 # Manifest (P1.3)
 # ---------------------------------------------------------------------------
-def _rating_zone(score):
-    if score is None:
-        return None
-    s = float(score)
-    if s < 1500: return "<1500"
-    if s < 1700: return "1500-1700"
-    if s < 1900: return "1700-1900"
-    if s < 2100: return "1900-2100"
-    if s < 2400: return "2100-2400"
-    return "2400+"
-
-
 def build_manifest(submissions):
-    rows = []
+    from analysis.board_join import board_at, episode_times, rating_zone
+
+    ep_times = {}
     for sub in submissions:
+        ep_times[sub] = episode_times(sub)
+
+    rows = []
+    n_unmatched = 0
+    for sub in submissions:
+        times = ep_times[sub]
         for eid, m in ladder_episodes(sub):
             seat = our_seat(m["teams"])
             opp = m["teams"][1 - seat] if seat is not None else None
+            ep_time = times.get(eid)
+            board = board_at(ep_time) if ep_time else {}
+            opp_entry = board.get(opp) if opp else None
+            if opp_entry is not None:
+                opp_rank, opp_score, opp_last_sub = opp_entry
+                controlled = opp_last_sub <= ep_time if ep_time else None
+                last_sub_str = opp_last_sub.isoformat() if opp_last_sub else None
+            else:
+                opp_rank, opp_score, last_sub_str, controlled = None, None, None, None
+                n_unmatched += 1
             rows.append({
                 "submission": sub,
                 "episode_id": eid,
                 "seed": m["seed"],
                 "our_seat": seat,
                 "opponent": opp,
-                # Board score/rank and LastSubmissionDate need the public board — left
-                # as null placeholders here; join is `analysis/s7_ladder_census.py`'s job
-                # if needed.  Bench statistics do not depend on them.
-                "board_score": None,
-                "board_rank": None,
-                "last_submission_date": None,
-                "controlled": None,
-                "rating_zone": _rating_zone(None),
+                "board_score": opp_score,
+                "board_rank": opp_rank,
+                "last_submission_date": last_sub_str,
+                "controlled": controlled,
+                "rating_zone": rating_zone(opp_score),
             })
+    n_matched = len(rows) - n_unmatched
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "verdict": f"manifest {len(rows)} rows across {list(submissions)}",
+        "verdict": f"manifest {len(rows)} rows, {n_matched} matched, {n_unmatched} unmatched",
         "constraint": BENCH_CONSTRAINT,
         "n": len(rows),
+        "n_matched": n_matched,
+        "n_unmatched": n_unmatched,
         "rows": rows,
     }
 
@@ -335,12 +341,23 @@ def _write(path: Path, obj: dict):
 # ---------------------------------------------------------------------------
 # P3.2 reporter — W/L by seat / generation / opponent
 # ---------------------------------------------------------------------------
-def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
+def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json",
+              manifest_path: Path = DERIVED / "s10_bench_manifest.json"):
     d = json.loads(path.read_text())
     rows = d["rows"]
-    by_seat = {0: [0, 0, 0, 0], 1: [0, 0, 0, 0]}   # [base_w, base_l, new_w, new_l]
+
+    manifest_index = {}
+    if manifest_path.exists():
+        md = json.loads(manifest_path.read_text())
+        for mr in md.get("rows", []):
+            manifest_index[mr["episode_id"]] = mr
+
+    by_seat = {0: [0, 0, 0, 0], 1: [0, 0, 0, 0]}
     by_gen = {}
+    by_zone = {}
+    by_zone_controlled = {}
     flipped = {"c_win": [], "b_loss": []}
+
     for r in rows:
         s = r["seat"]
         by_seat[s][0] += 1 if r["base_win"] else 0
@@ -352,6 +369,21 @@ def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
         by_gen[r["submission"]][1] += 0 if r["base_win"] else 1
         by_gen[r["submission"]][2] += 1 if r["new_win"] else 0
         by_gen[r["submission"]][3] += 0 if r["new_win"] else 1
+
+        mrow = manifest_index.get(r["episode_id"], {})
+        zone = mrow.get("rating_zone") or "unmatched"
+        by_zone.setdefault(zone, [0, 0, 0, 0])
+        by_zone[zone][0] += 1 if r["base_win"] else 0
+        by_zone[zone][1] += 0 if r["base_win"] else 1
+        by_zone[zone][2] += 1 if r["new_win"] else 0
+        by_zone[zone][3] += 0 if r["new_win"] else 1
+        if mrow.get("controlled"):
+            by_zone_controlled.setdefault(zone, [0, 0, 0, 0])
+            by_zone_controlled[zone][0] += 1 if r["base_win"] else 0
+            by_zone_controlled[zone][1] += 0 if r["base_win"] else 1
+            by_zone_controlled[zone][2] += 1 if r["new_win"] else 0
+            by_zone_controlled[zone][3] += 0 if r["new_win"] else 1
+
         if (not r["base_win"]) and r["new_win"]:
             flipped["c_win"].append({"episode_id": r["episode_id"],
                                      "opponent": r["opponent"], "seat": s,
@@ -362,21 +394,17 @@ def report_h2(path: Path = DERIVED / "s10_bench_h2_calibration.json"):
                                       "submission": r["submission"]})
     report = {
         "verdict": d["verdict"],
-        # P1.5: the caveat travels with the report, not only with the run that made it.
         "constraint": d.get("constraint", BENCH_CONSTRAINT),
         "n": d["n"],
         "mcnemar": {"c": d["mcnemar_c"], "b": d["mcnemar_b"], "p": d["mcnemar_p"]},
-        # Note: rating_zone breakdown is absent because the manifest carries zone=null —
-        # no live board-score join has been run yet.  🔴 This is an OPEN GAP, not a
-        # sanctioned omission: plan §P1.3 lists board score/rank/zone as required manifest
-        # fields and §P3.2 requires W/L per rating zone in every bench report.  An earlier
-        # version of this comment claimed the plan accepted null; it does not.
-        # Closing it is docs/plans/s11_instrument_completion.md §B1 — the join already
-        # exists in analysis/s7_ladder_census.py::leg_c and only needs extracting.
         "by_seat": {str(k): {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
                     for k, v in by_seat.items()},
         "by_generation": {k: {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
                           for k, v in by_gen.items()},
+        "by_rating_zone": {k: {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
+                           for k, v in sorted(by_zone.items())},
+        "by_rating_zone_controlled": {k: {"base_w_l": [v[0], v[1]], "new_w_l": [v[2], v[3]]}
+                                      for k, v in sorted(by_zone_controlled.items())},
         "flipped": flipped,
     }
     out = DERIVED / "s10_bench_h2_calibration_report.json"

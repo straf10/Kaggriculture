@@ -41,13 +41,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from analysis.board_join import _load_lb, _to_naive_utc  # noqa: E402
+
 LIVE = ROOT / "data" / "archive" / "raw" / "live_55586926"
 EP_CSV = ROOT / "data" / "archive" / "raw" / "live_55586926_episodes.csv"
 DERIVED = ROOT / "data" / "derived"
 OUT = DERIVED / "s7_ladder_census.json"
 OUR_TEAM = "STRAF"
 
-# The two public-leaderboard snapshots differenced by leg B. Both are gitignored raw captures.
+# The two public-leaderboard snapshots differenced by leg B (earliest pair only).
 LB_SNAPSHOTS = [
     ("2026-08-18", "live_leaderboard_2026-08-18/kaggriculture-publicleaderboard-2026-08-18T10:04:36.csv"),
     ("2026-08-20", "live_leaderboard_2026-08-20/kaggriculture-publicleaderboard-2026-08-20T10:57:31.csv"),
@@ -166,16 +168,6 @@ def leg_a(eps, self_play):
 
 # --------------------------------------------------------------------------- leg B
 
-def _load_lb(path):
-    rows = []
-    with open(path, encoding="utf-8-sig") as f:
-        for r in csv.DictReader(f):
-            rows.append({"rank": int(r["Rank"]), "team_id": r["TeamId"], "team": r["TeamName"],
-                         "last_sub": r["LastSubmissionDate"], "score": float(r["Score"])})
-    rows.sort(key=lambda r: r["rank"])
-    return rows
-
-
 def leg_b():
     raw = ROOT / "data" / "archive" / "raw"
     snaps = []
@@ -236,40 +228,17 @@ def leg_b():
 
 def leg_c(eps):
     """Win rate against opponent strength, with the frozen-submission control."""
+    from analysis.board_join import board_at, episode_times as _ep_times
+
     if not EP_CSV.exists():
         raise SystemExit(f"episode listing missing: {EP_CSV} "
                          f"(`kaggle competitions episodes 55586926 -v`, §2.4b)")
-    def _to_naive_utc(s: str) -> dt.datetime:
-        """Parse an ISO timestamp to a naive-UTC datetime, stripping fractional seconds and tzinfo."""
-        s = s.split(".")[0].rstrip("Z")
-        d = dt.datetime.fromisoformat(s)
-        if d.tzinfo is not None:
-            d = d.astimezone(dt.timezone.utc).replace(tzinfo=None)
-        return d
-
-    played_at = {}
-    with open(EP_CSV, encoding="utf-8-sig") as f:
-        for r in csv.DictReader(f):
-            if (r.get("id") or "").isdigit():
-                played_at[int(r["id"])] = _to_naive_utc(r["createTime"])
-
-    snapshots = []
-    raw = ROOT / "data" / "archive" / "raw"
-    for date_str, rel in LB_SNAPSHOTS:
-        snap_dt = dt.datetime.fromisoformat(date_str)
-        board = {}
-        for r in _load_lb(raw / rel):
-            board[r["team"]] = (r["rank"], r["score"],
-                                _to_naive_utc(r["last_sub"]))
-        snapshots.append((snap_dt, board))
-
-    def _closest_board(ep_time):
-        return min(snapshots, key=lambda sb: abs((sb[0] - ep_time).total_seconds()))[1]
+    played_at = _ep_times("55586926")
 
     raw_rows, ctrl_rows = [], []
     for i, e in enumerate(eps):
         t = played_at.get(e["episode_id"])
-        board = _closest_board(t) if t is not None else snapshots[-1][1]
+        board = board_at(t) if t is not None else board_at(dt.datetime(2026, 8, 20))
         o = board.get(e["opponent"])
         if not o:
             continue
