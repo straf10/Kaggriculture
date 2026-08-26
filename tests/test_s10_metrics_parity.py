@@ -4,16 +4,10 @@
 both walk the engine's per-unit market pricing but from different call sites (gate vs
 live-replay analysis).  If they drift, gate output and the s9 live read stop being
 directly comparable, and the "single parser" invariant the plan (P2.2) requires is
-lost silently.  This test cross-checks them on ≥5 real ladder replays: committed
-revenue-by-product on the harness side must be within 2% of `episode_ledger`'s scaled
-revenue-by-product.
+lost silently.
 
-The tolerance is small because both use the same engine `market_price`, the same
-per-unit walk, and both settle to the recorded cash flow — the residual is only the
-step-scale rounding of `episode_ledger` (bounded by the 1,5% aggregate residual pinned
-in `test_s9_market_ledger.py`).
-
-Needs the gitignored live replays; skips on a public checkout.
+Layer 1 (CI, synthetic corpus): cross-check on synthetic replays with looser threshold.
+Layer 2 (live replays, skip on clean checkout): cross-check on ≥5 real replays, <2% gap.
 """
 from __future__ import annotations
 
@@ -47,15 +41,9 @@ def _first_n_env_jsons(sub: str, n: int):
     return out
 
 
-@requires_live
-def test_two_parsers_agree_on_realized_revenue():
-    eps = _first_n_env_jsons("55586926", 5)
-    assert len(eps) >= 5
-
-    # Aggregate the residual over both seats and every product across the 5 replays.
+def _check_parsers_agree(eps, threshold):
     tot_metric_rev = 0.0
     tot_ledger_rev = 0.0
-    worst_per_product_gap = 0.0
     for eid, m, env in eps:
         led = episode_ledger({"steps": m["steps"]})
         for seat in (0, 1):
@@ -64,15 +52,29 @@ def test_two_parsers_agree_on_realized_revenue():
             ledger_rev_by_p = led["revenue"][seat]
             all_products = set(metric_rev_by_p) | set(ledger_rev_by_p)
             for p in all_products:
-                a = float(metric_rev_by_p.get(p, 0))
-                b = float(ledger_rev_by_p.get(p, 0))
-                tot_metric_rev += a
-                tot_ledger_rev += b
-                denom = max(abs(a) + abs(b), 1.0)
-                gap = abs(a - b) / denom
-                worst_per_product_gap = max(worst_per_product_gap, gap)
-
+                tot_metric_rev += float(metric_rev_by_p.get(p, 0))
+                tot_ledger_rev += float(ledger_rev_by_p.get(p, 0))
     agg_gap = abs(tot_metric_rev - tot_ledger_rev) / max(tot_metric_rev, tot_ledger_rev, 1.0)
-    # Aggregate residual must be small; the per-product worst is looser because a single
-    # rejected sell can flip a small category's revenue across the two parsers.
-    assert agg_gap < 0.02, f"aggregate realized revenue gap = {agg_gap:.4f}"
+    assert agg_gap < threshold, f"aggregate realized revenue gap = {agg_gap:.4f}"
+
+
+# ---------------------------------------------------------------------------
+# Layer 1 — CI (synthetic corpus)
+# ---------------------------------------------------------------------------
+
+def test_two_parsers_agree_synthetic(synthetic_corpus):
+    """Cross-check harness metrics vs ledger on synthetic replays."""
+    eps = _first_n_env_jsons(synthetic_corpus["sub"], 3)
+    assert len(eps) >= 3
+    _check_parsers_agree(eps, 0.05)
+
+
+# ---------------------------------------------------------------------------
+# Layer 2 — live replays (skip on clean checkout)
+# ---------------------------------------------------------------------------
+
+@requires_live
+def test_two_parsers_agree_on_realized_revenue():
+    eps = _first_n_env_jsons("55586926", 5)
+    assert len(eps) >= 5
+    _check_parsers_agree(eps, 0.02)

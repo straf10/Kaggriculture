@@ -13,8 +13,8 @@ implementation trips a failing test rather than silently changing measured reven
       switches to `steps[t]` as pre-state, cash conservation for a sampled step
       collapses.  This test breaks the moment that changes.
 
-(1) and (2) need the gitignored live replays; they skip on a public checkout. (3) is a
-source-level guard and always runs.
+Layer 1 (CI, synthetic corpus): (1'), (2'), (3).  Thresholds relaxed for 60-step episodes.
+Layer 2 (live replays, skip on clean checkout): (1), (2) with strict thresholds.
 """
 from __future__ import annotations
 
@@ -50,6 +50,52 @@ def _first_n(sub: str, n: int):
             break
     return out
 
+
+# ---------------------------------------------------------------------------
+# Layer 1 — CI (synthetic corpus, always runs)
+# ---------------------------------------------------------------------------
+
+def test_cash_conservation_synthetic(synthetic_corpus):
+    """Cash conservation on synthetic replays: aggregate error < 5%."""
+    sub = synthetic_corpus["sub"]
+    eps = list(ladder_episodes(sub))
+    assert len(eps) >= 3
+    tot_rev, tot_sp, tot_delta = 0.0, 0.0, 0.0
+    for eid, m in eps:
+        steps = m["steps"]
+        led = episode_ledger({"steps": steps})
+        for seat in (0, 1):
+            tot_rev += sum(led["revenue"][seat].values())
+            tot_sp += sum(led["spend"][seat].values())
+            starting_money = float(steps[0][seat]["observation"]["farms"][seat]["money"])
+            tot_delta += float(m["rewards"][seat]) - starting_money
+    rel = abs((tot_rev - tot_sp) - tot_delta) / max(abs(tot_delta), 1.0)
+    assert rel < 0.05, f"aggregate |ledger − recorded| / recorded = {rel:.4f}"
+
+
+def test_market_price_matches_recorded_quote_synthetic(synthetic_corpus):
+    """`market_price(item, inventory)` reproduces the engine's price on synthetic replays."""
+    sub = synthetic_corpus["sub"]
+    samples = 0
+    mismatches = []
+    for p in replay_paths(sub):
+        d = load(p)
+        for state in d["steps"]:
+            obs = state[0]["observation"]
+            inv = obs["market"]["inventory"]
+            prices = obs["market"]["prices"]
+            for item, quoted in prices.items():
+                computed = market_price(item, inv[item])
+                if computed != quoted:
+                    mismatches.append((item, inv[item], quoted, computed))
+                samples += 1
+    assert samples >= 10, f"only sampled {samples}"
+    assert mismatches == [], f"mismatches: {mismatches[:5]}"
+
+
+# ---------------------------------------------------------------------------
+# Layer 2 — live replays (skip on clean checkout)
+# ---------------------------------------------------------------------------
 
 @requires_live
 @pytest.mark.parametrize("sub,n", [(PRIMARY_SUB, 10)])
@@ -98,6 +144,10 @@ def test_market_price_matches_recorded_quote_zero_diffs():
     assert samples >= 500, f"only sampled {samples} (need ≥500)"
     assert mismatches == [], mismatches[:5]
 
+
+# ---------------------------------------------------------------------------
+# Always-run guards
+# ---------------------------------------------------------------------------
 
 def test_observation_lags_action_by_one_step():
     """Lock the ledger's alignment: the market that prices step t is `steps[t-1]`, and
