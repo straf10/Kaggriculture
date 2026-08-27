@@ -1,35 +1,32 @@
 #!/usr/bin/env python3
-"""S10 P4 — opponent-inventory estimator (measurement only, no policy).
+"""S10 P4 / B2.0' — per-step opponent floor-unit estimator (measurement only).
 
-B2.0 spike: estimate opponent's *floor sells* from public state only.
+B2.0' spike: for each step, compute the residual R(t) from the money-channel
+identity and classify it as EXACT_ZERO / EXACT / MOD10 / AMBIGUOUS_WF.
 
-The money channel for the opponent decomposes as:
+The per-step identity (exact on 3 019/3 020 oracle steps):
 
-    Δmoney_opp = sell_revenue − buy_product_cost − seed_cost − animal_cost
-                 − hire_cost − land_cost
+    R(t) = Δmoney_opp(t) + hire(t) + land(t) − nonfloor_revenue_opp(t)
+         = floor_units(t) − seed_cost(t) − animal_cost(t) − buy_product_cost(t)
 
-    sell_revenue = nonfloor_revenue + floor_units × $1
+When no hidden purchase at step t: R(t) = floor_units(t).
+seed/animal costs are multiples of 10 → R ≡ floor_units (mod 10).
+buy_product_cost (W/F only) is arbitrary → breaks mod-10 → AMBIGUOUS_WF.
 
-Rearranging:
+Gate (all three required, measured PASS 2026-08-27 on 20 replays of 55726984:
+exact_rate=0.982, signal_coverage=0.571, bracket_coverage=0.967):
+  • exact-rate  ≥ 0.90  (EXACT_ZERO/EXACT correct vs ground truth)
+  • signal-cov  ≥ 0.50  (EXACT_ZERO+EXACT cover ≥50% of real floor-sell steps)
+  • bracket-cov ≥ 0.80  (truth inside [lo, hi] in MOD10/AMBIGUOUS_WF steps)
 
-    floor_units = Δmoney + costs − nonfloor_revenue
+B2.1-B2.5 (shed tracker, per-product attribution, full fields, validation,
+leakage-safe predictor) are NOT implemented here yet — see the plan.
 
-where costs = buy_product + seed + animal + hire + land.
+No agent/ change, no upload.
 
-The ΔM identity provides the non-floor sell counts per product (exact for 7
-non-buyable products, net-only for WHEAT/FERTILIZER).  Observable farm state
-changes provide hire/land/animal/seed costs.  The remaining uncertainty terms
-(unplanted seeds, W/F decomposition, day-boundary hires, interleaving revenue)
-produce explicit [lower, upper] bounds.
-
-B2.0 gate (plan §B2.0):
-  • MAE of per-episode floor_units ≤ 15% (median across ≥20 replays)
-  • coverage ≥ 0.80 (truth within [lower, upper])
-
-Read-only.  No `agent/` change, no upload.
 CLI:
-    python analysis/s10_opponent_inventory.py spike [sub=55726984] [n=20]
-    python analysis/s10_opponent_inventory.py validate [sub=55726984] [n=10]
+    python analysis/s10_opponent_inventory.py spike [sub] [n]
+    python analysis/s10_opponent_inventory.py validate [sub] [n]
 """
 from __future__ import annotations
 
@@ -45,7 +42,7 @@ sys.path.insert(0, str(ROOT / "engine_reference"))
 
 from engine_reference.kaggriculture import (  # noqa: E402
     ANIMALS, CROPS, LAND_PRICES, PRICE_FLOOR, PRODUCTS, SHOPS,
-    TOWN_CENTER_PRODUCTS, _hire_cost, _is_shed_adjacent, market_price,
+    TOWN_CENTER_PRODUCTS, _hire_cost, market_price,
 )
 from analysis.s8_replay_io import ladder_episodes, our_seat  # noqa: E402
 
@@ -62,8 +59,7 @@ NON_BUYABLE = frozenset(PRODUCTS) - frozenset(("WHEAT", "FERTILIZER"))
 # ---------------------------------------------------------------------------
 
 def _town_consume_delta(unlocked_shops, step, shop_interval, center_interval):
-    """Per-item consumption at step transition (t → t+1), matching
-    engine._town_consume without mutating state."""
+    """Per-item consumption at step transition, matching engine._town_consume."""
     consume = {p: 0 for p in PRODUCTS}
     if step % shop_interval == 0:
         for shop in unlocked_shops or []:
@@ -75,6 +71,43 @@ def _town_consume_delta(unlocked_shops, step, shop_interval, center_interval):
         for item in TOWN_CENTER_PRODUCTS:
             consume[item] += 1
     return consume
+
+
+def _nonfloor_revenue_walk(product, n_units, inv_start):
+    """Revenue from n non-floor sells starting at inv_start."""
+    rev = 0
+    inv = inv_start
+    for _ in range(n_units):
+        p = market_price(product, inv)
+        if p <= PRICE_FLOOR:
+            break
+        rev += p
+        inv += 1
+    return rev
+
+
+def _buy_cost_walk(product, n_units, inv_start):
+    """Cost of n BUY_PRODUCT units walked through the market curve.
+    Engine quotes buys at market_price(item, inv - 1)."""
+    cost = 0
+    inv = inv_start
+    for _ in range(n_units):
+        price = market_price(product, max(0, inv - 1))
+        cost += price
+        inv = max(0, inv - 1)
+    return cost
+
+
+def _private_total(private, item):
+    """Ground-truth stock: shed[item] + Σ per-unit-carried inventories[item]."""
+    if not isinstance(private, dict):
+        return 0
+    shed = int(private.get("shed", {}).get(item, 0))
+    inv = 0
+    for u in private.get("inventories") or []:
+        if isinstance(u, dict):
+            inv += int(u.get(item, 0))
+    return shed + inv
 
 
 def _walk_seat_sells_buys(action, market_inventory_pre):
@@ -105,308 +138,170 @@ def _walk_seat_sells_buys(action, market_inventory_pre):
     return sell_non, buy, sell_floor
 
 
-def _private_total(private, item):
-    """Ground-truth stock: shed[item] + Σ per-unit-carried inventories[item]."""
-    if not isinstance(private, dict):
-        return 0
-    shed = int(private.get("shed", {}).get(item, 0))
-    inv = 0
-    for u in private.get("inventories") or []:
-        if isinstance(u, dict):
-            inv += int(u.get(item, 0))
-    return shed + inv
-
-
-def _our_committed_nb_sells(prev_obs, action, seat, board_size=10, shed_cap=100):
-    """Our committed NB sells at one step, via shed + DROP/PLACE simulation.
-
-    Returns {product: (nf_count, floor_count)} for NB products only.
-    Uses pre-action observation (the state BEFORE action is applied).
-    """
-    prev_farm = prev_obs["farms"][seat]
-    market_inv = dict(prev_obs["market"]["inventory"])
-
-    shed = dict(prev_obs["private"]["shed"])
-    inventories = [
-        dict(inv) if isinstance(inv, dict) else {}
-        for inv in prev_obs["private"]["inventories"]
-    ]
-
-    all_unit_acts = [action.get("farmer") or ["PASS"]] + (
-        action.get("hands") or []
-    )
-    all_positions = [prev_farm["farmer"]] + list(prev_farm["hands"])
-
-    for u_idx, u_act in enumerate(all_unit_acts):
-        if not isinstance(u_act, list) or not u_act or u_idx >= len(all_positions):
-            continue
-        pos = all_positions[u_idx]
-        inv = inventories[u_idx] if u_idx < len(inventories) else {}
-        op = u_act[0]
-
-        if op == "DROP" and _is_shed_adjacent(pos, board_size):
-            for item, n in list(inv.items()):
-                if n <= 0:
-                    continue
-                room = max(0, shed_cap - sum(shed.values()))
-                take = min(n, room)
-                if take > 0:
-                    shed[item] = shed.get(item, 0) + take
-                inv[item] = 0
-
-        elif op == "PLACE" and len(u_act) >= 2:
-            item = u_act[1]
-            if item in ANIMALS:
-                continue
-            if _is_shed_adjacent(pos, board_size):
-                n = int(u_act[2]) if len(u_act) >= 3 else 1
-                n = min(n, inv.get(item, 0))
-                room = max(0, shed_cap - sum(shed.values()))
-                n = min(n, room)
-                if n > 0:
-                    inv[item] = inv.get(item, 0) - n
-                    shed[item] = shed.get(item, 0) + n
-
-    result = {}
-    for order in action.get("market") or []:
-        if not isinstance(order, list) or len(order) < 3 or order[0] != "SELL":
-            continue
-        product = order[1]
-        qty = int(order[2])
-        avail = shed.get(product, 0)
-        committed = min(qty, avail)
-        shed[product] = shed.get(product, 0) - committed
-
-        if committed > 0 and product in NON_BUYABLE:
-            nf = 0
-            fl = 0
-            for _ in range(committed):
-                price = market_price(product, market_inv[product])
-                if price > PRICE_FLOOR:
-                    nf += 1
-                    market_inv[product] += 1
-                else:
-                    fl += 1
-            prev_nf, prev_fl = result.get(product, (0, 0))
-            result[product] = (prev_nf + nf, prev_fl + fl)
-
-    return result
-
-
 # ---------------------------------------------------------------------------
-# B2.0 spike — public-info-only floor-units estimator
+# B2.0' — Per-step floor-unit estimator
 # ---------------------------------------------------------------------------
 
-def _nonfloor_revenue_walk(product, n_units, inv_start):
-    """Revenue from n non-floor sells starting at inv_start."""
-    rev = 0
-    inv = inv_start
-    for _ in range(n_units):
-        p = market_price(product, inv)
-        if p <= PRICE_FLOOR:
-            break
-        rev += p
-        inv += 1
-    return rev
+def spike_per_step(replay, our_seat_idx):
+    """B2.0': per-step opponent floor-unit estimation with classification.
 
+    For each step, computes R(t) from the money-channel identity using only
+    public opponent state and our own committed sells (from _transition_events,
+    wrapped to expose only our seat — B2.5 leakage test verifies this).
 
-def _buy_cost_walk(product, n_units, inv_start):
-    """Cost of n BUY_PRODUCT units walked through the market curve.
-    Engine quotes buys at market_price(item, inv - 1)."""
-    cost = 0
-    inv = inv_start
-    for _ in range(n_units):
-        price = market_price(product, max(0, inv - 1))
-        cost += price
-        inv = max(0, inv - 1)
-    return cost
-
-
-def spike_estimate(replay, our_seat_idx):
-    """B2.0: estimate episode-total opponent floor units from public obs only.
-
-    Reads ONLY obs (public farms/market/town) and our own actions.
-    NEVER reads steps[t][1-our_seat_idx]["action"].
-
-    Returns dict with point/lo/hi estimates and diagnostic breakdown.
+    Returns list of per-step dicts with estimate, classification, bracket,
+    and ground truth (for validation).
     """
+    from harness.metrics import _transition_events
+
     opp = 1 - our_seat_idx
     cfg = replay.get("configuration") or {}
-    tpd = max(1, int(cfg.get("turnsPerDay", 24)))
-    shop_iv = max(1, int(cfg.get("townShopSellInterval", 4)))
-    center_iv = max(1, int(cfg.get("townCenterSellInterval", 24)))
     steps = replay["steps"]
     n = len(steps)
     if n < 2:
-        return {"point": 0, "lo": 0, "hi": 0}
+        return []
 
-    cum_delta_money = 0
-    cum_hire_lo = 0
-    cum_hire_hi = 0
-    cum_land = 0
-    cum_animal = 0
-    cum_seed_vis = 0
-    cum_nf_rev_lo = 0
-    cum_nf_rev_hi = 0
-    cum_wf_net_lo = 0
-    cum_wf_net_hi = 0
-
-    obs0 = steps[0][0]["observation"]
-    town = obs0.get("town") or {}
-
-    board_size = int(cfg.get("boardSize", 10))
+    shop_iv = max(1, int(cfg.get("townShopSellInterval", 4)))
+    center_iv = max(1, int(cfg.get("townCenterSellInterval", 24)))
     shed_cap = int(cfg.get("shedCapacity", 100))
 
+    results = []
     for t in range(1, n):
-        pre = steps[t - 1][0]["observation"]
-        post = steps[t][0]["observation"]
+        prev_step = steps[t - 1]
+        cur_step = steps[t]
+        pre = prev_step[0]["observation"]
+        post = cur_step[0]["observation"]
         engine_step = t - 1
-        town = pre.get("town") or town
 
-        inv_pre = pre["market"]["inventory"]
-        inv_post = post["market"]["inventory"]
+        # --- One _transition_events call per step ---
+        tr = _transition_events(prev_step, cur_step, cfg)
 
-        # Our action and shed-based committed sells
-        our_act = steps[t][our_seat_idx].get("action") or {}
-        our_prev_obs = steps[t - 1][our_seat_idx]["observation"]
-        our_nb = _our_committed_nb_sells(
-            our_prev_obs, our_act, our_seat_idx, board_size, shed_cap)
-        # Legacy walk for W/F buys (still needed for net revenue)
-        _sn_legacy, our_b, _ = _walk_seat_sells_buys(our_act, inv_pre)
+        # Our committed sells (estimator input — only our seat exposed)
+        our_sales_by_p: dict[str, list[int]] = {}
+        for sale in tr[2][our_seat_idx]:
+            our_sales_by_p.setdefault(sale["item"], []).append(sale["price"])
 
-        # Opponent money change
-        m_pre = int(pre["farms"][opp]["money"])
-        m_post = int(post["farms"][opp]["money"])
-        cum_delta_money += m_post - m_pre
+        # Our raw BUY_PRODUCT orders for W/F (from our action, not opponent's)
+        our_action = cur_step[our_seat_idx].get("action") or {}
+        our_raw_buys_wf: dict[str, int] = {}
+        for order in (our_action.get("market") or []):
+            if (isinstance(order, list) and len(order) >= 3
+                    and order[0] == "BUY_PRODUCT"
+                    and order[1] in ("WHEAT", "FERTILIZER")):
+                our_raw_buys_wf[order[1]] = (
+                    our_raw_buys_wf.get(order[1], 0) + int(order[2]))
 
-        # Town consume
+        # Ground truth: opponent floor sells (validation only, NOT estimation)
+        gt_floor = sum(1 for sale in tr[2][opp]
+                       if sale["price"] <= PRICE_FLOOR)
+
+        # --- 1. Δmoney_opp ---
+        dm = int(post["farms"][opp]["money"]) - int(pre["farms"][opp]["money"])
+
+        # --- 2. Hire cost (exact from len(hands), B2.−0.5 #1) ---
+        hands_pre = pre["farms"][opp].get("hands") or []
+        hands_post = post["farms"][opp].get("hands") or []
+        n_new_hands = max(0, len(hands_post) - len(hands_pre))
+        hires_pre = int(pre["farms"][opp].get("hires_today", 0))
+        hire = sum(
+            _hire_cost(hires_pre + k) for k in range(n_new_hands))
+
+        # --- 3. Land cost (exact from unlocked_quadrants) ---
+        quads_pre = pre["farms"][opp].get("unlocked_quadrants") or ["NW"]
+        quads_post = post["farms"][opp].get("unlocked_quadrants") or ["NW"]
+        n_new_q = max(0, len(quads_post) - len(quads_pre))
+        land = 0
+        for i in range(n_new_q):
+            idx = len(quads_pre) - 1 + i
+            if idx < len(LAND_PRICES):
+                land += LAND_PRICES[idx]
+
+        # --- 4. ΔM identity for each product ---
+        inv_pre_d = pre["market"]["inventory"]
+        inv_post_d = post["market"]["inventory"]
+        town = pre.get("town") or {}
         consume = _town_consume_delta(
             town.get("unlocked_shops"), engine_step, shop_iv, center_iv)
 
-        fp = pre["farms"][opp]
-        fc = post["farms"][opp]
-        day_boundary = ((engine_step + 1) % tpd == 0)
+        # --- 5. Opponent non-floor revenue (total_walk − our_prices) ---
+        opp_nf_revenue = 0
+        wf_activity = False
+        for p in PRODUCTS:
+            delta_m = int(inv_post_d[p]) - int(inv_pre_d[p])
+            our_rev = sum(
+                pr for pr in our_sales_by_p.get(p, []) if pr > PRICE_FLOOR)
 
-        # --- Hire cost ---
-        if day_boundary:
-            cum_hire_hi += _hire_cost(fp["hires_today"])
+            if p in NON_BUYABLE:
+                total_nf = delta_m + consume[p]
+            else:
+                our_buys = our_raw_buys_wf.get(p, 0)
+                our_nf = sum(
+                    1 for pr in our_sales_by_p.get(p, [])
+                    if pr > PRICE_FLOOR)
+                net_opp = delta_m + consume[p] - our_nf + our_buys
+                if net_opp < 0:
+                    wf_activity = True
+                total_nf = delta_m + consume[p] + our_buys
+
+            if total_nf > 0 and not wf_activity:
+                total_rev = _nonfloor_revenue_walk(
+                    p, total_nf, int(inv_pre_d[p]))
+                opp_nf_revenue += total_rev - our_rev
+
+        # --- 6. R(t) — no max(0, …) clipping (B2.−0.5 #4) ---
+        R = dm + hire + land - opp_nf_revenue
+
+        # --- 7. Classification (B2.0' Step 3) ---
+        if wf_activity:
+            cls = "AMBIGUOUS_WF"
+            bracket_lo = 0
+            bracket_hi = shed_cap
+        elif R == 0:
+            cls = "EXACT_ZERO"
+            bracket_lo = 0
+            bracket_hi = 0
+        elif 0 < R < 10:
+            cls = "EXACT"
+            bracket_lo = R
+            bracket_hi = R
         else:
-            h_pre = fp["hires_today"]
-            h_post = fc["hires_today"]
-            for i in range(max(0, h_post - h_pre)):
-                c = _hire_cost(h_pre + i)
-                cum_hire_lo += c
-                cum_hire_hi += c
+            cls = "MOD10"
+            bracket_lo = R % 10
+            bracket_hi = shed_cap
 
-        # --- Land cost ---
-        q_pre = len(fp.get("unlocked_quadrants", ["NW"]))
-        q_post = len(fc.get("unlocked_quadrants", ["NW"]))
-        for i in range(max(0, q_post - q_pre)):
-            idx = q_pre - 1 + i
-            if idx < len(LAND_PRICES):
-                cum_land += LAND_PRICES[idx]
+        floor_est = R if cls in ("EXACT_ZERO", "EXACT") else None
 
-        # --- Animal cost (new animals on tiles) ---
-        for rp, rc in zip(fp["tiles"], fc["tiles"]):
-            for tp, tc in zip(rp, rc):
-                if (isinstance(tc, dict) and "animal" in tc
-                        and not (isinstance(tp, dict) and "animal" in tp)):
-                    cum_animal += ANIMALS[tc["animal"]]["cost"]
+        results.append({
+            "step": t,
+            "R": R,
+            "classification": cls,
+            "floor_units_est": floor_est,
+            "bracket_lo": bracket_lo,
+            "bracket_hi": bracket_hi,
+            "gt_floor_units": gt_floor,
+        })
 
-        # --- Seed cost (newly planted tiles → lower bound) ---
-        for rp, rc in zip(fp["tiles"], fc["tiles"]):
-            for tp, tc in zip(rp, rc):
-                if (isinstance(tc, dict) and tc.get("kind") == "PLANT"
-                        and not (isinstance(tp, dict)
-                                 and tp.get("kind") == "PLANT")):
-                    crop = tc.get("crop")
-                    if crop and crop in CROPS:
-                        cum_seed_vis += CROPS[crop]["seed"]
-
-        # --- Non-floor revenue (7 non-buyable products, shed-based) ---
-        for p in NON_BUYABLE:
-            total_nf = (int(inv_post[p]) - int(inv_pre[p])) + consume[p]
-            our_nf = our_nb.get(p, (0, 0))[0]
-            opp_nf = max(0, total_nf - our_nf)
-            if opp_nf > 0:
-                inv_after_our = int(inv_pre[p]) + our_nf
-                cum_nf_rev_lo += _nonfloor_revenue_walk(
-                    p, opp_nf, inv_after_our)
-                cum_nf_rev_hi += _nonfloor_revenue_walk(
-                    p, opp_nf, int(inv_pre[p]))
-
-        # --- WHEAT/FERT net revenue (legacy walk — shed sim not needed) ---
-        our_sn_wf = {p: _sn_legacy.get(p, 0) for p in ("WHEAT", "FERTILIZER")}
-        for p in ("WHEAT", "FERTILIZER"):
-            net_opp = ((int(inv_post[p]) - int(inv_pre[p]))
-                       + consume[p] + our_b[p] - our_sn_wf[p])
-            if net_opp > 0:
-                r_lo = _nonfloor_revenue_walk(
-                    p, net_opp, int(inv_pre[p]) + our_sn_wf[p])
-                r_hi = _nonfloor_revenue_walk(p, net_opp, int(inv_pre[p]))
-                cum_wf_net_lo += r_lo
-                cum_wf_net_hi += r_hi
-            elif net_opp < 0:
-                c_lo = _buy_cost_walk(p, abs(net_opp), int(inv_pre[p]))
-                c_hi = _buy_cost_walk(
-                    p, abs(net_opp),
-                    max(0, int(inv_pre[p]) - our_b.get(p, 0)))
-                cum_wf_net_lo -= c_hi
-                cum_wf_net_hi -= c_lo
-
-    # floor_units = Δmoney − nonfloor_rev − wf_net_rev + costs
-    costs_lo = cum_hire_lo + cum_land + cum_animal + cum_seed_vis
-    costs_hi = cum_hire_hi + cum_land + cum_animal + cum_seed_vis
-
-    floor_lo = cum_delta_money - cum_nf_rev_hi - cum_wf_net_hi + costs_lo
-    floor_hi = cum_delta_money - cum_nf_rev_lo - cum_wf_net_lo + costs_hi
-    floor_point = (floor_lo + floor_hi) / 2
-
-    return {
-        "point": max(0, round(floor_point)),
-        "lo": max(0, round(floor_lo)),
-        "hi": max(0, round(floor_hi)),
-        "delta_money": cum_delta_money,
-        "nf_rev_lo": cum_nf_rev_lo,
-        "nf_rev_hi": cum_nf_rev_hi,
-        "wf_net_lo": cum_wf_net_lo,
-        "wf_net_hi": cum_wf_net_hi,
-        "costs_lo": costs_lo,
-        "costs_hi": costs_hi,
-    }
-
-
-def _spike_ground_truth(replay, opp_seat_idx):
-    """Ground truth opponent floor units from extract_metrics (reads opp actions)."""
-    from harness.metrics import extract_metrics
-    env_json = {
-        "steps": replay["steps"],
-        "configuration": replay.get("configuration", {}),
-        "rewards": replay.get("rewards") or [
-            replay["steps"][-1][s]["reward"]
-            for s in range(2)
-        ],
-        "statuses": [
-            replay["steps"][-1][s].get("status", "DONE")
-            for s in range(2)
-        ],
-    }
-    m = extract_metrics(env_json, opp_seat_idx)
-    return {
-        "floor_units": m["floor_units"],
-        "floor_units_by_product": m.get("floor_units_by_product", {}),
-        "sell_revenue": sum(
-            int(s["price"]) for s in m.get("market_sales", [])),
-    }
+    return results
 
 
 def spike_validate(sub="55726984", n_replays=20):
-    """B2.0 gate: validate floor-units estimator on ≥n_replays ladder replays.
+    """B2.0' gate: validate per-step estimator on ≥n_replays ladder replays.
 
-    Returns dict with verdict, MAE, coverage, per-episode details.
+    Metrics (all per-step, never cumulative per-episode):
+      exact_rate:      fraction of EXACT_ZERO/EXACT steps where estimate == truth
+      signal_coverage: fraction of steps with real floor sales that are EXACT_ZERO/EXACT
+      bracket_coverage: fraction of MOD10/AMBIGUOUS_WF steps where truth ∈ [lo, hi]
     """
     episodes = []
     n_used = 0
+
+    g_exact_ok = 0
+    g_exact_n = 0
+    g_floor_in_exact = 0
+    g_floor_total = 0
+    g_bracket_ok = 0
+    g_bracket_n = 0
+    g_cls = defaultdict(int)
 
     for _eid, m in ladder_episodes(sub):
         if n_used >= n_replays:
@@ -414,68 +309,101 @@ def spike_validate(sub="55726984", n_replays=20):
         seat = our_seat(m["teams"])
         if seat is None:
             continue
-        opp = 1 - seat
         replay = {
             "steps": m["steps"],
             "configuration": m["configuration"],
-            "rewards": m["rewards"],
         }
 
-        est = spike_estimate(replay, seat)
-        gt = _spike_ground_truth(replay, opp)
-        true_floor = gt["floor_units"]
+        step_results = spike_per_step(replay, seat)
+        if not step_results:
+            continue
 
-        if true_floor > 0:
-            mae_pct = abs(est["point"] - true_floor) / true_floor
-        else:
-            mae_pct = 0.0 if est["point"] == 0 else 1.0
+        e_exact_ok = e_exact_n = 0
+        e_floor_in_exact = e_floor_total = 0
+        e_bracket_ok = e_bracket_n = 0
+        e_cls: dict[str, int] = defaultdict(int)
+        residuals: list[int] = []
 
-        covered = est["lo"] <= true_floor <= est["hi"]
+        for sr in step_results:
+            cls = sr["classification"]
+            e_cls[cls] += 1
+            gt = sr["gt_floor_units"]
+
+            if cls in ("EXACT_ZERO", "EXACT"):
+                e_exact_n += 1
+                if sr["floor_units_est"] == gt:
+                    e_exact_ok += 1
+                if gt > 0:
+                    e_floor_in_exact += 1
+            else:
+                e_bracket_n += 1
+                if sr["bracket_lo"] <= gt <= sr["bracket_hi"]:
+                    e_bracket_ok += 1
+                else:
+                    residuals.append(sr["R"])
+
+            if gt > 0:
+                e_floor_total += 1
+
+        g_exact_ok += e_exact_ok
+        g_exact_n += e_exact_n
+        g_floor_in_exact += e_floor_in_exact
+        g_floor_total += e_floor_total
+        g_bracket_ok += e_bracket_ok
+        g_bracket_n += e_bracket_n
+        for k, v in e_cls.items():
+            g_cls[k] += v
+
+        er = e_exact_ok / e_exact_n if e_exact_n else 1.0
+        sc = e_floor_in_exact / e_floor_total if e_floor_total else 1.0
+        bc = e_bracket_ok / e_bracket_n if e_bracket_n else 1.0
 
         episodes.append({
             "episode_id": m["episode_id"],
-            "true_floor": true_floor,
-            "est_point": est["point"],
-            "est_lo": est["lo"],
-            "est_hi": est["hi"],
-            "mae_pct": round(mae_pct, 4),
-            "covered": covered,
-            "delta_money": est["delta_money"],
-            "nf_rev_lo": est["nf_rev_lo"],
-            "nf_rev_hi": est["nf_rev_hi"],
-            "wf_net_lo": est["wf_net_lo"],
-            "wf_net_hi": est["wf_net_hi"],
-            "costs_lo": est["costs_lo"],
-            "costs_hi": est["costs_hi"],
-            "gt_by_product": gt["floor_units_by_product"],
+            "n_steps": len(step_results),
+            "exact_rate": round(er, 4),
+            "signal_coverage": round(sc, 4),
+            "bracket_coverage": round(bc, 4),
+            "classification_counts": dict(e_cls),
+            "bracket_misses": len(residuals),
         })
         n_used += 1
+        print(f"  [{n_used}/{n_replays}] ep {m['episode_id']}: "
+              f"exact={er:.3f} signal={sc:.3f} bracket={bc:.3f} "
+              f"({dict(e_cls)})")
 
     if not episodes:
         return {"verdict": "NO_DATA", "n_used": 0}
 
-    mae_values = sorted(ep["mae_pct"] for ep in episodes)
-    median_mae = mae_values[len(mae_values) // 2]
-    coverage = sum(1 for ep in episodes if ep["covered"]) / len(episodes)
+    exact_rate = g_exact_ok / g_exact_n if g_exact_n else 1.0
+    signal_cov = g_floor_in_exact / g_floor_total if g_floor_total else 1.0
+    bracket_cov = g_bracket_ok / g_bracket_n if g_bracket_n else 1.0
 
-    pass_mae = median_mae <= 0.15
-    pass_coverage = coverage >= 0.80
-    if pass_mae and pass_coverage:
-        verdict = "PASS"
-    else:
-        verdict = "FAIL"
+    pass_er = exact_rate >= 0.90
+    pass_sc = signal_cov >= 0.50
+    pass_bc = bracket_cov >= 0.80
+    all_pass = pass_er and pass_sc and pass_bc
+    tag = "PASS" if all_pass else "FAIL"
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "verdict": (f"B2.0 spike {verdict}: "
-                    f"median_MAE={median_mae:.3f} (≤0.15), "
-                    f"coverage={coverage:.3f} (≥0.80)"),
+        "verdict": (f"B2.0' spike {tag}: "
+                    f"exact_rate={exact_rate:.3f} (≥0.90), "
+                    f"signal_coverage={signal_cov:.3f} (≥0.50), "
+                    f"bracket_coverage={bracket_cov:.3f} (≥0.80)"),
         "submission": sub,
         "n_used": n_used,
-        "median_mae": round(median_mae, 4),
-        "coverage": round(coverage, 4),
-        "pass_mae": pass_mae,
-        "pass_coverage": pass_coverage,
+        "exact_rate": round(exact_rate, 4),
+        "signal_coverage": round(signal_cov, 4),
+        "bracket_coverage": round(bracket_cov, 4),
+        "pass_exact_rate": pass_er,
+        "pass_signal_coverage": pass_sc,
+        "pass_bracket_coverage": pass_bc,
+        "classification_counts": dict(g_cls),
+        "total_steps": sum(g_cls.values()),
+        "total_exact_steps": g_exact_n,
+        "total_bracket_steps": g_bracket_n,
+        "total_floor_steps": g_floor_total,
         "episodes": episodes,
     }
 
