@@ -558,12 +558,18 @@ own 60-unit day-20 block is the crash. An external price census (5 replays, one 
 only, not the exact peak day) reads the same shape: MELON peaks ~day 10 and a day-25 melon is worth
 ~⅕ of a day-12 one.
 
-**The lever is not "sell earlier"** — 114 units on day 10 crashes the price ourselves. It is
-**spreading a four-day lumpy schedule under our own impact**, through the existing `mode="augment"`
-pull-forward channel. This is *not* a re-open of the S9 glut kill, which ruled MELON out of the
-**hold/meter-up** family; this is the opposite direction. Gates, kill criteria and the upload
-condition live in the plan — **no upload unless the confirm set clears McNemar p < 0,01 in both
-seats.**
+🔴 **BLOCKED before implementation, 2026-08-27 — the pull-forward premise is false.** Our own MELON
+stock is **0 on every day through 18** (median and max, 25 replays); it is 12 on day 20 and 12 on
+day 21. The day-10 and day-20 blocks are **harvest events sold within the day they land**, not a
+hoard released late — `CROPS["MELON"]` is `first_yield_day 10 / max_yield_day 12 / ongoing False`,
+so **the sell day is set by the harvest, not by a holding decision** and a market overlay has no
+degree of freedom. Genuinely held inventory is **~12 units (~$650/ep gross)**, one to two orders of
+magnitude under §7.2's +50-point threshold. The real question is production-side — **is the second
+MELON wave worth its tile-days**, and can the two waves be re-phased without crashing the day 9-14
+window against each other (§6 row 31) — which is a larger, riskier pass than an additive overlay.
+A second, independent blocker: `TapeOverlay.act()` returns early on `mode=="liquidate"`
+(`agent/tape_overlay.py:270`), so **`liquidate` and `augment` are mutually exclusive** — any MELON
+arm must *compose* with the shipped H2, not replace its mode. **Re-scope or kill before building.**
 
 ---
 

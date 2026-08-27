@@ -4,6 +4,54 @@
 > **Written:** 2026-08-27. **Upload only if the agent is provably better** (§5 gate).
 > Touches `agent/`. One upload at most, and only through §5.
 
+---
+
+## 0. 🔴 BLOCKED — the pull-forward premise is false (measured 2026-08-27, after §1 was written)
+
+**There is nothing in the shed to pull forward.** Our own MELON stock, 25 replays, end of each day:
+
+```
+days 0-19 : median 0, max 0
+day 20    : median 12
+day 21    : median 12
+```
+
+Zero on **every day through 18**. The day-10 (30u) and day-20 (60u) blocks are **not** a hoard being
+released late — they are **harvest events, sold within the day they land**. This is the same fact
+S9 recorded and this plan failed to carry: *"the tape drops+sells MELON inside one turn"*.
+
+**Why it cannot be otherwise.** `CROPS["MELON"]` = `first_yield_day 10`, `max_yield_day 12`,
+`max_yield 6`, `ongoing False`. A day-0 planting is harvestable **at day 10 at the earliest**. Our
+schedule is two waves: wave 1 planted ~day 0 → harvest day 10 (30u = 5 tiles × 6); wave 2 planted
+~day 10 → harvest day 20 (60u = 10 tiles × 6). **The sell day is set by the harvest, not by a
+holding decision**, so a market-side overlay has no degree of freedom to use.
+
+The genuinely held inventory is **~12 units** (day 20 → 22), the tail that clears at $51 then $4.
+That is **~$650/ep gross**, of which the recoverable part is a fraction — one to two orders of
+magnitude below §7.2's +50-point build threshold. **§1's "$9.780 sitting in a collapsing price" is
+wrong**: that money is a harvest arriving into a price our own day-10 wave already crashed.
+
+**What the real question turns out to be** — and it is *not* a market overlay:
+1. Is the **second MELON wave worth planting at all**? It grosses ~$9,8k against ~$960 of seed, so
+   it is not obviously bad; the question is the **opportunity cost of the tiles and tile-days**.
+2. Can the two waves be **re-phased** so both land in the day 9-14 price window? Probably not
+   usefully — they would then crash that window against each other (§6 row 31, `above_target 3,6`).
+
+Both are **production-side**, touching the tape's core rather than an additive market overlay. That
+is a different, larger and riskier pass than §3-§5 describe, and §3's "reuse the existing
+pull-forward channel" does not apply to it.
+
+**Second blocker, independent of the first.** `TapeOverlay.act()` returns early on
+`mode == "liquidate"` (`agent/tape_overlay.py:270`), so **`liquidate` and `augment` are mutually
+exclusive**. The shipped agent is `mode="liquidate"` (H2/STRAWBERRY). Any MELON arm would have to
+*compose* with H2 — a third mode or an inline call — not simply select `augment`, which would drop
+H2 entirely. §3 understated this as "reuse the channel".
+
+🔴 **Do not implement §3-§8 as written.** They are retained below only as the record of what was
+planned and why it was wrong. Re-scope or kill first.
+
+---
+
 ## Read first
 
 `ROADMAP.md` §3.1 (protocol), §6 rows 30/31 (glut is real, WHEAT is the exception), §8 (the bench),
