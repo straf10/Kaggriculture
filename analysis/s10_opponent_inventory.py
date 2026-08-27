@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """S10 P4 / S11 B2 — per-step, leakage-safe opponent inventory instrument.
 
-B2.0' spike (DONE, do not redo — see docs/plans/s11_instrument_completion.md §1):
-for each step, compute the residual R(t) from the money-channel identity and
-classify it as EXACT_ZERO / EXACT / MOD10 / AMBIGUOUS_WF.  Gate PASSED
-2026-08-27 on 20 replays of 55726984: exact_rate=0.982, signal_coverage=0.571,
-bracket_coverage=0.967.
+B2.0' spike (see docs/plans/s11_instrument_completion.md §1): for each step,
+compute the residual R(t) from the money-channel identity and classify it as
+EXACT_ZERO / EXACT / MOD10 / AMBIGUOUS_WF.  The gate first read PASS on
+2026-08-27 (exact_rate=0.982, signal_coverage=0.571, bracket_coverage=0.967),
+but that run leaked: "our own committed sales" went through the joint-seat
+simulator.  After `_our_committed_sales_isolated`, 20 replays of 55726984 give
+exact_rate=0.984, signal_coverage=0.472, bracket_coverage=0.919 — signal
+coverage is BELOW its 0.50 gate and the spike stands as FAIL.  The gate was not
+lowered (plan rule 3).
 
 B2.1-B2.5 (this file, 2026-08-27 pass):
   B2.1 — shed_ub[p](t): a per-product upper bound on the opponent's total
@@ -41,6 +45,7 @@ from __future__ import annotations
 
 import copy
 import json
+import statistics
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -247,14 +252,22 @@ def _step_identity(prev_step, cur_step, cfg, our_seat_idx):
         if idx < len(LAND_PRICES):
             land += LAND_PRICES[idx]
 
+    # Pass 1 — per-product ΔM decomposition and the WHEAT/FERTILIZER activity
+    # flag.  The flag has to be SETTLED before any revenue is accumulated: it
+    # used to be raised inside the same loop that consumed it, and WHEAT is
+    # PRODUCTS[0] while FERTILIZER is PRODUCTS[8], so a flag raised late (only
+    # FERTILIZER trading) left the first eight products' revenue in `R` while
+    # a flag raised early dropped all nine — `R` silently depended on PRODUCTS
+    # iteration order.  Contained at the time (those steps classify
+    # AMBIGUOUS_WF either way, and the bracket ignores `R`), but `R` is an
+    # output field and `spike_validate` records it as a residual.
     products = {}
-    opp_nf_revenue = 0
+    totals_nf = {}
     wf_activity = False
     for p in PRODUCTS:
         dm = int(inv_post[p]) - int(inv_pre[p])
         our_nf_p = our_nf[p]
         our_buy_p = our_buy[p]
-        our_rev_p = our_rev[p]
 
         if p in NON_BUYABLE:
             total_nf = dm + consume[p]
@@ -266,10 +279,17 @@ def _step_identity(prev_step, cur_step, cfg, our_seat_idx):
                 wf_activity = True
             total_nf = dm + consume[p] + our_buy_p
             products[p] = {"opp_sell_nonfloor": None, "opp_net_wf": net_opp_p}
+        totals_nf[p] = total_nf
 
-        if total_nf > 0 and not wf_activity:
-            total_rev = _nonfloor_revenue_walk(p, total_nf, int(inv_pre[p]))
-            opp_nf_revenue += total_rev - our_rev_p
+    # Pass 2 — opponent non-floor revenue.  Skipped wholesale under WF
+    # activity: the decomposition is ambiguous for every product then, not
+    # just for the one that raised the flag.
+    opp_nf_revenue = 0
+    if not wf_activity:
+        for p in PRODUCTS:
+            if totals_nf[p] > 0:
+                total_rev = _nonfloor_revenue_walk(p, totals_nf[p], int(inv_pre[p]))
+                opp_nf_revenue += total_rev - our_rev[p]
 
     R = dm_money + hire + land - opp_nf_revenue
 
@@ -808,8 +828,9 @@ def validate_b21_b24(sub="55726984", n_replays=20, width_threshold=WIDTH_NONIDEN
     covered = defaultdict(int)
     coverage_n = defaultdict(int)
     nonident = defaultdict(int)
-    mod10_widths = []
-    mod10_over_shed_cap = None
+    widths = defaultdict(list)
+    active = defaultdict(bool)
+    shed_cap = 100
 
     for eid, m in ladder_episodes(sub):
         if n_used >= n_replays:
@@ -819,7 +840,6 @@ def validate_b21_b24(sub="55726984", n_replays=20, width_threshold=WIDTH_NONIDEN
             continue
         opp = 1 - seat
         shed_cap = int((m["configuration"] or {}).get("shedCapacity", 100))
-        mod10_over_shed_cap = shed_cap
         replay = {"steps": m["steps"], "configuration": m["configuration"]}
         ledger = per_step_ledger(replay, seat)
         if not ledger:
@@ -829,13 +849,14 @@ def validate_b21_b24(sub="55726984", n_replays=20, width_threshold=WIDTH_NONIDEN
         for rec in ledger:
             t = rec["step"]
             cur_step = steps[t]
-            if rec["classification"] == "MOD10":
-                mod10_widths.append(rec["products"])  # unused per-field; width computed below
 
             for p in PRODUCTS:
                 truth = _ground_truth_step(cur_step, opp, p)
                 po = rec["products"][p]
                 lo, hi = po["lower_bound"], po["upper_bound"]
+                widths[p].append(po["uncertainty_width"])
+                if truth > 0:
+                    active[p] = True
                 if truth > hi:
                     upper_violations.append(
                         {"episode_id": eid, "step": t, "product": p,
@@ -869,27 +890,88 @@ def validate_b21_b24(sub="55726984", n_replays=20, width_threshold=WIDTH_NONIDEN
     total_n = sum(coverage_n.values())
     overall_coverage = total_covered / total_n if total_n else None
 
+    # Coverage restricted to the products the opponent actually held at some
+    # point in the corpus.  The other products sit at truth=0 with bounds
+    # [0, 0] and score exactly 1.000, so they inflate the headline number
+    # without testing anything — quote both, gate on the stricter one.
+    active_products = [p for p in PRODUCTS if active[p]]
+    act_covered = sum(covered[p] for p in active_products)
+    act_n = sum(coverage_n[p] for p in active_products)
+    coverage_active = act_covered / act_n if act_n else None
+    cov_vals = [coverage[p] for p in active_products if coverage[p] is not None]
+    min_coverage = min(cov_vals) if cov_vals else None
+
+    # B2.1's second acceptance number (plan §B2.1: "ανέφερε και τα δύο
+    # νούμερα") — how far the bound actually narrows relative to the trivial
+    # shed_cap bracket the MOD10 branch falls back to.
+    width_stats = {}
+    for p in PRODUCTS:
+        w = widths[p]
+        if not w:
+            width_stats[p] = None
+            continue
+        s = sorted(w)
+        width_stats[p] = {
+            "median": statistics.median(s),
+            "p90": s[min(len(s) - 1, int(0.90 * len(s)))],
+            "max": max(s),
+            "n": len(s),
+        }
+    narrowed = [p for p in PRODUCTS
+                if width_stats[p] and width_stats[p]["median"] < shed_cap]
+    over_cap = [p for p in PRODUCTS
+                if width_stats[p] and width_stats[p]["max"] > shed_cap]
+
     b21_pass = len(upper_violations) == 0
+    n_product_steps = total_n
+    lb_rate = len(lower_violations) / n_product_steps if n_product_steps else 0.0
     b24_dead = overall_coverage is not None and overall_coverage < 0.80
+
+    if not b21_pass:
+        b21_verdict = f"FAIL: {len(upper_violations)} upper-bound violations (bug)"
+    else:
+        b21_verdict = (
+            f"UPPER BOUND PASS: 0 violations in {n_product_steps} product-steps. "
+            f"LOWER BOUND NOT SOUND: {len(lower_violations)} violations "
+            f"({lb_rate:.4f} of product-steps) — every B2.4 coverage miss is a "
+            f"lower-bound violation, not an upper-bound one. "
+            f"Width vs shed_cap={shed_cap}: median below cap for "
+            f"{len(narrowed)}/{len(PRODUCTS)} products; max above cap for "
+            f"{len(over_cap)} ({','.join(over_cap) or 'none'}).")
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "submission": sub,
         "n_used": n_used,
         "b21": {
-            "verdict": ("PASS: shed_ub never violated"
-                        if b21_pass else
-                        f"FAIL: {len(upper_violations)} upper-bound violations (bug)"),
+            "verdict": b21_verdict,
             "upper_bound_violations": upper_violations[:20],
             "n_upper_bound_violations": len(upper_violations),
             "n_lower_bound_violations": len(lower_violations),
+            "lower_bound_violation_rate": round(lb_rate, 4),
+            "lower_bound_violations_sample": lower_violations[:20],
+            "n_product_steps": n_product_steps,
+            "shed_cap": shed_cap,
+            "bound_width_by_product": width_stats,
+            "products_median_width_below_shed_cap": narrowed,
+            "products_max_width_above_shed_cap": over_cap,
         },
         "b24": {
             "verdict": ("STOPPED_KILL_CRITERION_HIT: coverage < 0.80"
                         if b24_dead else "PASS"),
             "overall_coverage": round(overall_coverage, 4) if overall_coverage is not None else None,
+            "overall_coverage_active_products": (
+                round(coverage_active, 4) if coverage_active is not None else None),
+            "active_products": active_products,
+            "min_coverage_by_product": round(min_coverage, 4) if min_coverage is not None else None,
             "coverage_by_product": coverage,
-            "mae_by_product": mae,
+            # NOT the estimator's overall error: `opponent_total` is emitted
+            # only when uncertainty_width == 0, so this MAE is conditional on
+            # the estimator already claiming certainty.  It is the error of
+            # the confident subset, and `n_width_zero_by_product` is how big
+            # that subset is.
+            "mae_by_product_where_width_zero": mae,
+            "n_width_zero_by_product": {p: mae_n[p] for p in PRODUCTS},
             "pct_nonidentifiable_by_product": pct_nonident,
             "width_threshold": width_threshold,
             "hit_kill_criterion": b24_dead,
@@ -946,6 +1028,7 @@ def evaluate_dump_predictor(sub="55726984", n_replays=20,
     tp = defaultdict(int)
     fp = defaultdict(int)
     fn = defaultdict(int)
+    n_scored = defaultdict(int)
     n_used = 0
     n_steps = 0
 
@@ -967,6 +1050,7 @@ def evaluate_dump_predictor(sub="55726984", n_replays=20,
             gt = _dump_events(replay, opp, p)
             for rec, pred in zip(ledger, preds):
                 actual = gt[rec["step"]]
+                n_scored[p] += 1
                 if pred and actual:
                     tp[p] += 1
                 elif pred and not actual:
@@ -977,19 +1061,27 @@ def evaluate_dump_predictor(sub="55726984", n_replays=20,
 
     precision = {}
     recall = {}
+    prevalence = {}
+    lift = {}
     for p in PREMIUM:
         denom = tp[p] + fp[p]
         precision[p] = round(tp[p] / denom, 4) if denom else None
         rdenom = tp[p] + fn[p]
         recall[p] = round(tp[p] / rdenom, 4) if rdenom else None
+        prevalence[p] = round(rdenom / n_scored[p], 4) if n_scored[p] else None
+        lift[p] = (round(precision[p] / prevalence[p], 3)
+                   if precision[p] is not None and prevalence[p] else None)
 
     dead = any((precision[p] is not None and precision[p] < 0.70) for p in PREMIUM)
     verdict = "STOPPED_KILL_CRITERION_HIT" if dead else "PROCEED"
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "verdict": (f"B2.5 {verdict}: precision MELON={precision['MELON']}, "
-                    f"STRAWBERRY={precision['STRAWBERRY']} (target ≥0.70). "
+        "verdict": (f"B2.5 {verdict}: precision MELON={precision['MELON']} "
+                    f"(prevalence {prevalence['MELON']}, lift {lift['MELON']}x), "
+                    f"STRAWBERRY={precision['STRAWBERRY']} "
+                    f"(prevalence {prevalence['STRAWBERRY']}, lift {lift['STRAWBERRY']}x) "
+                    f"— target ≥0.70. "
                     f"Path run: NON-FLOOR channel only (B2.2(a) exact signal); "
                     f"floor channel not a precondition."),
         "submission": sub,
@@ -1000,6 +1092,20 @@ def evaluate_dump_predictor(sub="55726984", n_replays=20,
                               "signal": "opp_sell_nonfloor (exact, leakage-safe)"},
         "precision": precision,
         "recall": recall,
+        # Precision is only readable against the base rate: the label is
+        # positive on `prevalence` of steps by construction, so a predictor
+        # that fired at random would score exactly that.  lift = precision /
+        # prevalence is what says whether there is signal at all.
+        "prevalence": prevalence,
+        "lift_over_base_rate": lift,
+        "n_scored_by_product": {p: n_scored[p] for p in PREMIUM},
+        # The label counts REQUESTED order quantity, not committed units
+        # (`_dump_events` reads order[2]); orders are capped by the seller's
+        # shed and by maxMarketOrdersPerTurn, so labels run high relative to
+        # the non-floor signal the predictor sees.  That biases precision
+        # UPWARD, so the kill verdict is conservative, not flattered.
+        "label_caveat": ("labels are order-requested units, not committed "
+                         "units — biases precision upward, kill is conservative"),
         "confusion": {p: {"tp": tp[p], "fp": fp[p], "fn": fn[p]} for p in PREMIUM},
         "kill_criterion": "precision < 0.70 for MELON or STRAWBERRY",
         "hit_kill_criterion": dead,

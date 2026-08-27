@@ -409,6 +409,7 @@ One line each: the increment, the number, and the **mechanism** that makes it bi
 | 29 | **S7 Leg A — re-donor to a top-4 route** | KILL by measurement. All four candidates (Ryo Hasegawa, tetsuya, Arman Tuganbaev, Crop Dusta) are highly state-adaptive: cross-trace agreement **prod 0,25-0,37 / market 0,64-0,86** (vs ReCurSiON's 0,993/0,980). The tetsuya reconstruction — the highest-agreement candidate above 2.900 — replayed against its own recorded opponents in their own towns at **59% median bank error** (one episode $1.567 vs $105.369 = **98,5%**), for comparison ReCurSiON's reconstruction replayed at 0,12%. The pre-registered *"ship anyway"* would have shipped a chimera. **Both slots go to §7.2.** §5.3(c)'s state-aliasing warning applies verbatim |
 | 30 | **S7 Ship B — component (iv) WHEAT market maker paper-bound** | KILL by paper bound. Defensible ceiling across 178 live replays of `55586926`: **$2.009/ep = 7,9 rating pts** — best single round trip **with our own price impact** and **no cash/shed/order limit at all**, optimum at a median **231 units held** (2,3× the whole shed). **6,3× under §7.2's +50-pt build threshold.** Root cause is the impact, not the order cap: `market_price` is a pure function of inventory with symmetric quotes (`kaggriculture.py:192`/`:600` — a same-turn round-trip nets zero), and buying walks WHEAT $25 → $35 → $47 as inventory falls 10.000 → 9.900 → 9.500. Diagnostics: tight $270/ep (1,07 pts) against recorded prices, and a **discredited** flow heuristic at $351/ep — see §3, it is not a bound. ⚠️ **The ride-along did NOT re-close §6 row 13** — see row 31. Full report: [baselines/2026-08-21/s7_ship_b_bound_report.md](baselines/2026-08-21/s7_ship_b_bound_report.md) |
 | 31 | **§6 row 13 re-test — the route IS glut-constrained** | *Not a STOP — a reopening.* Row 30's first pass measured glut on **WHEAT only** and re-closed row 13 on it. WHEAT is structurally the **one product whose price our selling cannot crash** (`above_target` **0,2**: +400 units moves it $25 → $20); MELON is `above_func 'sq'` / `above_target 3,6`. Re-measured model-free across all nine products on the same 178 episodes: **WOOL sits at the $1 floor a median 30 turns/episode** (base $200), MILK 7 turns, STRAWBERRY 2; at just **+100 units** above baseline MILK / WOOL / STRAWBERRY are all at **$1**, MELON bottoms at **$4** against base $250. **The premium products — the route's actual revenue — are deep in the collapse zone.** ⚠️ This does **not** revive the sell-floor lever: §6 row 21's shed wall, 1.32.7's 30 units/product/season town absorption (recovery is slow, so a floor may mean never selling) and §5.2's common-mode result all argue it still fails. **Status: open and untested** — §11 row 2 reopened |
+| 32 | **S11 B2.5 — leakage-safe dump predictor** | KILL by measurement, **final**. Definition unchanged from S10 P4.3 (opponent sells ≥20 units of a premium product within 24 turns); predictor sees `obs` + our own action only, enforced by a PASS-replay bit-identical test (`tests/test_s11_b25_leakage.py`); 20 ladder replays of `55726984`, 14.380 steps. Precision **MELON 0,10** against a **0,076** base rate (lift **1,31×**) and **STRAWBERRY 0,48** against **0,191** (lift **2,52×**, recall 0,88) — target was ≥0,70 on **both**. Parameters were carried over untouched (rule 3: no tuning to a gate). Read beside its own instrument: B2.4 coverage **0,957** overall / **0,944** on the seven products the opponent actually holds / **0,880** worst product, and MAE **conditional on `uncertainty_width == 0`** (MELON 0,039 on 39% of steps, STRAWBERRY 1,15 on 80%, WHEAT 2,64 on 13%). So the instrument is not the binding constraint — **the event is simply not predictable from the non-floor channel**; STRAWBERRY carries real but insufficient signal, MELON is near base rate. The ground-truth label counts *ordered* rather than *committed* units, which biases precision **upward**, so the kill is conservative. **Does not reopen without a new mechanism** — not a new threshold. `data/derived/s10_opponent_inventory.json` |
 
 ---
 
@@ -558,6 +559,14 @@ so a market-only screen on few seeds can be measuring one town. Over seeds 0-3 t
 set's realised drain distribution beside its dollars**, and the acceptance arm needs enough seeds to
 span the draw.
 
+**The mirror arm (S10 P1.6 / S11 B4) is CLOSED without code — 2026-08-27.**  It was never a
+fidelity check: the tapes are **seat-bound** (`stream[0]` points at seat 0's tiles, positions and
+money), so handing one to seat 1 desynchronises immediately and P1.2's bit-exact criterion does not
+apply to it.  The only question a mirror arm would have answered — whether H2's sign is an artefact
+of seat — is already answered by the bench's existing `by_seat` split: seat 0 `c=10, b=0`, seat 1
+`c=13, b=0`.  **Same sign, comparable magnitude, both seats.**  Building the arm would re-measure a
+settled result, so it is closed as answered rather than carried as debt.
+
 ---
 
 ## 9. Submission operations
@@ -675,6 +684,21 @@ unexplained no-ops, declared mechanisms, `priced_loss_delta`) stays absolute and
    on**; worst slots are day 10 (0,626) and day 29 (0,770, **47,1 units/ep** — the largest
    single-day leak).  The drops are not uniform: they concentrate in the late liquidation window,
    the same window the H2 overlay operates in.  Any future repair overlay should be aimed there.
+
+8. **A joint-seat simulator leaks — and the opponent-inventory instrument is unfinished (S11 B2,
+   2026-08-27).**  **Standing rule, the reusable half:** the market is **per-unit lockstep** —
+   both seats are quoted at the *same* pre-commit inventory (`kaggriculture.py:612`) — so **any
+   helper that simulates both seats is ground-truth-only, never estimator input**, and a
+   PASS-replay bit-identical test is the cheap way to prove it.  `_transition_events` broke this
+   silently and moved our own reported prices by $1-2; B2.0′'s PASS was an artefact of it and the
+   gate reads **0,472 FAIL** once isolated.  **The instrument's own limits**, recorded so nobody
+   re-reads it as finished: the upper bound is clean (0 violations / 129.420 product-steps) but
+   the **lower bound is not** (5.604, 4,3% — every coverage miss is one), because the ledger is a
+   running sum from step 1 with no re-anchor; and **B2.1 was never wired to its stated job** of
+   narrowing the `MOD10` bracket (median width is under `shed_cap` for 9/9 products, but the tail
+   passes it on four).  **Not being repaired**: B2 existed to feed B2.5, and B2.5 is dead (§6 row
+   32).  Detail and the one legitimate re-open route in
+   `docs/plans/s11_instrument_completion.md` §1.
 
 ---
 
