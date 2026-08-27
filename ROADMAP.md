@@ -85,6 +85,16 @@ document.
 7. **Any ladder-side criterion states an episode count, never wall-clock**, and two scores are
    comparable only **on the same day, at comparable episode counts, in the same rank neighbourhood**.
 8. **The live score is a diagnostic. The product is the two submissions in the slots on 09-30.**
+9. **A readability test, not a waiting period** (adopted 2026-08-27 from a public convergence
+   write-up, consistent with rules 2/7). Sample `(episodes_completed, score)` **keyed by submission
+   id**, drop every probe where the episode count did not advance — the board updates in batches and
+   most probes carry no new episode, so averaging them pulls any drift estimate toward zero — and
+   call the rating readable when `|drift| ≤ 1 pt/episode` **and its sign has flipped at least once**.
+   The flip is what separates "settled" from "passing through zero on the way somewhere". Episode
+   *rate* varies ~10× between agents, so "wait two days" specifies nothing. Corollary, and the one
+   that binds an A/B: **two readings of the same agent taken at different times compare nothing** —
+   the field turns over underneath (a byte-identical agent measured here lost 182 points over 135
+   episodes). **To compare two of our own agents, field both and read them in the same window.**
 
 ---
 
@@ -245,6 +255,17 @@ document.
 
 ## 4. Engine ground truth (1.32.7)
 
+- 🔴 **`step` is missing from seat 1's *recorded* observation — but not from the one the agent
+  receives** (verified 2026-08-27, both locally and on live ladder replays). `step` is absent from
+  `kaggriculture.json`'s observation schema and `interpreter` propagates only
+  `farms/market/town/day/hour`, so `env.steps[i][1].observation["step"]` is **`None` on every turn
+  of every episode**.  A public forum post reads this as a runtime bug that makes any step-indexed
+  agent replay its turn-0 action in half its games.  **It does not.**  Instrumenting a seat-1 agent
+  shows it receives `0,1,2,…` correctly, and our own α-control corroborates it: `tape_agent` does a
+  bare `obs["step"]` index and still reproduces **509/509** episodes bit-exactly, which is
+  impossible if seat 1 saw `None`.  **No agent change — do not "fix" this.**  The real consequence
+  is for **offline tooling**: anything reading `steps[t][1]["observation"]` from a replay file gets
+  `None` for `step`.  **Read seat 0's observation for the shared fields.**
 - **`TOWN_CENTER_DEMAND_SCHEDULE` is gone** (flat `-= 1`), `townCenterSellInterval = 24` (1
   tick/day), shops are drawn **with replacement**, `MAX_SHOP_INSTANCES = 8`. Consequences: the town
   centre absorbs **30 units/product/season instead of 140 (−79%)**, `E[distinct shop types] = 5,25`,
@@ -519,6 +540,31 @@ belongs to, or it is not a cut), and give the reconstruction its first BT rung.
   against it.**
 - **No arm gets a second pass on a ceiling under 1% of the gap** (§3).
 
+### 7.5 S12 — MELON sell-schedule repair ⇐ **the current pass** (`docs/plans/s12_melon_pullforward.md`)
+
+The measurement it stands on, from 97 ladder replays of `55726984` (2026-08-27): we sell **114 MELON
+units on four days**, weighted mean sell-day **17,68** —
+
+| day | units/ep | median price | revenue/ep |
+|---:|---:|---:|---:|
+| 10 | 30 | $250 | $7.500 |
+| 20 | 60 | $152 | $9.120 |
+| 21 | 12 | $51 | $612 |
+| 22 | 12 | **$4** | **$48** |
+
+**The last 24 units are 21% of volume for 3,8% of revenue**, and the final 12 clear at essentially
+the floor. §6 row 31 already measured *why*: MELON is `above_func 'sq'` / `above_target 3,6`, so our
+own 60-unit day-20 block is the crash. An external price census (5 replays, one agent — direction
+only, not the exact peak day) reads the same shape: MELON peaks ~day 10 and a day-25 melon is worth
+~⅕ of a day-12 one.
+
+**The lever is not "sell earlier"** — 114 units on day 10 crashes the price ourselves. It is
+**spreading a four-day lumpy schedule under our own impact**, through the existing `mode="augment"`
+pull-forward channel. This is *not* a re-open of the S9 glut kill, which ruled MELON out of the
+**hold/meter-up** family; this is the opposite direction. Gates, kill criteria and the upload
+condition live in the plan — **no upload unless the confirm set clears McNemar p < 0,01 in both
+seats.**
+
 ---
 
 ## 8. The bench
@@ -709,6 +755,7 @@ already touches the same data, and the third is closed below.
 
 | Item | Scheduled | Why there, and what it costs |
 |---|---|---|
+| 🔴 **Seat asymmetry — 18 points of win rate, unexplained** | 🟢 **rides along in S12** (`docs/plans/s12_melon_pullforward.md` §6b) — every arm already reports `by_seat` | Live on 97 episodes of `55726984`: **seat 0 30W-16L (WR 0,652)**, **seat 1 24W-27L (WR 0,471)**; median bank 94.027 vs 90.061. Ruled out: it is **not** the seat-1 `step` field (§4 — that is a serialisation artifact, the runtime is correct), and **not** MELON timing (both seats sell 114 units at a weighted mean day of **17,68**, identically). At n=46/51 the gap is **p ≈ 0,07** — suggestive, not significant, so it is a **question, not a finding**. The S12 confirm set (412 eps) either reproduces it or dissolves it. **Build nothing for it until it survives 412.** |
 | ~~**The §5.1 top-N profile is stale**~~ | ✅ **DONE 2026-08-21** — the re-fit is **in §5.1's table as its own column** ([analysis/b1_top4_profile_2026_08_21.py](analysis/b1_top4_profile_2026_08_21.py)) | Refit against the 60 fresh top-4 traces pulled by the §7.1 selection pass. Old profile largely holds: quadrants 3 (SE never), first extra day 5-7, second 8-10, d29 end $82,5-$98,4k (was $82,7k median). What moved: **COW peaks 7-8 (was 8-9), SHEEP more variable (2-7 vs 4-5), MELON tile-days 110-180 (was 180), WHEAT first sell d0-5 (was d5/6)**. The old b1_top5_profile.py depends on the retired collector chain (§11 last row) and cannot re-run without it; the v2 script reads the kaggle-CLI-fetched replays directly |
 | 🔴 **§6 row 13 REOPENED — the route *is* glut-constrained** | 🟠 **needs its own bounded arm** (was closed 2026-08-21, reopened the same day) | The first re-test measured **WHEAT only** and re-closed the row; WHEAT's `above_target` is **0,2**, so it is the one product whose price our selling cannot crash. Across all nine products (§6 row 31): **WOOL at the $1 floor a median 30 turns/ep**, MILK 7, STRAWBERRY 2, MELON $4 of base $250 — the premium products are deep in the collapse zone. What is still **not** shown is that a sell floor is *takeable*: §6 row 21's shed wall, 1.32.7's 30 units/product/season absorption and §5.2's common-mode result all argue it fails. Scope when it runs: how much revenue does **metering** recover under a real shed constraint, priced in **wins** (§3.1(4)), not dollars. 🔴 **RAN 2026-08-23 (S9). WOOL is OUT of this family**: the sub-$50 wool volume lives in the towns where it can never recover — **96 units median in the 81 towns with no YARN_STORE (81/81), 16 with one, 0 with ≥2** — so a YARN_STORE-conditioned hold is anti-targeted, ceiling **$0 median** where it would switch on. MELON is out too (absorption 1/day, and the tape drops+sells it inside one turn). What survives is **STRAWBERRY in the ≥d22 tail**, built as `tape_overlay.mode="liquidate"`: **412 live replays, W/L 232-180 → 255-157, c=23 b=0, McNemar p=2,4e-7**, margin +$458/ep — and the gain is the **opponent's** bank (−$357), not ours (+$110), which is why `median_bank` cannot see it. **Phase 2 gate pending; not submitted** |
 | ~~**Untracked collector chain**~~ | ⛔ **CLOSED as obsolete, 2026-08-20** | The item asked whether `data/archive/*.py` should be tracked. **They no longer exist on disk.** `scrape.py` / `repack.py` / `teams.py` / `features.py` were tracked once (`a4783c8`), removed from the index when `data/archive/` was gitignored wholesale, and are now gone from the working tree — so the two bug fixes made to the untracked copies are **lost**, and only the pre-fix version is recoverable from git. ⚠️ **This does not need rebuilding:** every input the plan uses now comes from the official daily episode datasets, `kaggle competitions replay`, `episodes -v` and `leaderboard -d` (§9), which is how the 178 live replays and both leaderboard snapshots were obtained |
