@@ -84,7 +84,11 @@ def test_mannwhitney_empty_input():
 
 def test_logistic_fit_matches_sklearn_unpenalized():
     """Cross-library check: our IRLS fitter must land on the same coefficients as an
-    independent implementation (no statsmodels available in this environment)."""
+    independent implementation (no statsmodels available in this environment).
+    Optional: skips rather than fails when sklearn isn't installed, since it is not
+    a project dependency — the IRLS fitter itself is exercised by the other tests
+    in this file regardless."""
+    sklearn = pytest.importorskip("sklearn")
     from sklearn.linear_model import LogisticRegression
 
     rng = np.random.default_rng(13)
