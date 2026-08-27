@@ -35,7 +35,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from analysis.s9_market_ledger import episode_ledger  # noqa: E402
+from analysis.s8_replay_io import load as load_replay, replay_paths  # noqa: E402
+from analysis.s9_market_ledger import episode_ledger, step_ledger  # noqa: E402
+from engine_reference.kaggriculture import (  # noqa: E402
+    CROPS, MARKET_I0, PRICE_FLOOR, SHOPS, TOWN_CENTER_PRODUCTS, market_price,
+)
 LIVE = ROOT / "data" / "archive" / "raw" / "live_55726984"
 EP_CSV = ROOT / "data" / "derived" / "s9_live_55726984_episodes.csv"
 DERIVED = ROOT / "data" / "derived"
@@ -81,7 +85,11 @@ def load_episode_times():
         return times
     with open(EP_CSV, newline="") as fh:
         for row in csv.DictReader(fh):
-            if "PUBLIC" not in row.get("type", ""):
+            # The `episodes -v` capture ends with a CLI hint line, which DictReader
+            # renders as a row whose later fields are None.  Skip anything malformed.
+            if "PUBLIC" not in (row.get("type") or ""):
+                continue
+            if not (row.get("id") or "").strip().isdigit():
                 continue
             times[int(row["id"])] = dt.datetime.fromisoformat(row["createTime"])
     return times
@@ -120,12 +128,15 @@ def _bank_curve(steps, seat):
 
 
 def load_live():
-    files = sorted(glob.glob(str(LIVE / "*.json")))
+    # One reader for the whole codebase (ROADMAP §3 rule "reuse, do not duplicate"):
+    # `s8_replay_io` accepts both `episode-*-replay.json` and `.json.gz`.  The local
+    # `*.json` glob this used to carry went blind the moment the archive was gzipped.
+    files = replay_paths("55726984")
     if not files:
         raise SystemExit(f"no replays at {LIVE}")
     eps, self_play, skipped = [], 0, 0
     for f in files:
-        d = json.loads(Path(f).read_text())
+        d = load_replay(f)
         info = d.get("info", {})
         teams = info.get("TeamNames", [None, None])
         if len(teams) != 2 or OUR_TEAM not in teams:
@@ -493,6 +504,376 @@ def panel_f_profile(eps):
     return out
 
 
+# ------------------------------------------------------------------ S14 MELON panel
+
+MELON_OUT = DERIVED / "s14_melon_rephasing.json"
+# Our recorded MELON sell window (the wave-2/3 harvest lands here and is dumped same-day).
+MELON_BLOCK_DAYS = (20, 21, 22)
+# The town centre eats 1 unit of every TOWN_CENTER_PRODUCT per day and NO shop lists MELON,
+# so MELON's only sink is 1 unit/day.  Asserted in `_melon_sink_per_day` so an engine bump
+# that gives a shop a melon breaks the panel instead of silently invalidating it.
+
+
+def _melon_sink_per_day():
+    shops = sum(1 for products in SHOPS.values() if "MELON" in products)
+    assert shops == 0, f"a shop now consumes MELON ({shops}); the S14 drain model is stale"
+    assert "MELON" in TOWN_CENTER_PRODUCTS
+    return 1
+
+
+def _melon_tiles(steps, seat):
+    """Every MELON tile the tape ever plants: (x, y, planted_day) -> life history.
+
+    Read off the recorded tile grid rather than the action stream: `planted_day` and
+    `yield_units` are carried on the tile itself, so the wave structure is ground truth.
+    """
+    seen, prev = {}, {}
+    for st in steps[1:]:
+        o = st[seat]["observation"]
+        farm = o["farms"][o["player"]]
+        cur = {}
+        for y, row in enumerate(farm["tiles"]):
+            for x, t in enumerate(row):
+                if isinstance(t, dict) and t.get("kind") == "PLANT" and t.get("crop") == "MELON":
+                    k = (x, y, t["planted_day"])
+                    cur[k] = t
+                    r = seen.setdefault(k, {"planted_day": t["planted_day"], "xy": (x, y),
+                                            "quadrant": _quadrant(x, y, len(farm["tiles"])),
+                                            "max_yield": 0})
+                    r["max_yield"] = max(r["max_yield"], t["yield_units"])
+        for k, t in prev.items():
+            if k not in cur and "harvest_day" not in seen[k]:
+                seen[k]["harvest_day"] = o["day"]
+                seen[k]["harvest_units"] = t["yield_units"]
+        prev = cur
+    return seen
+
+
+def _quadrant(x, y, board_size):
+    half = board_size // 2
+    return ("N" if y < half else "S") + ("W" if x < half else "E")
+
+
+def _wave_signature(steps, seat):
+    waves = defaultdict(Counter)
+    for r in _melon_tiles(steps, seat).values():
+        waves[r["planted_day"]][
+            f'{r["quadrant"]}|harvest_d{r.get("harvest_day")}|units{r.get("harvest_units")}'] += 1
+    return json.dumps({str(d): dict(c) for d, c in sorted(waves.items())}, sort_keys=True)
+
+
+def _land_clock(steps, seat):
+    """The two facts that decide whether an earlier wave can be planted at all:
+    when each quadrant unlocks, and how much free land / cash exists at that moment."""
+    marks, prev = [], 1
+    for st in steps[1:]:
+        o = st[seat]["observation"]
+        farm = o["farms"][o["player"]]
+        q = len(farm.get("unlocked_quadrants") or [])
+        if q > prev:
+            free = sum(1 for row in farm["tiles"] for t in row if t is None)
+            marks.append({"n_quadrants": q, "day": o["day"], "hour": o["hour"],
+                          "_free_tiles": free, "_money": round(float(farm["money"]))})
+            prev = q
+    return marks
+
+
+def _daily_farm(steps, seat):
+    """Per game day: free land and cash at the FIRST step and at their best moment in the day.
+
+    The daily peak matters: NE unlocks at day 6 hour 17, so a first-step sample reports the
+    pre-unlock farm and hides a real planting window.  Shed stock is read at the first step —
+    that is the S12 question (what is carried overnight), not what passes through in a turn.
+    """
+    out = {}
+    for st in steps[1:]:
+        o = st[seat]["observation"]
+        farm = o["farms"][o["player"]]
+        free = sum(1 for row in farm["tiles"] for t in row if t is None)
+        money = float(farm["money"])
+        r = out.get(o["day"])
+        if r is None:
+            out[o["day"]] = {
+                "free_tiles": free, "free_tiles_max": free,
+                "money": money, "money_max": money,
+                "melon_seeds": o["private"]["seeds"].get("MELON", 0),
+                "shed_melon": o["private"]["shed"].get("MELON", 0),
+                "shed_wool": o["private"]["shed"].get("WOOL", 0),
+            }
+        else:
+            r["free_tiles_max"] = max(r["free_tiles_max"], free)
+            r["money_max"] = max(r["money_max"], money)
+    return out
+
+
+def _melon_flow(steps, seat):
+    """Per game day: our MELON units/revenue, the opponent's, and the recorded market offset.
+
+    Uses `s9_market_ledger.step_ledger` (the one market replayer) against the *recorded*
+    pre-step inventory, so every quote is ground truth, and carries the same
+    scale-to-recorded-cash correction `episode_ledger` applies for dropped SELLs.
+    """
+    ours, our_rev, opp, opp_rev, x_start = Counter(), Counter(), Counter(), Counter(), {}
+    for t in range(1, len(steps)):
+        pre, post = steps[t - 1][0]["observation"], steps[t][0]["observation"]
+        day = post["day"]
+        x_start.setdefault(day, pre["market"]["inventory"]["MELON"] - MARKET_I0)
+        orders = [(steps[t][0].get("action") or {}).get("market") or [],
+                  (steps[t][1].get("action") or {}).get("market") or []]
+        if not orders[0] and not orders[1]:
+            continue
+        rev, un, sp, _ = step_ledger(
+            pre["market"]["inventory"], orders,
+            hires_today=[int(pre["farms"][p].get("hires_today", 0)) for p in (0, 1)],
+            quadrants=[len(pre["farms"][p].get("unlocked_quadrants") or ["NW"]) for p in (0, 1)],
+        )
+        for pid in (0, 1):
+            if not un[pid]["MELON"]:
+                continue
+            sim_rev, sim_spend = sum(rev[pid].values()), sum(sp[pid].values())
+            cash = float(post["farms"][pid]["money"]) - float(pre["farms"][pid]["money"])
+            scale = min(1.0, max(0.0, (cash + sim_spend) / sim_rev)) if sim_rev > 0 else 1.0
+            if pid == seat:
+                ours[day] += un[pid]["MELON"] * scale
+                our_rev[day] += rev[pid]["MELON"] * scale
+            else:
+                opp[day] += un[pid]["MELON"] * scale
+                opp_rev[day] += rev[pid]["MELON"] * scale
+    return dict(ours), dict(our_rev), dict(opp), dict(opp_rev), x_start
+
+
+def melon_day(x, n_us, n_op):
+    """One day of MELON selling, both seats quoted at the SAME pre-commit inventory.
+
+    This is the engine's `_process_market` per-unit lockstep (`kaggriculture.py:612`), not a
+    sequential price walk: quoting one seat's whole order before the other's overstates the
+    first seat and understates the second whenever the two overlap, which is exactly the
+    d20 case this panel models.  Floor units do not raise inventory (`_commit_unit`).
+    """
+    a, b = int(round(n_us)), int(round(n_op))
+    us = op = 0.0
+    while a > 0 or b > 0:
+        price = market_price("MELON", MARKET_I0 + x)
+        committed = 0
+        if a > 0:
+            us += price
+            a -= 1
+            committed += 1 if price > PRICE_FLOOR else 0
+        if b > 0:
+            op += price
+            b -= 1
+            committed += 1 if price > PRICE_FLOOR else 0
+        x += committed
+    return us, op, x
+
+
+
+def melon_season(ours, opp, x0, first_day=10, last_day=30):
+    """Walk the MELON market from `first_day` to `last_day`, draining the town's 1 unit/day."""
+    sink = _melon_sink_per_day()
+    x = x0
+    us_total = op_total = 0.0
+    for day in range(first_day, last_day):
+        u, o = ours.get(day, 0.0), opp.get(day, 0.0)
+        if u or o:
+            us, op, x = melon_day(x, u, o)
+            us_total += us
+            op_total += op
+        x -= sink
+    return us_total, op_total
+
+
+def panel_g_melon(paths, eps_by_id, targets=range(11, 23)):
+    """S14 — is the second MELON wave worth its tile-days, and can the waves be re-phased?
+
+    Counterfactual: the whole d20-22 block is moved to a single earlier harvest day, our own
+    self-crash is charged by walking the engine's own per-unit price, and the opponent's unit
+    schedule is held as a tape.  That last assumption is the known limit and is reported.
+    """
+    waves, land_marks, flow, daily = Counter(), Counter(), {}, {}
+    unlock_state = defaultdict(list)
+    for path in paths:
+        d = load_replay(path)
+        info = d.get("info", {})
+        teams = info.get("TeamNames", [None, None])
+        if len(teams) != 2 or OUR_TEAM not in teams or teams[0] == teams[1]:
+            continue
+        seat = 1 if teams[1] == OUR_TEAM else 0
+        steps, eid = d["steps"], info.get("EpisodeId")
+        waves[_wave_signature(steps, seat)] += 1
+        marks = _land_clock(steps, seat)
+        land_marks[json.dumps([{k: v for k, v in mk.items() if not k.startswith("_")}
+                               for mk in marks], sort_keys=True)] += 1
+        for mk in marks:
+            unlock_state[(mk["n_quadrants"], mk["day"], mk["hour"])].append(
+                (mk["_free_tiles"], mk["_money"]))
+        flow[eid] = _melon_flow(steps, seat)
+        daily[eid] = _daily_farm(steps, seat)
+
+    n = len(flow)
+
+    # -- G1: the tape's own wave structure -------------------------------------
+    top_sig, top_n = waves.most_common(1)[0]
+    g1 = {"n_episodes": n, "distinct_signatures": len(waves),
+          "dominant_signature": json.loads(top_sig), "dominant_share": round(top_n / n, 4),
+          "runner_up_signatures": [{"n": v, "signature": json.loads(k)}
+                                   for k, v in waves.most_common(4)[1:]]}
+
+    # -- G2: what the block realises, and what it costs in tile-days -----------
+    recorded = {"our_units": [], "our_revenue": [], "opp_units": [], "opp_revenue": [],
+                "block_units": [], "block_revenue": []}
+    for eid, (ours, our_rev, opp, opp_rev, _x) in flow.items():
+        recorded["our_units"].append(sum(ours.values()))
+        recorded["our_revenue"].append(sum(our_rev.values()))
+        recorded["opp_units"].append(sum(opp.values()))
+        recorded["opp_revenue"].append(sum(opp_rev.values()))
+        recorded["block_units"].append(sum(ours.get(d, 0.0) for d in MELON_BLOCK_DAYS))
+        recorded["block_revenue"].append(sum(our_rev.get(d, 0.0) for d in MELON_BLOCK_DAYS))
+    med = {k: round(statistics.median(v), 1) for k, v in recorded.items()}
+    wave2 = json.loads(top_sig)
+    wave2_tiles = sum(sum(c.values()) for d, c in wave2.items() if int(d) >= 10)
+    wave2_tiledays = 0
+    for planted, cells in wave2.items():
+        if int(planted) < 10:
+            continue
+        for label, count in cells.items():
+            harvest = int(label.split("harvest_d")[1].split("|")[0])
+            wave2_tiledays += count * (harvest - int(planted))
+    seed_cost = wave2_tiles * CROPS["MELON"]["seed"]
+    g2 = {
+        "median_per_episode": med,
+        "wave2_tiles": wave2_tiles, "wave2_tile_days": wave2_tiledays,
+        "wave2_seed_cost": seed_cost,
+        "wave2_net_dollars": round(med["block_revenue"] - seed_cost),
+        "wave2_dollars_per_tile_day": round((med["block_revenue"] - seed_cost) / wave2_tiledays, 1),
+        "note": ("compare against the tape's own realised $/crop-tile-day in "
+                 "panel_d_timing + panel_f_profile.crop_tiledays of the same run"),
+    }
+
+    # -- G3: can an earlier wave be planted at all? ----------------------------
+    top_land, top_land_n = land_marks.most_common(1)[0]
+    free_open, free_peak = defaultdict(list), defaultdict(list)
+    cash_open, cash_peak, seeds_by_day = defaultdict(list), defaultdict(list), defaultdict(list)
+    shed_melon, shed_wool = defaultdict(list), defaultdict(list)
+    for rec in daily.values():
+        for day, r in rec.items():
+            free_open[day].append(r["free_tiles"])
+            free_peak[day].append(r["free_tiles_max"])
+            cash_open[day].append(r["money"])
+            cash_peak[day].append(r["money_max"])
+            seeds_by_day[day].append(r["melon_seeds"])
+            shed_melon[day].append(r["shed_melon"])
+            shed_wool[day].append(r["shed_wool"])
+    # Day 0 is excluded: its free land is the untouched opening board and its recorded cash is a
+    # POST-spend snapshot of the $3.000 the tape has already committed to herd and hands.
+    # Re-allocating the opening buy is a different, larger change than re-phasing a wave.
+    earliest = None
+    for day in sorted(free_peak):
+        if day == 0:
+            continue
+        land_ok = statistics.median(free_peak[day]) >= wave2_tiles
+        cash_ok = statistics.median(cash_peak[day]) >= seed_cost
+        if land_ok and cash_ok:
+            earliest = day
+            break
+    g3 = {
+        "quadrant_unlocks": json.loads(top_land), "unlock_signature_share": round(top_land_n / n, 4),
+        "unlock_free_tiles_and_cash": {
+            f"q{q}_d{d}_h{h}": {
+                "free_tiles_median": statistics.median([a for a, _ in v]),
+                "money_after_purchase_median": statistics.median([b for _, b in v]),
+            } for (q, d, h), v in sorted(unlock_state.items())},
+        "by_day": [{"day": d,
+                    "free_tiles_at_open_median": statistics.median(free_open[d]),
+                    "free_tiles_peak_median": statistics.median(free_peak[d]),
+                    "free_tiles_peak_max": max(free_peak[d]),
+                    "money_at_open_median": round(statistics.median(cash_open[d])),
+                    "money_peak_median": round(statistics.median(cash_peak[d])),
+                    "melon_seeds_held_median": statistics.median(seeds_by_day[d])}
+                   for d in sorted(free_peak) if d <= 22],
+        "wave2_tiles_needed": wave2_tiles, "seed_cost": seed_cost,
+        "day0_excluded": ("free land at d0 is the opening board and its recorded cash is a "
+                          "post-spend snapshot; re-allocating the $3.000 opening buy is a "
+                          "different change from re-phasing a wave"),
+        "earliest_day_with_land_and_cash": earliest,
+        "earliest_feasible_harvest_day": (earliest + CROPS["MELON"]["first_yield_day"])
+                                          if earliest is not None else None,
+    }
+
+    # -- G4: the self-crash / re-phasing model ---------------------------------
+    validation, rows = [], []
+    per_target = {t: {"d_us": [], "d_opp": [], "flip_us": 0, "flip_diff": 0} for t in targets}
+    n_losses = 0
+    for eid, (ours, our_rev, opp, _opp_rev, x_start) in flow.items():
+        x0 = x_start.get(10)
+        if x0 is None:
+            continue
+        base_us, base_opp = melon_season(ours, opp, x0)
+        validation.append(base_us - sum(our_rev.values()))
+        e = eps_by_id.get(eid)
+        is_loss = e is not None and not e["win"]
+        margin = -e["margin"] if is_loss else None
+        if is_loss:
+            n_losses += 1
+        keep = {d: v for d, v in ours.items() if d not in MELON_BLOCK_DAYS}
+        block = sum(ours.get(d, 0.0) for d in MELON_BLOCK_DAYS)
+        for t in targets:
+            cf = dict(keep)
+            cf[t] = cf.get(t, 0.0) + block
+            us, op = melon_season(cf, opp, x0)
+            per_target[t]["d_us"].append(us - base_us)
+            per_target[t]["d_opp"].append(op - base_opp)
+            if is_loss:
+                per_target[t]["flip_us"] += (us - base_us) > margin
+                per_target[t]["flip_diff"] += ((us - base_us) - (op - base_opp)) > margin
+        rows.append(eid)
+    rec_rev = [sum(f[1].values()) for f in flow.values()]
+    g4 = {
+        "n_episodes": len(rows), "n_losses": n_losses,
+        "validation": {
+            "what": ("model revenue for the RECORDED schedule minus the ledger's recorded "
+                     "revenue; the model is only trusted to the size of this error"),
+            "median_error": round(statistics.median(validation)),
+            "mean_error": round(statistics.mean(validation)),
+            "episodes_over_5pct": sum(1 for err, rev in zip(validation, rec_rev)
+                                      if rev and abs(err) > 0.05 * rev),
+        },
+        "targets": [{
+            "harvest_day": t,
+            "d_our_melon_median": round(statistics.median(v["d_us"])),
+            "d_our_melon_mean": round(statistics.mean(v["d_us"])),
+            "d_opp_melon_median": round(statistics.median(v["d_opp"])),
+            "d_margin_median": round(statistics.median([a - b for a, b in zip(v["d_us"], v["d_opp"])])),
+            "episodes_positive": sum(1 for z in v["d_us"] if z > 0),
+            "loss_flips_our_side_only": v["flip_us"],
+            "loss_flips_full_differential": v["flip_diff"],
+        } for t, v in per_target.items()],
+        "limit": ("the opponent's MELON unit schedule is held fixed while their realised price "
+                  "moves — a joint-seat model, ground-truth-only per memory "
+                  "`kaggriculture-lockstep-market-quoting`.  `d_our_melon_*` is the defensible "
+                  "half; `d_margin_*` additionally spends the opponent's loss and is an upper "
+                  "bound, not an estimate."),
+    }
+
+    # -- G5: Phase 2b — is WOOL holdable, or production-gated like MELON? ------
+    trough = range(12, 16)
+    g5 = {
+        "question": ("S14 §3: is our own WOOL stock ever non-zero before the d12-15 trough, the "
+                     "way MELON's never is before its harvest days?"),
+        "shed_melon_by_day": {str(d): {"median": statistics.median(shed_melon[d]),
+                                       "max": max(shed_melon[d])} for d in sorted(shed_melon)},
+        "shed_wool_by_day": {str(d): {"median": statistics.median(shed_wool[d]),
+                                      "max": max(shed_wool[d])} for d in sorted(shed_wool)},
+        "wool_days_with_stock": sorted(d for d in shed_wool if max(shed_wool[d]) > 0),
+        "wool_stock_in_trough_d12_15": max(
+            (max(shed_wool[d]) for d in trough if d in shed_wool), default=0),
+        "melon_stock_before_d20": max(
+            (max(shed_melon[d]) for d in shed_melon if d < 20), default=0),
+    }
+    return {"g1_wave_structure": g1, "g2_tile_day_cost": g2, "g3_feasibility": g3,
+            "g4_rephasing_model": g4, "g5_wool_holdability": g5}
+
+
 # --------------------------------------------------------------------------- driver
 
 def run(strong_cut):
@@ -521,13 +902,59 @@ def run(strong_cut):
     return res
 
 
+def run_melon():
+    """S14 Phase 2/2b.  Writes its own artefact; leaves the S9 panels untouched."""
+    eps, _self_play, _skipped = load_live()
+    res = panel_g_melon(replay_paths("55726984"), {e["episode_id"]: e for e in eps})
+    feasible = res["g3_feasibility"]["earliest_feasible_harvest_day"]
+    best = max(res["g4_rephasing_model"]["targets"], key=lambda r: r["d_our_melon_median"])
+    at_feasible = next((r for r in res["g4_rephasing_model"]["targets"]
+                        if r["harvest_day"] == feasible), None)
+    res["verdict"] = _melon_verdict(res, at_feasible)
+    res.update({
+        "pass": "S14 MELON tile-day / re-phasing (docs/plans/s14_loss_analysis.md §2-§3)",
+        "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "screen_set": "55726984 ladder replays only — the confirm set (55586926 + 55675634) "
+                      "is untouched by this pass (ROADMAP §8)",
+        "best_target_by_median": best["harvest_day"],
+        "earliest_feasible_harvest_day": feasible,
+    })
+    DERIVED.mkdir(parents=True, exist_ok=True)
+    MELON_OUT.write_text(json.dumps(res, indent=2, ensure_ascii=False))
+    print(f"wrote {MELON_OUT}")
+    return res
+
+
+def _melon_verdict(res, at_feasible):
+    g2, g3 = res["g2_tile_day_cost"], res["g3_feasibility"]
+    if at_feasible is None:
+        return ("KILL — no harvest day is both land/cash-feasible and modelled; "
+                "MELON is closed on the production side as well as the market side.")
+    gain = at_feasible["d_our_melon_median"]
+    flips = at_feasible["loss_flips_our_side_only"]
+    n_losses = res["g4_rephasing_model"]["n_losses"]
+    head = (f"wave 2 earns ${g2['wave2_dollars_per_tile_day']}/tile-day net of seed over "
+            f"{g2['wave2_tile_days']} tile-days; the earliest land- and cash-feasible harvest "
+            f"day is d{g3['earliest_feasible_harvest_day']}, worth a median "
+            f"${gain:+,} of our own MELON revenue and {flips}/{n_losses} loss flips.")
+    if gain <= 0:
+        return "KILL — " + head + "  Re-phasing is non-positive at every feasible day."
+    return ("POSITIVE ON THE SCREEN SET, NOT BUILT — " + head +
+            "  This is a screen-set paper bound with a non-reacting opponent (see "
+            "g4_rephasing_model.limit); it is scoped into docs/plans/s15_melon_rephasing.md "
+            "and must be confirmed on Instrument A (analysis/s10_replay_bench.py) against the "
+            "412-episode confirm set before any agent/ change.")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["run", "report"])
+    ap.add_argument("cmd", choices=["run", "report", "melon"])
     ap.add_argument("--strong-cut", type=float, default=2100.0)
     args = ap.parse_args()
     if args.cmd == "run":
         run(args.strong_cut)
+    elif args.cmd == "melon":
+        run_melon()
     else:
         print(json.dumps(json.loads(OUT.read_text()), indent=2, ensure_ascii=False))
 

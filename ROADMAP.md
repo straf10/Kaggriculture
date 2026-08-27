@@ -17,20 +17,20 @@
 
 ---
 
-## 1. Where we are — **2026-08-23** *(refreshed against a live leaderboard snapshot + the episodes API)*
+## 1. Where we are — **2026-08-28** *(refreshed against a live leaderboard snapshot + the episodes API)*
 
 | | Value |
 |---|---|
-| **Active pair** | `55726984` **reconstruction + H2 tail-liquidation — unscored**, uploaded 08-23 23:07 · `55675634` **reconstruction + market overlay + tile recovery — 1.657,3**, 119 public episodes, frozen 08-21 19:06. *(`55726984` evicted `55586926` on 08-23; that route survives inside it — `55726984` **is** `55586926` + H2.)* |
-| **Team standing** | **STRAF rank 903 of 6.020, 1.815,1** (snapshot 2026-08-23 15:30, i.e. *before* the 08-23 upload). ⚠️ §2 rule 3: the pool deflates, so read the **rank**, not the score. ⚠️ §9 rule 4: `55726984` is inside its placement burst — **judge nothing before ~100 episodes** (~2-4 days) |
+| **Active pair** | `55726984` **reconstruction + H2 tail-liquidation — 144 ladder episodes, past the burst and judgeable**, uploaded 08-23 23:07 · `55675634` **reconstruction + market overlay + tile recovery — 1.657,3**, 119 public episodes, frozen 08-21 19:06. *(`55726984` evicted `55586926` on 08-23; that route survives inside it — `55726984` **is** `55586926` + H2.)* |
+| **Team standing** | **STRAF rank 1.179 of 6.649, 1.645,8** (snapshot 2026-08-27 21:14). `55726984` is now past the burst at **144 ladder episodes, 79-65 (WR 0,549)** — judgeable. Against its first read (1.669,2 / #1.234) that is **−23 points and +55 places**: §2 rule 3, the pool deflates, so read the **rank**. Prior snapshot 2026-08-23 15:30 read 1.815,1 / #903, *before* the 08-23 upload re-placed us |
 | **Next eviction** | by **date** ⇒ the next upload drops **`55675634`** (08-21, 1.657,3) — the *lower*-scored slot, so this one is cheap again. Decide it deliberately anyway (§9 rule 3) |
 | **Converged win rate** | **43,4%** (controlled, past the placement window). By opponent band: **54% / 41% / 38%** at <1.800 / 1.800-2.100 / 2.100+ |
-| **Ladder top** (2026-08-23) | #1 Ryo Hasegawa **3.140,7** · #2 Subramanya N 3.027,3 · #3 Arman Tuganbaev 2.966,0 · #4 MiMi 2.948,6 · #5 Izzoudine Mohamed KANTA 2.925,3 · **#16 ReCurSiON 2.769,2** (our donor, still frozen 08-14 — it has lost 146,6 points and 7 places since 08-21 while frozen, §2 rule 4) |
-| **The gap** | **954 points / 887 places** to our own donor (2026-08-23; was 1.036 / 915 on 08-21). Measured, not inferred — §1.1 |
-| **Deadline** | **2026-09-30 23:59 UTC** (38 days; §9 rule 5 freezes the last week ⇒ real limit ~**09-23**). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
+| **Ladder top** (2026-08-27 21:14) | #1 Crop Dusta **3.111,4** · #2 Ryo Hasegawa 2.979,4 · #3 Subramanya N 2.968,7 · #4 tetsuya 2.900,7 · #5 Blu3s 2.884,2 · **#112 ReCurSiON 2.424,8** (our donor, still frozen 08-14 — **−344,4 points and −96 places** since 08-23 while frozen; §2 rule 4, a 2400-2800 band bleeds ~−67 pts/day) |
+| **The gap** | **779 points / 1.067 places** to our own donor (2026-08-27; was 954 / 887 on 08-23). The *score* gap closed only because the frozen donor bled faster than we did — the **place** gap widened. Measured, not inferred — §1.1 |
+| **Deadline** | **2026-09-30 23:59 UTC** (33 days; §9 rule 5 freezes the last week ⇒ real limit ~**09-23**). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
 | **Prizes** | 10 **equal** $5.000 prizes, places 1-10 ⇒ the target is **stable top-10**, not #1. A high-variance 3.200 is worth less than a steady 3.050 |
 | **Gates** | **2.800+** = minimum bar (below it we are still copying) · **3.000+** = "top-5 tactics replicated"; only above it is originating our own tactics the highest-value work |
-| **Local suite** | `pytest tests/` **390 passed, 0 failed, 0 collection errors** (2026-08-23). ⚠️ The old *"3 known `test_v1h2d_*` failures, pre-existing, expected"* line is **retired** — they pass. Never accept a failure as "known" |
+| **Local suite** | `pytest tests/` **445 passed, 1 skipped, 0 failed, 0 collection errors** (2026-08-28). ⚠️ The old *"3 known `test_v1h2d_*` failures, pre-existing, expected"* line is **retired** — they pass. Never accept a failure as "known" |
 
 ### 1.1 The gap is real strength — all four escape hatches are closed
 
@@ -432,6 +432,8 @@ One line each: the increment, the number, and the **mechanism** that makes it bi
 | 31 | **§6 row 13 re-test — the route IS glut-constrained** | *Not a STOP — a reopening.* Row 30's first pass measured glut on **WHEAT only** and re-closed row 13 on it. WHEAT is structurally the **one product whose price our selling cannot crash** (`above_target` **0,2**: +400 units moves it $25 → $20); MELON is `above_func 'sq'` / `above_target 3,6`. Re-measured model-free across all nine products on the same 178 episodes: **WOOL sits at the $1 floor a median 30 turns/episode** (base $200), MILK 7 turns, STRAWBERRY 2; at just **+100 units** above baseline MILK / WOOL / STRAWBERRY are all at **$1**, MELON bottoms at **$4** against base $250. **The premium products — the route's actual revenue — are deep in the collapse zone.** ⚠️ This does **not** revive the sell-floor lever: §6 row 21's shed wall, 1.32.7's 30 units/product/season town absorption (recovery is slow, so a floor may mean never selling) and §5.2's common-mode result all argue it still fails. **Status: open and untested** — §11 row 2 reopened |
 | 32 | **S11 B2.5 — leakage-safe dump predictor** | KILL by measurement, **final**. Definition unchanged from S10 P4.3 (opponent sells ≥20 units of a premium product within 24 turns); predictor sees `obs` + our own action only, enforced by a PASS-replay bit-identical test (`tests/test_s11_b25_leakage.py`); 20 ladder replays of `55726984`, 14.380 steps. Precision **MELON 0,10** against a **0,076** base rate (lift **1,31×**) and **STRAWBERRY 0,48** against **0,191** (lift **2,52×**, recall 0,88) — target was ≥0,70 on **both**. Parameters were carried over untouched (rule 3: no tuning to a gate). Read beside its own instrument: B2.4 coverage **0,957** overall / **0,944** on the seven products the opponent actually holds / **0,880** worst product, and MAE **conditional on `uncertainty_width == 0`** (MELON 0,039 on 39% of steps, STRAWBERRY 1,15 on 80%, WHEAT 2,64 on 13%). So the instrument is not the binding constraint — **the event is simply not predictable from the non-floor channel**; STRAWBERRY carries real but insufficient signal, MELON is near base rate. The ground-truth label counts *ordered* rather than *committed* units, which biases precision **upward**, so the kill is conservative. **Does not reopen without a new mechanism** — not a new threshold. `data/derived/s10_opponent_inventory.json` |
 | 33 | **S13 Phase 1 — the 18-point seat gap does not replicate at that size** | KILL by measurement (of the *claim as screened*), pre-registered gate. `55726984`'s 97-episode screen (seat 0 30W-16L WR 0,652, seat 1 24W-27L WR 0,471, gap **+0,182**) does not hold up: `55675634` (119 eps) reads gap **+0,095**, and `55586926` (293 eps, the largest sample) reads **−0,003** — a true zero (72/145 vs 74/148, Fisher p=1,00), not an opposing effect; treat the earlier "signs disagree, which alone fails the gate" framing as over-stated, since a null is not a sign. Headline CMH stratified by rating zone (379/509 episodes matched, 74,5%): **χ²=1,62, p=0,204** (uncorrected 0,168) — fails the 0,01 bar regardless. Both controls came back clean: no opponent-strength confound (Mann-Whitney U, p=0,264), no town/shop-draw confound (p=0,830), seat term does not survive a pooled logistic regression (LR p=0,255). **Dropping each submission's first 70 episodes is the actual mechanism** — pooled gap **+0,052 → +0,020** — exactly §2 rule 2's placement-burst warning. 🔴 **Not proof of zero effect**: pooled gap **+0,052** (95% CI **[−0,034, +0,137]**), MH odds ratio **1,35** favouring seat 0, and **5 of 6** rating zones point the same direction (only 2400+, n=27, reverses). Power at a 5-point gap is **~24%** — this sample cannot see an effect that size. **Correct verdict: not established at 18 points; a modest seat effect (~5 pts) is not ruled out and not actionable.** §11 item closed as not-actionable, not as disproven. `analysis/s13_seat_asymmetry.py`, `data/derived/s13_seat_phase1.json`, `tests/test_s13_seat_asymmetry.py` |
+| 34 | **S14 §3 — WOOL as the second flip lever** | KILL, same mechanism as MELON's market side. WOOL's flip share nearly doubled on the refreshed sample (4/38 → **12/65**), which is why it was checked rather than deferred. Our own WOOL **shed stock is 0 on every day of the d12-15 trough** and non-zero on only **three days of the whole season** (d16: 8, d19: 4, d25: 4), median = max across 144 replays. SHEEP produce on an interval, but the tape collects and sells inside the day, so there is no held stock to re-time — **production-gated exactly like MELON** (`s12` §0), and the 12/65 flip number is a price-substitution paper bound of the row-30 species, not a lever. **Report only; do not spend a build pass.** `data/derived/s14_melon_rephasing.json` `g5_wool_holdability` |
+| 35 | **S14 §2 — MELON wave 2 is worth its tile-days** | *Not a STOP — S12's first open question, answered and closed.* 140 tile-days + $1.120 of seed return a median $9.175 ⇒ **$57,5/tile-day net of seed**, against the tape's own realised $/crop-tile-day of **MELON $80,7 · STRAWBERRY $48,2 · WHEAT $29,9**. Deleting wave 2 prices at **−$9.044/ep**, the worst counterfactual in the sweep. Even at the crashed d20 price the melon block out-earns the next-best crop the tape grows. **Do not propose dropping or shrinking wave 2.** The *second* question (re-phasing) did not close — see §7.6 and `docs/plans/s15_melon_rephasing.md` |
 
 ---
 
@@ -570,17 +572,40 @@ MELON wave worth its tile-days**, and can the two waves be re-phased without cra
 window against each other (§6 row 31) — which is a larger, riskier pass than an additive overlay.
 A second, independent blocker: `TapeOverlay.act()` returns early on `mode=="liquidate"`
 (`agent/tape_overlay.py:270`), so **`liquidate` and `augment` are mutually exclusive** — any MELON
-arm must *compose* with the shipped H2, not replace its mode. **Re-scope or kill before building.**
+arm must *compose* with the shipped H2, not replace its mode. **Re-scope or kill before building.** 🔴 **Resolved by S14 (§7.6, 2026-08-28):** the tile-day half is closed (§6 row 35), the re-phasing half is scoped into `docs/plans/s15_melon_rephasing.md` behind four kill gates. The market-side pull-forward stays dead.
 
-### 7.6 S14 — loss analysis ⇐ **the current pass** (`docs/plans/s14_loss_analysis.md`)
+### 7.6 S14 — loss analysis ✅ **RAN 2026-08-28** (`docs/plans/s14_loss_analysis.md`)
 
-Analysis-only, answers §7.5's own open question rather than reopening its dead market-side fix.
-Refreshes `analysis/s9_live_read_55726984.py` (stale since 2026-08-25, 92 replays) and, if MELON
-still leads the all-product flip test after refresh (currently 13/38 flips vs ≤4 for everything
-else, with CARROT/TOMATO/EGG measured at **zero** flips even under an idealised price substitution
-— do not revisit those), asks the tile-day/re-phasing question §7.5 left open using the real
-engine, not a paper bound. **No `agent/` change in this pass** — a positive result spins into its
-own gated build plan (S15), same discipline as S12/S13.
+Analysis-only; no `agent/` change, no slot spent. Instrument refreshed 92 → **144** ladder replays
+(two blocking fixes first: the `*.json` glob went blind when the archive was gzipped, and the
+`episodes -v` CLI trailer crashed the times parser — both now routed through `s8_replay_io`,
+`tests/test_s9_live_read_reader.py`). Delta:
+[baselines/2026-08-28/s14_phase1_delta.md](baselines/2026-08-28/s14_phase1_delta.md).
+
+- **Phase 1: no regime change.** 54-38 → **79-65**; win rate still monotone in opponent strength,
+  crossing 50% just above our own band. Board 1.669,2/#1.234 → **1.645,8/#1.179** (−23 pts, **+55
+  places** — §2 rule 3). `panel_e` ranking holds: **MELON 20/65 flips**, WOOL 12/65, rest ≤5,
+  **CARROT/TOMATO/EGG still exactly zero**. §1.4's re-scope trigger did not fire.
+- **Wave 2 is worth its tile-days — closed** (§6 row 35). **WOOL is production-gated — closed**
+  (§6 row 34).
+- **Re-phasing: a positive screen-set number that is not yet a result.** MELON's only sink is the
+  town centre's **1 unit/day** (no shop lists it), so selling earlier for its own sake is worth
+  **−$300**; the entire gain is that our d20-22 dump currently shares its window with the opponent's
+  own late melon block (36,7% of their supply lands after d19) and the engine quotes both seats at
+  the same pre-commit inventory. Harvesting at **d16** — the earliest day with free land *and* seed
+  cash (NE unlocks d6 h17, 144/144) — models at **+$3.918/ep and 32/65 loss flips**; d17 is the
+  fallback (+$1.326 / 28); d11-d15 need a d1-d5 planting against $32-$767 of cash and are
+  **infeasible**.
+
+🔴 **Not built, and it fails §7.2 on dollars**: at row 30's calibration +$3.918/ep is **≈15 rating
+points, 3× under the +50 bar**, so any case is a **W/L** case (§3.1 rule 4) and must be made on
+Instrument A. Four standing caveats — the opponent's schedule is held fixed while their price
+collapses (joint-seat model, ground-truth-only per memory `kaggriculture-lockstep-market-quoting`);
+the model mis-prices the *recorded* schedule by >5% in **46/144** episodes; it is an **occupancy**
+change to the tape, not an additive overlay; and it moves the STRAWBERRY calendar three days into
+the shipped **H2** window. Four pre-registered kill gates on the **untouched 412-episode confirm
+set**: [docs/plans/s15_melon_rephasing.md](docs/plans/s15_melon_rephasing.md).
+`data/derived/s14_melon_rephasing.json`, `tests/test_s14_melon_rephasing.py`.
 
 ---
 
