@@ -572,6 +572,16 @@ A second, independent blocker: `TapeOverlay.act()` returns early on `mode=="liqu
 (`agent/tape_overlay.py:270`), so **`liquidate` and `augment` are mutually exclusive** — any MELON
 arm must *compose* with the shipped H2, not replace its mode. **Re-scope or kill before building.**
 
+### 7.6 S14 — loss analysis ⇐ **the current pass** (`docs/plans/s14_loss_analysis.md`)
+
+Analysis-only, answers §7.5's own open question rather than reopening its dead market-side fix.
+Refreshes `analysis/s9_live_read_55726984.py` (stale since 2026-08-25, 92 replays) and, if MELON
+still leads the all-product flip test after refresh (currently 13/38 flips vs ≤4 for everything
+else, with CARROT/TOMATO/EGG measured at **zero** flips even under an idealised price substitution
+— do not revisit those), asks the tile-day/re-phasing question §7.5 left open using the real
+engine, not a paper bound. **No `agent/` change in this pass** — a positive result spins into its
+own gated build plan (S15), same discipline as S12/S13.
+
 ---
 
 ## 8. The bench
