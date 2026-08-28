@@ -40,12 +40,41 @@ from analysis.s9_market_ledger import episode_ledger, step_ledger  # noqa: E402
 from engine_reference.kaggriculture import (  # noqa: E402
     CROPS, MARKET_I0, PRICE_FLOOR, SHOPS, TOWN_CENTER_PRODUCTS, market_price,
 )
-LIVE = ROOT / "data" / "archive" / "raw" / "live_55726984"
-EP_CSV = ROOT / "data" / "derived" / "s9_live_55726984_episodes.csv"
 DERIVED = ROOT / "data" / "derived"
-OUT = DERIVED / "s9_live_read_55726984.json"
+RAW = ROOT / "data" / "archive" / "raw"
 OUR_TEAM = "STRAF"
-SUBMITTED_AT = dt.datetime(2026, 8, 23, 23, 7, 25)
+
+# The only submission-bound constants (S16 Phase 1: generalised from a single
+# hard-coded submission so this instrument can read either live slot without a
+# second copy of it — ROADMAP §3 "reuse, do not duplicate"). `submitted_at` is
+# each submission's own EPISODE_TYPE_VALIDATION createTime (the upload instant).
+SUBMISSION_META = {
+    "55726984": {
+        "ep_csv": DERIVED / "s9_live_55726984_episodes.csv",
+        "submitted_at": dt.datetime(2026, 8, 23, 23, 7, 25),
+    },
+    "55675634": {
+        "ep_csv": RAW / "live_55675634_episodes.csv",
+        "submitted_at": dt.datetime(2026, 8, 21, 19, 6, 14),
+    },
+}
+
+SUBMISSION = "55726984"
+LIVE = RAW / f"live_{SUBMISSION}"
+EP_CSV = SUBMISSION_META[SUBMISSION]["ep_csv"]
+OUT = DERIVED / f"s9_live_read_{SUBMISSION}.json"
+SUBMITTED_AT = SUBMISSION_META[SUBMISSION]["submitted_at"]
+
+
+def set_submission(submission: str):
+    """Point every submission-bound global at `submission`. Call before run()/load_live()."""
+    global SUBMISSION, LIVE, EP_CSV, OUT, SUBMITTED_AT
+    meta = SUBMISSION_META[submission]
+    SUBMISSION = submission
+    LIVE = RAW / f"live_{submission}"
+    EP_CSV = meta["ep_csv"]
+    OUT = DERIVED / f"s9_live_read_{submission}.json"
+    SUBMITTED_AT = meta["submitted_at"]
 
 # The strength zones §1 uses, extended upward: the 2.100+ bucket of the 43,4pct baseline is now
 # most of the board's mass, so the top of it gets its own row.
@@ -131,7 +160,7 @@ def load_live():
     # One reader for the whole codebase (ROADMAP §3 rule "reuse, do not duplicate"):
     # `s8_replay_io` accepts both `episode-*-replay.json` and `.json.gz`.  The local
     # `*.json` glob this used to carry went blind the moment the archive was gzipped.
-    files = replay_paths("55726984")
+    files = replay_paths(SUBMISSION)
     if not files:
         raise SystemExit(f"no replays at {LIVE}")
     eps, self_play, skipped = [], 0, 0
@@ -883,7 +912,7 @@ def run(strong_cut):
     a = panel_a(eps, times)
     a["self_play_excluded"] = self_play
     res = {
-        "pass": "S9 live read 55726984",
+        "pass": f"S9 live read {SUBMISSION}",
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "leaderboard_snapshot": lb_name,
         "replays_read": len(eps), "files_skipped": skipped,
@@ -950,7 +979,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["run", "report", "melon"])
     ap.add_argument("--strong-cut", type=float, default=2100.0)
+    ap.add_argument("--submission", choices=sorted(SUBMISSION_META), default=SUBMISSION)
     args = ap.parse_args()
+    set_submission(args.submission)
     if args.cmd == "run":
         run(args.strong_cut)
     elif args.cmd == "melon":

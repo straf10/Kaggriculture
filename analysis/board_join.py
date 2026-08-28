@@ -30,6 +30,10 @@ _SNAPSHOT_REGISTRY: list[tuple[str, str]] = [
      "live_leaderboard_2026-08-24/kaggriculture-publicleaderboard-2026-08-24T21:32:15.csv"),
     ("2026-08-25T12:08:46",
      "live_leaderboard_2026-08-24/kaggriculture-publicleaderboard-2026-08-25T12:08:46.csv"),
+    ("2026-08-27T21:13:57",
+     "live_leaderboard_2026-08-28/kaggriculture-publicleaderboard-2026-08-27T21:13:57.csv"),
+    ("2026-08-28T12:21:21",
+     "live_leaderboard_2026-08-28/kaggriculture-publicleaderboard-2026-08-28T12:21:21.csv"),
 ]
 
 _EPISODES_CSV = {

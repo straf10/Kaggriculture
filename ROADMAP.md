@@ -30,7 +30,7 @@
 | **Deadline** | **2026-09-30 23:59 UTC** (33 days; §9 rule 5 freezes the last week ⇒ real limit ~**09-23**). Final ranking = one Bradley-Terry tournament over the ~2 weeks of episodes played *after* it, using whatever sits in the two slots |
 | **Prizes** | 10 **equal** $5.000 prizes, places 1-10 ⇒ the target is **stable top-10**, not #1. A high-variance 3.200 is worth less than a steady 3.050 |
 | **Gates** | **2.800+** = minimum bar (below it we are still copying) · **3.000+** = "top-5 tactics replicated"; only above it is originating our own tactics the highest-value work |
-| **Local suite** | `pytest tests/` **445 passed, 1 skipped, 0 failed, 0 collection errors** (2026-08-28). ⚠️ The old *"3 known `test_v1h2d_*` failures, pre-existing, expected"* line is **retired** — they pass. Never accept a failure as "known" |
+| **Local suite** | `pytest tests/` **463 passed, 0 skipped, 0 failed, 0 collection errors** (2026-08-28, S16 correction pass — +18 since the 445 baseline earlier that day, incl. `test_s16_recovery_bit_equivalence.py`, `test_s16_slot_comparison.py`, `test_s16_bare_base_fix.py`, `test_s16_occupancy_rng.py`). ⚠️ The old *"3 known `test_v1h2d_*` failures, pre-existing, expected"* line is **retired** — they pass. Never accept a failure as "known" |
 
 ### 1.1 The gap is real strength — all four escape hatches are closed
 
@@ -164,13 +164,25 @@ document.
 ### 3.1 Experimental protocol
 
 1. **Both seats, always.** `_end_of_day` builds **one** per-day RNG, spends it on `_spawn_weeds` for
-   player 0 then player 1, and only then draws the shop unlock. A one-tile difference on **either**
-   farm re-rolls the whole remaining shop sequence. Seat 0 and seat 1 are not symmetric on the same
-   seed.
+   player 0 then player 1, and only then draws the shop unlock. 🔴 **Corrected 2026-08-28 (S16 task
+   4) — the old wording here overclaimed.** `_spawn_weeds` calls `rng.random()` once per tile **only
+   when that tile is `None`** (`kaggriculture.py:836-840`: `if farm["tiles"][y][x] is None and
+   rng.random() < weed_chance`) — draws consumed equal the **count of `None` tiles**, not a function
+   of tile content. **Occupancy, precisely defined: a night's draw count (and hence the remaining
+   shop sequence) changes only when the number of `None` tiles on either farm changes** — DIG
+   (`:484-491`, clears the tile to `None`), PLANT (`:417-429`, consumes a `None` tile), BUY_LAND
+   (grows the tile grid), BUILD_COOP/BUILD_PASTURE, and HARVEST of a non-`ongoing` crop (`:451-468`,
+   clears the tile back to `None`) all re-roll. A change that only replaces one occupant for another
+   **on the same tile** — WATER, FERTILIZE, or a `PLANT` tile decaying into a `WEED` (`:766`/`:784`,
+   both dicts, neither `None`) — is **RNG-neutral for that night**: the `None` count is unchanged and
+   the remaining shop sequence does not re-roll. Locked by
+   [tests/test_s16_occupancy_rng.py](tests/test_s16_occupancy_rng.py) (reddens under the old, broader
+   reading — verified by reverting). Seat 0 and seat 1 are not symmetric on the same seed.
 2. **Classify the knob before every A/B.** *Can this change alter how many tiles are occupied on any
-   night?* **No** (order/rate/threshold of market orders only) → *market-only*, a fixed seed is a
-   genuine controlled experiment. **Yes** (labour/crew, planting, harvest, DIG, BUY_LAND, animal or
-   structure placement, routing) → *occupancy*, requires `--town-pin basket` on **both** arms.
+   night?* — i.e. the count of `None` tiles per rule 1's corrected definition, not any change to a
+   tile's content. **No** (order/rate/threshold of market orders only) → *market-only*, a fixed seed
+   is a genuine controlled experiment. **Yes** (labour/crew, planting, harvest, DIG, BUY_LAND, animal
+   or structure placement, routing) → *occupancy*, requires `--town-pin basket` on **both** arms.
    **Don't know** → treat as occupancy. Pinning **reduces, does not eliminate** (~19% of noise sd);
    the final holdout-confirm always runs **unpinned**. Only `--town-pin basket` is valid from 1.32.6.
 3. **Screen → confirm, never "keep the max."** Dev seeds 0-47 screen · holdout 100-147 confirm only
@@ -434,6 +446,7 @@ One line each: the increment, the number, and the **mechanism** that makes it bi
 | 33 | **S13 Phase 1 — the 18-point seat gap does not replicate at that size** | KILL by measurement (of the *claim as screened*), pre-registered gate. `55726984`'s 97-episode screen (seat 0 30W-16L WR 0,652, seat 1 24W-27L WR 0,471, gap **+0,182**) does not hold up: `55675634` (119 eps) reads gap **+0,095**, and `55586926` (293 eps, the largest sample) reads **−0,003** — a true zero (72/145 vs 74/148, Fisher p=1,00), not an opposing effect; treat the earlier "signs disagree, which alone fails the gate" framing as over-stated, since a null is not a sign. Headline CMH stratified by rating zone (379/509 episodes matched, 74,5%): **χ²=1,62, p=0,204** (uncorrected 0,168) — fails the 0,01 bar regardless. Both controls came back clean: no opponent-strength confound (Mann-Whitney U, p=0,264), no town/shop-draw confound (p=0,830), seat term does not survive a pooled logistic regression (LR p=0,255). **Dropping each submission's first 70 episodes is the actual mechanism** — pooled gap **+0,052 → +0,020** — exactly §2 rule 2's placement-burst warning. 🔴 **Not proof of zero effect**: pooled gap **+0,052** (95% CI **[−0,034, +0,137]**), MH odds ratio **1,35** favouring seat 0, and **5 of 6** rating zones point the same direction (only 2400+, n=27, reverses). Power at a 5-point gap is **~24%** — this sample cannot see an effect that size. **Correct verdict: not established at 18 points; a modest seat effect (~5 pts) is not ruled out and not actionable.** §11 item closed as not-actionable, not as disproven. `analysis/s13_seat_asymmetry.py`, `data/derived/s13_seat_phase1.json`, `tests/test_s13_seat_asymmetry.py` |
 | 34 | **S14 §3 — WOOL as the second flip lever** | KILL, same mechanism as MELON's market side. WOOL's flip share nearly doubled on the refreshed sample (4/38 → **12/65**), which is why it was checked rather than deferred. Our own WOOL **shed stock is 0 on every day of the d12-15 trough** and non-zero on only **three days of the whole season** (d16: 8, d19: 4, d25: 4), median = max across 144 replays. SHEEP produce on an interval, but the tape collects and sells inside the day, so there is no held stock to re-time — **production-gated exactly like MELON** (`s12` §0), and the 12/65 flip number is a price-substitution paper bound of the row-30 species, not a lever. **Report only; do not spend a build pass.** `data/derived/s14_melon_rephasing.json` `g5_wool_holdability` |
 | 35 | **S14 §2 — MELON wave 2 is worth its tile-days** | *Not a STOP — S12's first open question, answered and closed.* 140 tile-days + $1.120 of seed return a median $9.175 ⇒ **$57,5/tile-day net of seed**, against the tape's own realised $/crop-tile-day of **MELON $80,7 · STRAWBERRY $48,2 · WHEAT $29,9**. Deleting wave 2 prices at **−$9.044/ep**, the worst counterfactual in the sweep. Even at the crashed d20 price the melon block out-earns the next-best crop the tape grows. **Do not propose dropping or shrinking wave 2.** The *second* question (re-phasing) did not close — see §7.6 and `docs/plans/s15_melon_rephasing.md` |
+| 36 | **S16 — which live overlay is stronger, `55726984` (H2) or `55675634` (market pull-forward + tile recovery)** | *Not a STOP — the eviction question §9 rule 3 pre-decided on score alone, now answered on evidence.* Phase 1 (live, same-window read, n_A=90/n_B=105): **NOT SEPARABLE**, CMH p=0,961, max zone gap 0,667 on an n=3/4 stratum the CMH correctly discounts; power at a 10-pt gap is 0,28, MDE@80% power is 20 pts — sends the pass to Phase 2 per its own pre-registered rule, not a stop. Phase 2 (Instrument A, 539-episode confirm set, both overlay arms fresh on the identical set): **H2 clears p<0,01 on both seats against the shared base** (seat0 p=2,4e-04, seat1 p=1,2e-04); **the shipped overlay clears neither** (seat0 p=0,0352, seat1 p=0,549) — measured *before* subtracting its own occupancy bias (§2.2: fires a median 12×/ep on **every** confirm-set episode once measured against the correct base — an earlier reading of "54% of episodes" was a same-day base-arm bug, corrected below the table, not a property of the overlay; only 68,1% (308/452) of the α-corpus episodes it actually fires on still reproduces bit-exactly), which runs in the shipped overlay's favour. **This bench does not isolate transaction/weed-legality recovery (component (i), bounded separately at +6,2 pts in §6 rows 26-27) from the market pull-forward it ships bundled with** — the gate reads the shipped package, not the component. **B shipped on a SMOKE and still has no gated evidence; A carries a McNemar-gated edge.** Eviction confirmed: the next upload drops `55675634`. Second finding: §7.2's pair is differentiated in exposure but not, on this evidence, in demonstrated strength. Third finding: the live ladder cannot arbitrate a gap this size (H2's own edge ≈5,0 pts, 27/539) before the deadline — ≈1.251 episodes/arm needed, ≈48-57 days against ≈26 remaining — so future upload decisions run through Instrument A, not the board. 🔴 **Same-day correction (task 1 of the follow-up pass):** the original run of this gate fed both calibrations the episode's own recorded reward/stream as "base" instead of the bare reconstruction — for `55675634` episodes that stream already carried the shipped overlay's output, so the arm was silently compared to itself on all 246 of them (0 fires, 0 with d_bank≠0) and the headline bit-exact share read an inflated 79,4% instead of 68,1%. Fixed to a single bare-stream base shared by both arms, correctness verified (0/293 mismatches on the un-overlaid `55586926` half); the verdict is unchanged and now on firmer ground — H2 still clears both seats, the shipped overlay clears neither, and it fails by a *wider* margin than the pre-fix numbers suggested (seat1 p moved from 0,125 to 0,549). Full report: [baselines/2026-08-28/s16_phase2_three_arm.md](baselines/2026-08-28/s16_phase2_three_arm.md) |
 
 ---
 
@@ -524,6 +537,25 @@ fourth is now measured too and priced out.
   must run the **impact ceiling** first — the roof is set by how fast your own trading walks the
   price against you, never by a flow heuristic on the order cap. Under ~1 rating point → do not
   build.
+- 🔴 **The thin-differentiation flag, made measurable (S16, 2026-08-28; numbers corrected same
+  day, task 1 of the follow-up pass — see §6 row 36).** Instrument A now puts a number on it: H2
+  (market-only) clears p<0,01 on both seats against the shared base (539-episode confirm set); the
+  shipped `55675634` overlay — **market pull-forward + tile recovery together, not tile recovery
+  alone** — does not, on either seat, even before its own occupancy bias — which runs in its favour
+  — is subtracted. **The pair is differentiated in exposure** (exactly what §9 rule 2 demands —
+  market-timing-only vs occupancy-changing) **but not, on today's evidence, in demonstrated
+  strength**: B's slot is currently paid for with an unproven overlay, not a measured one. That is
+  not yet the "two near-identical submits" failure mode §9 rule 2 warns about (the two overlays
+  behave differently enough — correctly measured against the bare backbone, the shipped overlay
+  touches a median 12 tile actions/ep on **every** confirm-set episode, H2 touches zero; an earlier
+  reading of "54% of episodes" was itself a base-arm bug — the arm was being compared to its own
+  already-corrected output on half the data, not a real property of the overlay), but it means the
+  second slot's case rests on exposure diversity alone, not on its own gated edge. This gate cannot
+  isolate transaction/weed-legality recovery (component (i), bounded separately at +6,2 pts, §6
+  rows 26-27) from the market pull-forward it ships bundled with — that bound is neither confirmed
+  nor refuted here. Row 31's re-opened glut question
+  remains the best candidate for a variant that would be differentiated **and** gated. Full report:
+  [baselines/2026-08-28/s16_phase2_three_arm.md](baselines/2026-08-28/s16_phase2_three_arm.md).
 
 ### 7.3 Then — and only then — the deployment-neighbourhood bench
 
@@ -713,12 +745,32 @@ unexplained no-ops, declared mechanisms, `priced_loss_delta`) stays absolute and
 3. **Decide the eviction before the upload, never as a side effect.** Two pre-decisions are now spent:
    the Ueddy tape (08-21, by `55675634`) and `55586926` (08-23, by `55726984` — approved deliberately,
    and the route survives inside its evictor). Currently pre-decided: the next upload drops
-   **`55675634`**, the lower-scored slot (§1).
+   **`55675634`** — 🔴 **now on evidence, not just the lower live score (S16, 2026-08-28).** The live
+   window between the two slots read NOT SEPARABLE (CMH p=0,961, power 0,28 at a 10-point gap — the
+   live ladder cannot arbitrate a gap this size at this sample). Instrument A settled it instead: on
+   the same 539-episode confirm set, H2 (slot A's overlay) clears p<0,01 on **both** seats against
+   the shared base (seat0 p=2,4e-04, seat1 p=1,2e-04); slot B's shipped overlay (market
+   pull-forward + tile recovery, not tile recovery alone) does not
+   (seat0 p=0,0352, seat1 p=0,549) — even before subtracting its own occupancy bias (§3.1 rule 2),
+   which runs in *its* favour, not against it. **B shipped on a SMOKE and still has no gated
+   evidence; A carries a McNemar-gated edge over the shared base.** 🔴 Numbers corrected same day
+   (S16 task 1 follow-up): the first pass of this gate compared slot B's arm to its own recorded
+   stream instead of the bare backbone on half its data — the verdict did not change, and the
+   corrected numbers fail *more* clearly, not less. Full report:
+   [baselines/2026-08-28/s16_phase2_three_arm.md](baselines/2026-08-28/s16_phase2_three_arm.md).
 4. **Judge nothing before ~100 episodes, never inside the first ~70** (§2 rule 2). At ~24-48
    episodes/day that is under two days, so **convergence time is not a constraint on shipping** — it
    is a constraint on judging, and the temptation it creates is to react to placement noise.
 5. **Freeze both slots for the final week** and leave a full day to confirm each runs cleanly. An
    erroring agent plays nothing — including in the final tournament.
+6. 🔴 **The live ladder cannot arbitrate an incremental change before the deadline (S16,
+   2026-08-28).** At the sample sizes reachable in the time remaining, minimum detectable effect at
+   80% power is a ~20-point win-rate gap (measured on a 90/105-episode same-window read); a real
+   overlay-sized edge (H2's own gated margin over the shared base is ~5-5,6 points) needs
+   **≈1.251 episodes/arm** to clear 80% power — **≈48-57 days at 22-26 eps/day**, against **≈26
+   days** left before the 09-23 effective freeze. **Every future "is this overlay worth a slot"
+   decision runs through Instrument A (`analysis/s10_replay_bench.py`) first; the live board can
+   only confirm a decision Instrument A already gated, it cannot originate one at this size.**
 
 **Deadline checklist (S10 P5.3, 2026-09-30 lockdown, real cutoff ~09-23):**
 1. Both slots hold **strong, error-free** agents by 2026-09-23; no upload in the last **48 hours**.
