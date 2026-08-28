@@ -35,7 +35,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from analysis.s8_replay_io import load as load_replay, replay_paths  # noqa: E402
+from analysis.s8_replay_io import load as load_replay, replay_paths, meta as replay_meta, is_excluded  # noqa: E402
 from analysis.s9_market_ledger import episode_ledger, step_ledger  # noqa: E402
 from engine_reference.kaggriculture import (  # noqa: E402
     CROPS, MARKET_I0, PRICE_FLOOR, SHOPS, TOWN_CENTER_PRODUCTS, market_price,
@@ -156,11 +156,14 @@ def _bank_curve(steps, seat):
     return curve
 
 
-def load_live():
+def load_live(submission=None):
     # One reader for the whole codebase (ROADMAP §3 rule "reuse, do not duplicate"):
     # `s8_replay_io` accepts both `episode-*-replay.json` and `.json.gz`.  The local
     # `*.json` glob this used to carry went blind the moment the archive was gzipped.
-    files = replay_paths(SUBMISSION)
+    # `submission` defaults to the module-global SUBMISSION (set via `set_submission`)
+    # so every existing call site is unaffected; S15 gate 1 passes each confirm-set
+    # submission explicitly instead of routing through SUBMISSION_META.
+    files = replay_paths(submission or SUBMISSION)
     if not files:
         raise SystemExit(f"no replays at {LIVE}")
     eps, self_play, skipped = [], 0, 0
@@ -954,6 +957,265 @@ def run_melon():
     return res
 
 
+GATE1_OUT = DERIVED / "s15_gate1_confirm_replication.json"
+
+
+def run_melon_confirm():
+    """S15 Phase 1, gate 1 (docs/plans/s15_melon_rephasing.md §3.1).
+
+    Replicates panel_g_melon on the CONFIRM set (55586926 + 55675634, ROADMAP §8) —
+    the set S14 deliberately left untouched.  One execution at the pre-registered
+    threshold; no window widening, no parameter search.  Reuses
+    `analysis.s10_replay_bench.CONFIRM_SUBS` rather than restating that split.
+    """
+    from analysis.s10_replay_bench import CONFIRM_SUBS
+    eps_all, paths_all = [], []
+    for sub in CONFIRM_SUBS:
+        eps, _self_play, _skipped = load_live(sub)
+        eps_all.extend(eps)
+        paths_all.extend(replay_paths(sub))
+    eps_by_id = {e["episode_id"]: e for e in eps_all}
+    res = panel_g_melon(paths_all, eps_by_id)
+
+    screen = json.loads(MELON_OUT.read_text())
+    screen_day = screen["earliest_feasible_harvest_day"]
+    screen_target = next(t for t in screen["g4_rephasing_model"]["targets"]
+                         if t["harvest_day"] == screen_day)
+    screen_gain = screen_target["d_our_melon_median"]
+    screen_flip_share = screen_target["loss_flips_our_side_only"] / screen["g4_rephasing_model"]["n_losses"]
+
+    feasible = res["g3_feasibility"]["earliest_feasible_harvest_day"]
+    at_feasible = next((t for t in res["g4_rephasing_model"]["targets"]
+                        if t["harvest_day"] == feasible), None)
+
+    if at_feasible is None:
+        verdict = ("STOP — gate 1 (confirm-set replication) FAILS: no harvest day on the "
+                    "confirm set is both land/cash-feasible and modelled.")
+        passed = False
+        confirm_gain = confirm_flip_share = None
+    else:
+        confirm_gain = at_feasible["d_our_melon_median"]
+        n_losses = res["g4_rephasing_model"]["n_losses"]
+        confirm_flip_share = (at_feasible["loss_flips_our_side_only"] / n_losses) if n_losses else None
+        gain_ok = confirm_gain > 0 and confirm_gain >= 0.6 * screen_gain
+        flip_ok = (confirm_flip_share is not None
+                   and abs(confirm_flip_share - screen_flip_share) <= 0.08)
+        passed = gain_ok and flip_ok
+        verdict = (
+            f"{'PASS' if passed else 'STOP'} — gate 1 (confirm-set replication, plan §3.1.1): "
+            f"screen d{screen_day} d_our_melon_median=${screen_gain:+,} flips {screen_target['loss_flips_our_side_only']}/"
+            f"{screen['g4_rephasing_model']['n_losses']} ({screen_flip_share:.4f}); "
+            f"confirm d{feasible} d_our_melon_median=${confirm_gain:+,} "
+            f"({confirm_gain / screen_gain:.3f}x screen, need >=0.60x and >0) "
+            f"flips {at_feasible['loss_flips_our_side_only']}/{n_losses} ({confirm_flip_share:.4f}, "
+            f"need within 0.08 of {screen_flip_share:.4f})."
+        )
+
+    res["verdict"] = verdict
+    res.update({
+        "pass": "S15 Phase 1 gate 1 — confirm-set replication (docs/plans/s15_melon_rephasing.md §3.1.1)",
+        "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "confirm_subs": list(CONFIRM_SUBS),
+        "confirm_set_note": ("55586926 + 55675634, untouched by S14; one execution at the "
+                             "pre-registered threshold, no exploratory variants (ROADMAP §8)"),
+        "gate_1_passed": passed,
+        "screen_reference": {"day": screen_day, "d_our_melon_median": screen_gain,
+                             "loss_flip_share": screen_flip_share},
+        "confirm_result": {"day": feasible, "d_our_melon_median": confirm_gain,
+                           "loss_flip_share": confirm_flip_share},
+        "earliest_feasible_harvest_day": feasible,
+    })
+    DERIVED.mkdir(parents=True, exist_ok=True)
+    GATE1_OUT.write_text(json.dumps(res, indent=2, ensure_ascii=False))
+    print(f"wrote {GATE1_OUT}")
+    print(verdict)
+    return res
+
+
+GATE2_OUT = DERIVED / "s15_gate2_hand_routing.json"
+GATE2_SUBS = ("55586926", "55675634", "55726984")  # all live subs share this early-game window
+GATE2_WAVE2_TILES = 14  # plan §1: 14 MELON seeds / tiles for the re-phased wave 2
+
+
+def _gate2_window_steps(day_hour_pairs, n_steps):
+    """`steps[idx]['observation']` carries `day`/`hour` == `divmod(idx, 24)` exactly, and
+    `steps[idx]['action']` is the action decided WHILE OBSERVING that same `steps[idx]`
+    (verified against real replays in `tests/test_s15_gate2_hand_routing.py` — every
+    `idx = day*24+hour` sampled reads back that identical day/hour). So `idx = day*24+hour`
+    is the one correct index for both fields; `+1` reads the FOLLOWING hour's decision."""
+    for day, hour in day_hour_pairs:
+        idx = day * 24 + hour
+        if idx < n_steps:
+            yield day, hour, idx
+
+
+def _gate2_episode(steps, seat, n_steps):
+    """Actions actually taken by our farmer/hands from d6h17 through d7h23 (the window
+    S15 g3_feasibility names as the earliest land+cash-feasible planting window), plus
+    the free-NE-tile count once the window's last action (d7h23) has taken effect — read
+    one index past the window's last action, since `steps[idx]['observation']` is the
+    state the d7h23 decision was made FROM, not the state it produces."""
+    window = [(6, h) for h in range(17, 24)] + [(7, h) for h in range(24)]
+    cnt_strawberry = cnt_wheat = cnt_pasture = cnt_other_plant = 0
+    hand_pass = farmer_pass = hand_turns = farmer_turns = hand_move = 0
+    last_idx = None
+    for day, hour, idx in _gate2_window_steps(window, n_steps):
+        a = steps[idx][seat].get("action") or {}
+        fa = a.get("farmer")
+        farmer_turns += 1
+        if fa and fa[0] == "PASS":
+            farmer_pass += 1
+        if fa and fa[0] == "PLANT":
+            if fa[1] == "STRAWBERRY":
+                cnt_strawberry += 1
+            elif fa[1] == "WHEAT":
+                cnt_wheat += 1
+            else:
+                cnt_other_plant += 1
+        if fa and fa[0] == "BUILD_PASTURE":
+            cnt_pasture += 1
+        for h in (a.get("hands") or []):
+            hand_turns += 1
+            if not h:
+                continue
+            if h[0] == "PASS":
+                hand_pass += 1
+            elif h[0] in ("NORTH", "SOUTH", "EAST", "WEST"):
+                hand_move += 1
+            elif h[0] == "PLANT":
+                if h[1] == "STRAWBERRY":
+                    cnt_strawberry += 1
+                elif h[1] == "WHEAT":
+                    cnt_wheat += 1
+                else:
+                    cnt_other_plant += 1
+            elif h[0] == "BUILD_PASTURE":
+                cnt_pasture += 1
+        last_idx = idx
+    close_idx = min(last_idx + 1, n_steps - 1)
+    o = steps[close_idx][seat]["observation"]
+    farm = o["farms"][o["player"]]
+    free_at_close = sum(1 for row in farm["tiles"] for t in row if t is None)
+    idle = hand_pass + farmer_pass
+    return dict(cnt_strawberry=cnt_strawberry, cnt_wheat=cnt_wheat, cnt_pasture=cnt_pasture,
+                cnt_other_plant=cnt_other_plant, hand_pass=hand_pass, farmer_pass=farmer_pass,
+                idle=idle, hand_turns=hand_turns, farmer_turns=farmer_turns, hand_move=hand_move,
+                free_tiles_at_window_close=free_at_close)
+
+
+def run_gate2_hand_routing():
+    """S15 Phase 1, gate 2 (docs/plans/s15_melon_rephasing.md §3.1.2).
+
+    Replays the tape's OWN recorded action stream (not a model) over d6h17-d7h23 — the
+    window g3_feasibility names as earliest land+cash-feasible — and checks whether 14
+    MELON PLANT actions (plus the movement to reach 14 distinct NE tiles, plus the
+    same-day WATER every newly planted tile needs to survive the day-boundary weed-death
+    rule: `consecutive_unwatered>=2` — `engine_reference/kaggriculture.py:769-784`) fit
+    without disturbing what the tape already does there.  No `agent/` code: this reads
+    the recorded stream, it does not construct or play a modified one.
+    """
+    rows = []
+    for sub in GATE2_SUBS:
+        for p in replay_paths(sub):
+            d = load_replay(p)
+            m = replay_meta(d)
+            excl, _r = is_excluded(m)
+            if excl:
+                continue
+            teams = m["teams"]
+            if OUR_TEAM not in teams:
+                continue
+            seat = 0 if teams[0] == OUR_TEAM else 1
+            steps = m["steps"]
+            if len(steps) <= 7 * 24 + 23 + 1:  # need idx 192 (the window's closing observation)
+                continue
+            r = _gate2_episode(steps, seat, len(steps))
+            r["submission"] = sub
+            r["episode_id"] = m["episode_id"]
+            rows.append(r)
+
+    sig_counts = Counter((r["cnt_strawberry"], r["cnt_wheat"], r["cnt_pasture"],
+                          r["cnt_other_plant"], r["hand_pass"], r["farmer_pass"])
+                         for r in rows)
+    idle_vals = [r["idle"] for r in rows]
+    free_vals = [r["free_tiles_at_window_close"] for r in rows]
+    max_idle = max(idle_vals)
+    min_free_at_close = min(free_vals)
+
+    # Lower bound only: 1 move + 1 PLANT + 1 same-day WATER per new tile, ignoring travel
+    # beyond the first hop and ignoring that idle turns are clustered at the window's very
+    # end (day7 h18-23 in every sampled episode), by which point most of NE is already
+    # spoken for. A real schedule needs at least this many free unit-turns; if even this
+    # floor is not met the fit question is already closed.
+    min_unit_turns_needed = 3 * GATE2_WAVE2_TILES
+
+    plant_fits = max_idle >= min_unit_turns_needed
+    land_fits = min_free_at_close >= GATE2_WAVE2_TILES
+    passed = plant_fits and land_fits
+
+    if passed:
+        verdict = (f"PASS — gate 2 (hand-routing feasibility, plan §3.1.2): worst-case idle "
+                   f"capacity {max_idle} unit-turns >= floor {min_unit_turns_needed}; worst-case "
+                   f"free NE tiles at window close {min_free_at_close} >= {GATE2_WAVE2_TILES} needed.")
+    else:
+        reasons = []
+        if not plant_fits:
+            reasons.append(f"idle capacity tops out at {max_idle} unit-turns across "
+                           f"{len(rows)} episodes, short of the {min_unit_turns_needed}-turn floor "
+                           f"for {GATE2_WAVE2_TILES} tiles (1 move + 1 PLANT + 1 same-day WATER each, "
+                           "no travel beyond the first hop)")
+        if not land_fits:
+            reasons.append(f"only {min_free_at_close} NE tiles remain free at window close "
+                           f"(worst case), short of the {GATE2_WAVE2_TILES} needed, because the "
+                           "recorded tape already spends the newly-unlocked land on "
+                           f"{sig_counts.most_common(1)[0][0][0]} STRAWBERRY + "
+                           f"{sig_counts.most_common(1)[0][0][1]} WHEAT + "
+                           f"{sig_counts.most_common(1)[0][0][2]} PASTURE plantings in the same "
+                           "window, and idle hand-turns only appear after that land is spoken for")
+        verdict = ("STOP — gate 2 (hand-routing feasibility, plan §3.1.2) FAILS on the tape as "
+                  "recorded: " + "; ".join(reasons) + ". The d7/d17 fallback does not rescue this "
+                  "— the recorded STRAWBERRY block plants straight through d7h22, so the same "
+                  "conflict holds inside the fallback window too.")
+
+    res = {
+        "pass": "S15 Phase 1 gate 2 — hand-routing feasibility (docs/plans/s15_melon_rephasing.md §3.1.2)",
+        "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "verdict": verdict,
+        "gate_2_passed": passed,
+        "window": "d6h17 - d7h23 (31 turns), the earliest land+cash-feasible window per g3_feasibility",
+        "submissions_checked": list(GATE2_SUBS),
+        "n_episodes": len(rows),
+        "n_distinct_signatures": len(sig_counts),
+        "dominant_signature": {
+            "strawberry_plants": sig_counts.most_common(1)[0][0][0],
+            "wheat_plants": sig_counts.most_common(1)[0][0][1],
+            "pasture_builds": sig_counts.most_common(1)[0][0][2],
+            "other_plants": sig_counts.most_common(1)[0][0][3],
+            "hand_pass": sig_counts.most_common(1)[0][0][4],
+            "farmer_pass": sig_counts.most_common(1)[0][0][5],
+            "n": sig_counts.most_common(1)[0][1],
+        },
+        "wave2_tiles_needed": GATE2_WAVE2_TILES,
+        "min_unit_turns_needed_floor": min_unit_turns_needed,
+        "idle_unit_turns": {"min": min(idle_vals), "median": sorted(idle_vals)[len(idle_vals) // 2],
+                            "max": max_idle},
+        "free_tiles_at_window_close": {"min": min_free_at_close, "median": sorted(free_vals)[len(free_vals) // 2],
+                                       "max": max(free_vals)},
+        "plant_fit_check_passed": plant_fits,
+        "land_fit_check_passed": land_fits,
+        "note": ("This checks fit against the tape AS RECORDED — it does not model hiring "
+                "additional hands or displacing the recorded STRAWBERRY/WHEAT/PASTURE block, "
+                "either of which would be a wider change than 'given where the farmer and hands "
+                "actually stand' and is out of gate 2's scope (plan §3.1, rule 1: a kill "
+                "criterion is a STOP, not a wider window)."),
+    }
+    DERIVED.mkdir(parents=True, exist_ok=True)
+    GATE2_OUT.write_text(json.dumps(res, indent=2, ensure_ascii=False))
+    print(f"wrote {GATE2_OUT}")
+    print(verdict)
+    return res
+
+
 def _melon_verdict(res, at_feasible):
     g2, g3 = res["g2_tile_day_cost"], res["g3_feasibility"]
     if at_feasible is None:
@@ -977,7 +1239,7 @@ def _melon_verdict(res, at_feasible):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["run", "report", "melon"])
+    ap.add_argument("cmd", choices=["run", "report", "melon", "melon_confirm", "gate2_hand_routing"])
     ap.add_argument("--strong-cut", type=float, default=2100.0)
     ap.add_argument("--submission", choices=sorted(SUBMISSION_META), default=SUBMISSION)
     args = ap.parse_args()
@@ -986,6 +1248,10 @@ def main():
         run(args.strong_cut)
     elif args.cmd == "melon":
         run_melon()
+    elif args.cmd == "melon_confirm":
+        run_melon_confirm()
+    elif args.cmd == "gate2_hand_routing":
+        run_gate2_hand_routing()
     else:
         print(json.dumps(json.loads(OUT.read_text()), indent=2, ensure_ascii=False))
 
