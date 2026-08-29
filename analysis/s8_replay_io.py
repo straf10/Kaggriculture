@@ -21,6 +21,7 @@ Exclusions (§1.3), collapsed to ONE test after inspecting disk 2026-08-23:
 """
 from __future__ import annotations
 
+import csv
 import glob
 import gzip
 import json
@@ -118,6 +119,37 @@ def opponent_clean(steps: list, seat: int) -> bool:
     the per-step status list as its 3rd element."""
     _p, _m, status = _seat_streams(steps, seat)
     return set(status) <= {"ACTIVE", "DONE", "INACTIVE"}
+
+
+def parse_episodes_csv(path: Path) -> dict[int, dict]:
+    """Defensive parse of a `kaggle competitions episodes <sub> -v` capture.
+
+    The CLI appends a blank line and a usage-hint line to its own CSV output
+    (`Use "kaggle competitions replay <episode_id>" ...`), which `csv.DictReader`
+    renders as a row with missing/non-numeric fields. Skip anything malformed
+    rather than special-casing the trailer text — same defensive check
+    `analysis/s9_live_read_55726984.py::load_episode_times` used inline before this
+    was pulled out so there is exactly one parser (ROADMAP §3, reuse rule).
+
+    Returns {episode_id: {"createTime": str, "state": str, "type": str}} for every
+    well-formed row, ladder AND validation episodes alike — callers decide what to
+    exclude (see `is_excluded` above).
+    """
+    rows: dict[int, dict] = {}
+    if not path.exists():
+        return rows
+    with open(path, newline="") as fh:
+        for row in csv.DictReader(fh):
+            rid = (row.get("id") or "").strip()
+            create_time = (row.get("createTime") or "").strip()
+            if not rid.isdigit() or not create_time:
+                continue
+            rows[int(rid)] = {
+                "createTime": create_time,
+                "state": row.get("state") or "",
+                "type": row.get("type") or "",
+            }
+    return rows
 
 
 def ladder_episodes(submission: str):

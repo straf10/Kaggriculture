@@ -35,7 +35,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from analysis.s8_replay_io import load as load_replay, replay_paths, meta as replay_meta, is_excluded  # noqa: E402
+from analysis.s8_replay_io import (  # noqa: E402
+    load as load_replay, replay_paths, meta as replay_meta, is_excluded, parse_episodes_csv,
+)
 from analysis.s9_market_ledger import episode_ledger, step_ledger  # noqa: E402
 from engine_reference.kaggriculture import (  # noqa: E402
     CROPS, MARKET_I0, PRICE_FLOOR, SHOPS, TOWN_CENTER_PRODUCTS, market_price,
@@ -109,19 +111,11 @@ def load_leaderboard(path=None):
 
 def load_episode_times():
     """episode_id -> createTime, from the `episodes -v` capture (ladder rows only)."""
-    times = {}
-    if not EP_CSV.exists():
-        return times
-    with open(EP_CSV, newline="") as fh:
-        for row in csv.DictReader(fh):
-            # The `episodes -v` capture ends with a CLI hint line, which DictReader
-            # renders as a row whose later fields are None.  Skip anything malformed.
-            if "PUBLIC" not in (row.get("type") or ""):
-                continue
-            if not (row.get("id") or "").strip().isdigit():
-                continue
-            times[int(row["id"])] = dt.datetime.fromisoformat(row["createTime"])
-    return times
+    return {
+        eid: dt.datetime.fromisoformat(row["createTime"])
+        for eid, row in parse_episodes_csv(EP_CSV).items()
+        if "PUBLIC" in row["type"]
+    }
 
 
 def _tile_days(steps, seat):
